@@ -19,15 +19,15 @@ This document translates the PRD's functional requirements into concrete technic
 | Layer | Choice | Rationale |
 |---|---|---|
 | Backend API | Python + FastAPI | Async support, native fit with ML/embedding libraries, auto-generated OpenAPI docs |
-| Ingestion Workers | Python (APScheduler / Celery + Redis) | Same language as backend; Celery gives retry/backoff for free |
+| Ingestion Workers | Python (APScheduler / Celery + Redis / In-process async) | Celery in eager mode or APScheduler for local zero-Docker dev; Celery + Redis for production with retry/backoff |
 | Embeddings | Sentence-Transformers (`all-MiniLM-L6-v2` for dev) → OpenAI/Voyage embeddings for prod-quality | Free/local for development iteration; swap to hosted model once pipeline is stable |
-| Vector Store | ChromaDB (dev) → pgvector (prod) | Chroma is zero-config for local dev; pgvector lets us keep metadata + vectors in one Postgres instance for production, simplifying conflict/freshness queries |
-| Relational Store | PostgreSQL | Stores documents, chunks metadata, conflicts, query logs — needed for joins Chroma alone can't do |
+| Vector Store | pgvector (PostgreSQL extension) | Single database for relational metadata + vector embeddings across both local dev and production |
+| Relational Store | PostgreSQL 16+ | Stores documents, chunks metadata, conflicts, query logs, and vector indexes with full type-safety |
 | LLM (generation) | Claude API (primary), OpenAI as fallback | Strong grounded-answer + citation behavior; fallback avoids single-vendor outage risk |
 | Reranker | Cross-encoder (`ms-marco-MiniLM`) or Cohere Rerank API | Reduces false positives from pure vector similarity before hitting the LLM |
-| Frontend | React + TypeScript + Tailwind CSS | Matches team's existing skillset (per portfolio work); fast to iterate |
-| Deployment | Docker Compose (dev) → single VM or Render (prod) | No need for k8s at this scale; keep ops overhead low for a student team |
-| Task/Job Queue | Redis + Celery beat | Handles the scheduled re-ingestion job (FR-4) reliably with retries |
+| Frontend | React + TypeScript + Tailwind CSS | Matches team's existing skillset (per portfolio work); fast to iterate with Vite |
+| Deployment | Native Local Dev (Python venv + Node) / Docker Compose (staging & prod) | Zero-friction local development without requiring Docker; containerized deployments for cloud/staging |
+| Task/Job Queue | Redis + Celery beat (prod) / In-process scheduler (dev) | Handles scheduled re-ingestion job (FR-4) reliably in prod; runs in-process synchronously or in background for local dev |
 
 ---
 
@@ -236,9 +236,9 @@ Ingestion Worker: fetch source → hash compare
 
 ## 10. Deployment Design
 
-- **Dev:** Docker Compose spinning up FastAPI, Postgres+pgvector, Redis, and the React dev server.
-- **Prod:** Single VM (or Render/Railway) running Dockerized services; Postgres managed instance if budget allows, otherwise same VM.
-- **CI/CD:** GitHub Actions — run tests on PR, build Docker images on merge to `main`, manual deploy trigger for the demo environment.
+- **Local Development (Non-Docker App Execution):** Native Python virtual environment (Python 3.11+) running FastAPI via `uvicorn` and React frontend (Node 20+) via Vite (`npm run dev`), connected to local PostgreSQL with pgvector, with background tasks executing in-process (Celery eager mode).
+- **Staging & Production:** Docker Compose / containerized single VM (or Render/Railway) running FastAPI, Postgres+pgvector, Redis, Celery worker, and built static frontend.
+- **CI/CD:** GitHub Actions — run backend tests (`pytest`, `ruff`, `black`) and frontend tests (`npm test`, `npm run lint`) directly on host runners on PR; build Docker images on merge to `main`.
 - **Secrets:** LLM/embedding API keys stored in environment variables / GitHub Actions secrets, never committed.
 
 ---

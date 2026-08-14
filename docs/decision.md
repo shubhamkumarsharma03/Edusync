@@ -141,6 +141,22 @@ Format: lightweight ADR (Architecture Decision Record). Newest decisions at the 
 
 ---
 
+## ADR-011: Native / Non-Docker Local Development with PostgreSQL + pgvector
+
+**Status:** Accepted
+
+**Context:** Running application processes (FastAPI, Vite, Celery worker) directly on the host OS provides fast iteration and immediate debugging without Docker container overhead. At the same time, maintaining database schema and vector search parity between local development and production avoids subtle dialect bugs.
+
+**Decision:**
+1. **Unified Storage (PostgreSQL + pgvector):** Use PostgreSQL with the `pgvector` extension across both local development and production. Developers run PostgreSQL locally (or on localhost) and execute migrations via Alembic.
+2. **Native Application Execution:** Run the FastAPI backend (`uvicorn`) and React frontend (`npm run dev`) directly on the host operating system using standard Python 3.11+ and Node.js 20+.
+3. **Background Ingestion Execution:** In local development, execute background ingestion in-process via Celery eager mode (`CELERY_TASK_ALWAYS_EAGER=true`) or async background tasks, eliminating the hard requirement for an external Redis daemon.
+4. **Containerization for Deployment:** Docker and Docker Compose remain supported for containerized staging/production deployments and CI environments.
+
+**Consequences:** Complete storage and vector query parity between dev and prod, fast host-based development loops, and zero container overhead for daily coding.
+
+---
+
 ## Open / not yet decided
 
 - Final decision on whether the ablation study (RAG variants × OCR engines) is scoped into the core capstone deliverable or treated as a stretch goal for the paper.

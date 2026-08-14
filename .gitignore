@@ -54,3 +54,10 @@ Thumbs.db
 *.swp
 *.swo
 .idea/
+.vscode/
+
+# Local Dev Data & Vector Store
+chroma_data/
+*.db
+*.sqlite3
+

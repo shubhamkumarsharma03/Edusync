@@ -11,15 +11,15 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 ## Phase 0 — Prerequisites & Team Setup
 
-**Goal:** Everyone can run the project locally before any feature code is written.
+**Goal:** Everyone can run the project locally without Docker before any feature code is written.
 
 - [ ] Create GitHub repo, add `AGENTS.md`, `docs/` folder with PRD + TDD copied in
 - [ ] Assign the 4 roles (per TDD/PRD): Ingestion owner, Retrieval/Vector DB owner, Backend API/Evaluation owner, Frontend/UX owner
-- [ ] Set up `.env.example` listing required keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (fallback), `DATABASE_URL`, `REDIS_URL`
-- [ ] Install shared tooling versions: Python 3.11+, Node 20+, Docker, Docker Compose
+- [ ] Set up `.env.example` listing required keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (fallback), `DATABASE_URL`, `REDIS_URL`, `VECTOR_STORE_TYPE`
+- [ ] Install shared tooling versions: Python 3.11+, Node 20+ (Docker/Docker Compose optional for staging/prod testing)
 - [ ] Agree on branch strategy (e.g., `main` protected, feature branches + PR review by one other teammate)
 
-**Exit criteria:** Every team member can clone the repo and run `docker compose up` without errors (even with empty services).
+**Exit criteria:** Every team member can clone the repo, set up Python venv, install npm packages, and verify health checks locally without Docker errors.
 
 ---
 
@@ -29,11 +29,11 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 ### 1.1 Repository Structure
 - [ ] Create folder structure exactly as defined in `AGENTS.md` (`/backend`, `/frontend`, `/docs`, `/scripts`)
-- [ ] Add `docker-compose.yml` with services: `api`, `postgres`, `redis`, `frontend` (dev server)
+- [ ] Add `docker-compose.yml` (optional for containerized deployments/staging parity)
 
 ### 1.2 Backend Scaffold
 - [ ] Initialize FastAPI app (`backend/api/main.py`) with a health-check route (`GET /health`)
-- [ ] Set up `requirements.txt` (fastapi, uvicorn, sqlalchemy, alembic, celery, redis, pgvector, sentence-transformers, anthropic, pytest, black, ruff)
+- [ ] Set up `requirements.txt` (fastapi, uvicorn, sqlalchemy, asyncpg, psycopg2-binary, alembic, celery, redis, pgvector, sentence-transformers, anthropic, rank-bm25, pytest, black, ruff)
 - [ ] Configure `ruff` + `black` + pre-commit hook
 
 ### 1.3 Frontend Scaffold
@@ -44,7 +44,7 @@ This plan sequences the build so nothing later depends on something not yet buil
 ### 1.4 CI Setup
 - [ ] GitHub Actions workflow: run backend `pytest` + `ruff` and frontend `npm test` + `npm run lint` on every PR
 
-**Exit criteria:** `docker compose up --build` starts Postgres, Redis, FastAPI (`/health` returns 200), and the React dev server, with CI green on an empty-but-structured repo.
+**Exit criteria:** `uvicorn api.main:app --reload` starts FastAPI (`/health` returns 200) and `npm run dev` starts React dev server natively; CI green on an empty-but-structured repo.
 
 ---
 
@@ -52,21 +52,22 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 **Goal:** Schema in place, migrations working, before any ingestion or retrieval code depends on it.
 
-### 2.1 Postgres + pgvector
-- [ ] Add `pgvector` extension to the Postgres Docker image (`CREATE EXTENSION IF NOT EXISTS vector;`)
-- [ ] Set up Alembic (`alembic init migrations`)
+### 2.1 Database & pgvector Setup
+- [ ] Configure PostgreSQL with `pgvector` extension (`CREATE EXTENSION IF NOT EXISTS vector;`)
+- [ ] Configure SQLAlchemy async engine (`postgresql+asyncpg://...`)
+- [ ] Set up Alembic (`alembic init migrations`) with pgvector type support
 
 ### 2.2 Core Tables (per TDD §4)
 - [ ] Migration 1: `documents` table (source_url, source_type, department, owner, content_hash, status, timestamps)
-- [ ] Migration 2: `chunks` table (document_id FK, content, token_count, embedding VECTOR, last_verified) + `ivfflat` index
+- [ ] Migration 2: `chunks` table (document_id FK, content, token_count, embedding VECTOR(384), last_verified) + `ivfflat` / `hnsw` index
 - [ ] Migration 3: `conflicts` table (document_ids[], detected_at, resolved_by, resolved_at, resolution_note)
 - [ ] Migration 4: `queries_log` table (question, retrieved_chunk_ids[], answer, confidence_score, feedback, created_at)
 
 ### 2.3 SQLAlchemy Models & Seed Data
-- [ ] Write ORM models mirroring the DDL exactly (`backend/models/`)
+- [ ] Write ORM models mirroring the DDL exactly (`backend/models/`) using PostgreSQL + pgvector column types
 - [ ] Write a seed script (`scripts/seed_dev_data.py`) with 3–5 sample documents (a fake exam circular, fee notice, syllabus PDF) for local development without needing real college data yet
 
-**Exit criteria:** `alembic upgrade head` runs clean on a fresh DB; seed script populates sample rows visible via `psql` or a DB GUI; a basic `SELECT` from each table returns expected columns.
+**Exit criteria:** `alembic upgrade head` runs clean on a fresh PostgreSQL database with pgvector; seed script populates sample rows visible via DB client; a basic query from each table returns expected columns.
 
 ---
 

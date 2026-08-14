@@ -18,7 +18,7 @@ EduSync is a self-updating RAG chatbot that answers student questions from a col
 ```
 /backend
   /api            FastAPI routes (chat, feedback, admin)
-  /ingestion      Celery tasks: fetch, hash-diff, chunk, embed, upsert
+  /ingestion      Ingestion tasks: fetch, hash-diff, chunk, embed, upsert
   /retrieval      Hybrid search, reranking, confidence gating
   /models         Pydantic schemas + SQLAlchemy models
   /db             Migrations (Alembic), DDL
@@ -32,36 +32,52 @@ EduSync is a self-updating RAG chatbot that answers student questions from a col
   EduSync_PRD.md
   EduSync_Technical_Design_Document.md
   Project_Synopsis.docx
+  decision.md
+  implementation_plan.md
 /scripts          One-off dev/ops scripts (seed data, manual re-ingest trigger)
-docker-compose.yml
+docker-compose.yml  # Optional for containerized deployments; dev runs natively
 ```
 
 If a change requires deviating from this layout, say so explicitly in the PR description rather than silently restructuring.
 
 ---
 
-## Setup & Commands
+## Setup & Commands (Non-Docker Local Development)
+
+EduSync is configured to run completely on your local machine without requiring Docker or daemon containers.
 
 ```bash
-# Backend
+# 1. Backend Setup & Run (Python 3.11+)
 cd backend
+# On Linux/macOS:
 python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt --break-system-packages
+# On Windows (PowerShell):
+python -m venv .venv; .venv\Scripts\Activate.ps1
+
+pip install -r requirements.txt
+# Run database migrations against local PostgreSQL (with pgvector extension enabled):
+alembic upgrade head
+# Start FastAPI backend server (http://localhost:8000):
 uvicorn api.main:app --reload
 
-# Frontend
+# 2. Frontend Setup & Run (Node 20+)
 cd frontend
 npm install
-npm run dev
+npm run dev # Starts Vite dev server (http://localhost:5173)
 
-# Full stack (dev)
+# 3. Running Background Tasks Locally
+# In local dev, CELERY_TASK_ALWAYS_EAGER=true in .env runs tasks in-process automatically.
+# Alternatively, run Celery worker locally if local Redis is available:
+# celery -A ingestion.worker.celery_app worker --loglevel=info
+
+# 4. Optional Full Stack with Docker (for deployment parity testing)
 docker compose up --build
 
-# Tests
+# 5. Tests
 cd backend && pytest
 cd frontend && npm test
 
-# Lint / format
+# 6. Lint / format
 cd backend && ruff check . && black .
 cd frontend && npm run lint
 ```
