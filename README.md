@@ -87,8 +87,10 @@ npm run build       # Verify TypeScript & Vite build
 
 ## Project Documentation
 
-- [EduSync PRD (Product Requirements)](file:///D:/Projects/EduSync/docs/EduSync_PRD.md)
-- [Technical Design Document (TDD)](file:///D:/Projects/EduSync/docs/EduSync_Technical_Design_Document.md)
-- [Architecture Decision Log (ADRs)](file:///D:/Projects/EduSync/docs/decision.md)
-- [Step-by-Step Implementation Plan](file:///D:/Projects/EduSync/docs/implementation_plan.md)
-- [Agent & Contributor Guide](file:///D:/Projects/EduSync/AGENTS.md)
+- [EduSync PRD (Product Requirements)](docs/EduSync_PRD.md)
+- [Technical Design Document (TDD)](docs/EduSync_Technical_Design_Document.md)
+- [Architecture Decision Log (ADRs)](docs/decision.md)
+- [Step-by-Step Implementation Plan](docs/implementation_plan.md)
+- [Agent & Contributor Guide](AGENTS.md)
+- [Backend Documentation](backend/README.md)
+
