@@ -1,11 +1,11 @@
-# EduSync 🎓
+# EduSync
 
 > **Self-Updating Retrieval-Augmented Knowledge Base Chatbot for Institutional Documents**  
 > *B.Tech IT Final Year Project — Engineering College Ajmer*
 
 ---
 
-## 📌 Overview
+## Overview
 
 EduSync is an institutional AI assistant that answers student queries about exam schedules, circulars, syllabi, fee notices, and official announcements by retrieving verified answers from a continuously synchronized knowledge base.
 
@@ -17,7 +17,7 @@ EduSync is an institutional AI assistant that answers student queries about exam
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Frontend**: React 18, TypeScript, Vite, Tailwind CSS, Lucide Icons
 - **Backend API**: Python 3.11+, FastAPI, Uvicorn, Pydantic v2
@@ -28,7 +28,7 @@ EduSync is an institutional AI assistant that answers student queries about exam
 
 ---
 
-## 🚀 Quick Start (Native Local Development)
+## Quick Start (Native Local Development)
 
 ### 1. Prerequisites
 - Python 3.11+ (or 3.12 / 3.13)
@@ -66,7 +66,7 @@ npm run dev
 
 ---
 
-## 🧪 Testing & Linting
+## Testing & Linting
 
 ### Backend
 ```powershell
@@ -85,7 +85,7 @@ npm run build       # Verify TypeScript & Vite build
 
 ---
 
-## 📚 Project Documentation
+## Project Documentation
 
 - [EduSync PRD (Product Requirements)](file:///D:/Projects/EduSync/docs/EduSync_PRD.md)
 - [Technical Design Document (TDD)](file:///D:/Projects/EduSync/docs/EduSync_Technical_Design_Document.md)
