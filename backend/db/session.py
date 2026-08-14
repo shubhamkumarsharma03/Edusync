@@ -14,9 +14,8 @@ engine = create_async_engine(
     max_overflow=20,
 )
 
-async_session_maker = async_sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
+async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for FastAPI to get a database session."""

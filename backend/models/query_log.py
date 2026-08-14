@@ -12,7 +12,9 @@ class QueryLog(Base, UUIDMixin):
     __tablename__ = "queries_log"
 
     question: Mapped[str] = mapped_column(Text, nullable=False)
-    retrieved_chunk_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(UUID(as_uuid=True)), nullable=True)
+    retrieved_chunk_ids: Mapped[list[uuid.UUID] | None] = mapped_column(
+        ARRAY(UUID(as_uuid=True)), nullable=True
+    )
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence_score: Mapped[float | None] = mapped_column(Numeric(4, 3), nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
