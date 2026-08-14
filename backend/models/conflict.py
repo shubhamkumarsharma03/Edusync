@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime
+
 from sqlalchemy import Text, func
+from sqlalchemy.dialects.postgresql import ARRAY, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import TIMESTAMP, ARRAY, UUID
 
 from db.base import Base, UUIDMixin
+
 
 class Conflict(Base, UUIDMixin):
     __tablename__ = "conflicts"

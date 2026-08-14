@@ -1,10 +1,12 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Text, Numeric, CheckConstraint, func
+
+from sqlalchemy import CheckConstraint, Numeric, Text, func
+from sqlalchemy.dialects.postgresql import ARRAY, TIMESTAMP, UUID
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy.dialects.postgresql import TIMESTAMP, ARRAY, UUID
 
 from db.base import Base, UUIDMixin
+
 
 class QueryLog(Base, UUIDMixin):
     __tablename__ = "queries_log"
@@ -14,7 +16,7 @@ class QueryLog(Base, UUIDMixin):
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence_score: Mapped[float | None] = mapped_column(Numeric(4, 3), nullable=True)
     feedback: Mapped[str | None] = mapped_column(Text, nullable=True)
-    
+
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
