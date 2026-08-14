@@ -1,0 +1,33 @@
+from datetime import datetime
+from sqlalchemy import String, Text, CheckConstraint, func
+from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.dialects.postgresql import TIMESTAMP
+
+from db.base import Base, UUIDMixin
+
+class Document(Base, UUIDMixin):
+    __tablename__ = "documents"
+
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    source_type: Mapped[str] = mapped_column(Text, nullable=False)
+    department: Mapped[str | None] = mapped_column(Text, nullable=True)
+    owner: Mapped[str | None] = mapped_column(Text, nullable=True)
+    content_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="fresh")
+
+    ingested_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_checked_at: Mapped[datetime] = mapped_column(
+        TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            source_type.in_(["pdf", "html", "sheet"]), name="documents_source_type_check"
+        ),
+        CheckConstraint(
+            status.in_(["fresh", "stale", "conflicted", "pending"]),
+            name="documents_status_check",
+        ),
+    )

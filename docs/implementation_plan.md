@@ -53,21 +53,21 @@ This plan sequences the build so nothing later depends on something not yet buil
 **Goal:** Schema in place, migrations working, before any ingestion or retrieval code depends on it.
 
 ### 2.1 Database & pgvector Setup
-- [ ] Configure PostgreSQL with `pgvector` extension (`CREATE EXTENSION IF NOT EXISTS vector;`)
-- [ ] Configure SQLAlchemy async engine (`postgresql+asyncpg://...`)
-- [ ] Set up Alembic (`alembic init migrations`) with pgvector type support
+- [x] Configure PostgreSQL with `pgvector` extension (`CREATE EXTENSION IF NOT EXISTS vector;`)
+- [x] Configure SQLAlchemy async engine (`postgresql+asyncpg://...`)
+- [x] Set up Alembic (`alembic init migrations`) with pgvector type support
 
 ### 2.2 Core Tables (per TDD §4)
-- [ ] Migration 1: `documents` table (source_url, source_type, department, owner, content_hash, status, timestamps)
-- [ ] Migration 2: `chunks` table (document_id FK, content, token_count, embedding VECTOR(384), last_verified) + `ivfflat` / `hnsw` index
-- [ ] Migration 3: `conflicts` table (document_ids[], detected_at, resolved_by, resolved_at, resolution_note)
-- [ ] Migration 4: `queries_log` table (question, retrieved_chunk_ids[], answer, confidence_score, feedback, created_at)
+- [x] Migration 1: `documents` table (source_url, source_type, department, owner, content_hash, status, timestamps)
+- [x] Migration 2: `chunks` table (document_id FK, content, token_count, embedding VECTOR(384), last_verified) + `ivfflat` / `hnsw` index
+- [x] Migration 3: `conflicts` table (document_ids[], detected_at, resolved_by, resolved_at, resolution_note)
+- [x] Migration 4: `queries_log` table (question, retrieved_chunk_ids[], answer, confidence_score, feedback, created_at)
 
 ### 2.3 SQLAlchemy Models & Seed Data
-- [ ] Write ORM models mirroring the DDL exactly (`backend/models/`) using PostgreSQL + pgvector column types
-- [ ] Write a seed script (`scripts/seed_dev_data.py`) with 3–5 sample documents (a fake exam circular, fee notice, syllabus PDF) for local development without needing real college data yet
+- [x] Write ORM models mirroring the DDL exactly (`backend/models/`) using PostgreSQL + pgvector column types
+- [x] Write a seed script (`scripts/seed_dev_data.py`) with 3–5 sample documents (a fake exam circular, fee notice, syllabus PDF) for local development without needing real college data yet
 
-**Exit criteria:** `alembic upgrade head` runs clean on a fresh PostgreSQL database with pgvector; seed script populates sample rows visible via DB client; a basic query from each table returns expected columns.
+**Exit criteria:** `alembic upgrade head` runs clean on a fresh PostgreSQL database with pgvector; seed script populates sample rows visible via DB client; a basic query from each table returns expected columns. (Completed)
 
 ---
 
