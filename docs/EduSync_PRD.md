@@ -54,7 +54,7 @@ Build a chatbot whose knowledge base updates itself automatically when source do
 ## 4. Functional Requirements
 
 ### 4.1 Document Ingestion
-- **FR-1:** System shall ingest documents from at least these source types: static PDFs, HTML pages (college website), and structured sheets (CSV/Google Sheets export).
+- **FR-1:** System shall ingest documents from institutional sources: primarily downloadable PDFs (~95% of notices, timetables, syllabi, fee schedules), alongside HTML announcement pages and structured sheets (CSV/Excel).
 - **FR-2:** Each ingested document shall be tagged with metadata: `source_url`, `source_type`, `department`, `document_owner`, `ingested_at`, `content_hash`.
 - **FR-3:** System shall chunk documents into retrieval-sized segments (target: 300–500 tokens per chunk) preserving section context (e.g., don't split a table mid-row).
 

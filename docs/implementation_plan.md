@@ -13,13 +13,13 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 **Goal:** Everyone can run the project locally without Docker before any feature code is written.
 
-- [ ] Create GitHub repo, add `AGENTS.md`, `docs/` folder with PRD + TDD copied in
-- [ ] Assign the 4 roles (per TDD/PRD): Ingestion owner, Retrieval/Vector DB owner, Backend API/Evaluation owner, Frontend/UX owner
-- [ ] Set up `.env.example` listing required keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (fallback), `DATABASE_URL`, `REDIS_URL`, `VECTOR_STORE_TYPE`
-- [ ] Install shared tooling versions: Python 3.11+, Node 20+ (Docker/Docker Compose optional for staging/prod testing)
-- [ ] Agree on branch strategy (e.g., `main` protected, feature branches + PR review by one other teammate)
+- [x] Create GitHub repo, add `AGENTS.md`, `docs/` folder with PRD + TDD copied in
+- [x] Assign the 4 roles (per TDD/PRD): Ingestion owner, Retrieval/Vector DB owner, Backend API/Evaluation owner, Frontend/UX owner
+- [x] Set up `.env.example` listing required keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` (fallback), `DATABASE_URL`, `REDIS_URL`, `VECTOR_STORE_TYPE`
+- [x] Install shared tooling versions: Python 3.11+, Node 20+, PostgreSQL with pgvector
+- [x] Agree on branch strategy (e.g., `main` protected, feature branches + PR review by one other teammate)
 
-**Exit criteria:** Every team member can clone the repo, set up Python venv, install npm packages, and verify health checks locally without Docker errors.
+**Exit criteria:** Every team member can clone the repo, set up Python venv, install npm packages, and verify health checks locally without Docker errors. (Completed)
 
 ---
 
@@ -28,23 +28,23 @@ This plan sequences the build so nothing later depends on something not yet buil
 **Goal:** Empty but runnable skeleton for backend and frontend, wired together.
 
 ### 1.1 Repository Structure
-- [ ] Create folder structure exactly as defined in `AGENTS.md` (`/backend`, `/frontend`, `/docs`, `/scripts`)
-- [ ] Add `docker-compose.yml` (optional for containerized deployments/staging parity)
+- [x] Create folder structure exactly as defined in `AGENTS.md` (`/backend`, `/frontend`, `/docs`, `/scripts`)
+- [x] Add `docker-compose.yml` (optional for containerized deployments/staging parity)
 
 ### 1.2 Backend Scaffold
-- [ ] Initialize FastAPI app (`backend/api/main.py`) with a health-check route (`GET /health`)
-- [ ] Set up `requirements.txt` (fastapi, uvicorn, sqlalchemy, asyncpg, psycopg2-binary, alembic, celery, redis, pgvector, sentence-transformers, anthropic, rank-bm25, pytest, black, ruff)
-- [ ] Configure `ruff` + `black` + pre-commit hook
+- [x] Initialize FastAPI app (`backend/api/main.py`) with a health-check route (`GET /health`)
+- [x] Set up `requirements.txt` (fastapi, uvicorn, sqlalchemy, asyncpg, psycopg2-binary, alembic, celery, redis, pgvector, sentence-transformers, anthropic, rank-bm25, pytest, black, ruff)
+- [x] Configure `ruff` + `black` + pre-commit hook
 
 ### 1.3 Frontend Scaffold
-- [ ] Initialize React + TypeScript app via Vite in `/frontend`
-- [ ] Install Tailwind CSS, configure `tailwind.config.js`
-- [ ] Confirm `npm run dev` renders a placeholder "EduSync" page
+- [x] Initialize React + TypeScript app via Vite in `/frontend`
+- [x] Install Tailwind CSS, configure `tailwind.config.js`
+- [x] Confirm `npm run dev` renders a placeholder "EduSync" page
 
 ### 1.4 CI Setup
-- [ ] GitHub Actions workflow: run backend `pytest` + `ruff` and frontend `npm test` + `npm run lint` on every PR
+- [x] GitHub Actions workflow: run backend `pytest` + `ruff` and frontend `npm test` + `npm run lint` on every PR
 
-**Exit criteria:** `uvicorn api.main:app --reload` starts FastAPI (`/health` returns 200) and `npm run dev` starts React dev server natively; CI green on an empty-but-structured repo.
+**Exit criteria:** `uvicorn api.main:app --reload` starts FastAPI (`/health` returns 200) and `npm run dev` starts React dev server natively; CI green on an empty-but-structured repo. (Completed)
 
 ---
 

@@ -157,6 +157,22 @@ Format: lightweight ADR (Architecture Decision Record). Newest decisions at the 
 
 ---
 
+## ADR-012: PDF-Centric Incremental Ingestion Strategy for ecajmer.ac.in
+
+**Status:** Accepted
+
+**Context:** Analysis of the institutional website (`ecajmer.ac.in`) indicates that ~95% of actionable knowledge (timetables, fee payment schedules, examination circulars, syllabus handbooks, and administrative announcements) is published as downloadable documents—primarily PDFs. New notices and revised PDFs are uploaded on a daily/frequent basis to the home page and department notice boards, while static HTML pages change less frequently (weekly or every 10 days).
+
+**Decision:**
+1. **Notice Board & Home Page Watcher:** Design the Playwright crawler to prioritize polling the announcement feeds and notice boards of `ecajmer.ac.in` on a configurable schedule (default every 6 hours).
+2. **Incremental PDF Hash Ingestion:** As new PDFs are uploaded, compute SHA-256 content hashes immediately upon download. Existing PDFs from earlier dates hit the hash cache and are skipped (0 embedding cost), while only new or revised PDFs of the day undergo parsing and vector embedding.
+3. **Table & Notice Normalization:** PDF parsing will prioritize table-structure preservation (ADR-004) to prevent timetable and fee-table semantic corruption.
+4. **Revision & Stale Handling:** When a new notice supersedes an older notice of the same type/department, the earlier document's chunks are marked `stale` to prevent obsolete information retrieval.
+
+**Consequences:** The ingestion engine operates with minimal compute overhead while guaranteeing near real-time synchronization with daily college document drops.
+
+---
+
 ## Open / not yet decided
 
 - Final decision on whether the ablation study (RAG variants × OCR engines) is scoped into the core capstone deliverable or treated as a stretch goal for the paper.
