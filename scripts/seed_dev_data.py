@@ -5,12 +5,12 @@ Populates the database with initial sample documents and circulars for local tes
 
 import asyncio
 import logging
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
-from sqlalchemy import text
 
 # Import config and models
 from api.config import get_settings
-from models import Document, Chunk
+from models import Chunk, Document
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
