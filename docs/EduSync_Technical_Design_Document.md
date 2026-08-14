@@ -36,14 +36,14 @@ This document translates the PRD's functional requirements into concrete technic
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         DATA SOURCES                              │
-│  College website | PDF circulars | Sheets/CSV exports              │
+│  ecajmer.ac.in (Home notices polled daily, PDF/Sheets/Docx)       │
 └───────────────────────────────┬─────────────────────────────────┘
-                                │  (polled every N hours)
+                                │  (polled every 6h / daily for new PDFs)
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                     INGESTION SERVICE (Celery worker)              │
-│  1. Fetch source → 2. Compute SHA-256 hash → 3. Compare to DB      │
-│  4. If changed: parse → chunk → tag metadata → embed → upsert     │
+│  1. Discover PDF links → 2. SHA-256 hash diff vs DB                │
+│  3. If new/changed: Table-aware parse → chunk → embed → upsert   │
 └───────────────────────────────┬─────────────────────────────────┘
                                 ▼
 ┌─────────────────────────────────────────────────────────────────┐
