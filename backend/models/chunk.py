@@ -1,12 +1,14 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import ForeignKey, Integer, Text, func, Index
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+
 from pgvector.sqlalchemy import Vector
+from sqlalchemy import ForeignKey, Index, Integer, Text, func
+from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base, UUIDMixin
 from models.document import Document
+
 
 class Chunk(Base, UUIDMixin):
     __tablename__ = "chunks"
@@ -17,7 +19,7 @@ class Chunk(Base, UUIDMixin):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     embedding: Mapped[Vector] = mapped_column(Vector(384), nullable=True)
-    
+
     last_verified: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
