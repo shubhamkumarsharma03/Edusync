@@ -91,8 +91,8 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Attach parent metadata (department, owner, source_url) to every chunk
 
 ### 3.4 Embedding & Upsert
-- [ ] Wire in Sentence-Transformers (`all-MiniLM-L6-v2`) for local dev
-- [ ] Write `upsert_chunks()` — insert new/changed chunks into Postgres + vector index, update `last_verified`
+- [x] Wire in Sentence-Transformers (`all-MiniLM-L6-v2`) for local dev
+- [x] Write `upsert_chunks()` — insert new/changed chunks into Postgres + vector index, update `last_verified`
 
 ### 3.5 Conflict Detection (per TDD §5.4)
 - [ ] Implement rule-based same-department/same-type overlap check

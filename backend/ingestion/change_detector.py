@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ingestion.hasher import compute_hash
+from ingestion.hasher import compute_document_hash
 from ingestion.schemas import FetchedDocument
 from models.document import Document
 
@@ -51,7 +51,7 @@ class ChangeDetector:
         - If hash matches: Status -> UNCHANGED, updates last_checked_at
         - If hash differs: Status -> MODIFIED, marks status='pending'
         """
-        computed_hash = compute_hash(fetched.raw_content, source_type=fetched.source_type)
+        computed_hash = compute_document_hash(fetched)
 
         stmt = select(Document).where(Document.source_url == fetched.source_url)
         result = await session.execute(stmt)

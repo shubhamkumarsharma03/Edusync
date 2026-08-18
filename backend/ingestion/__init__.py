@@ -1,5 +1,6 @@
 from ingestion.change_detector import ChangeDetector, ChangeStatus, DetectionResult
 from ingestion.chunker import SemanticChunker, chunk_document, count_tokens
+from ingestion.embedder import DocumentEmbedder
 from ingestion.fetchers import (
     BaseFetcher,
     HTMLFetcher,
@@ -12,8 +13,10 @@ from ingestion.fetchers import (
     fetch_sheet,
     get_fetcher,
 )
-from ingestion.hasher import compute_hash, normalize_content
+from ingestion.hasher import compute_document_hash, compute_hash, normalize_content
+from ingestion.pipeline import IngestionSummary, ingest_document
 from ingestion.schemas import ChunkData, ExtractedTable, FetchedDocument, SourceType
+from ingestion.upsert import upsert_document_and_chunks
 
 __all__ = [
     "SourceType",
@@ -31,6 +34,7 @@ __all__ = [
     "get_fetcher",
     "detect_source_type",
     "compute_hash",
+    "compute_document_hash",
     "normalize_content",
     "ChangeDetector",
     "ChangeStatus",
@@ -38,4 +42,8 @@ __all__ = [
     "SemanticChunker",
     "chunk_document",
     "count_tokens",
+    "DocumentEmbedder",
+    "upsert_document_and_chunks",
+    "IngestionSummary",
+    "ingest_document",
 ]

@@ -1,4 +1,8 @@
 import hashlib
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ingestion.schemas import FetchedDocument
 
 
 def normalize_content(content: str | bytes, source_type: str = "pdf") -> bytes:
@@ -7,7 +11,7 @@ def normalize_content(content: str | bytes, source_type: str = "pdf") -> bytes:
     For text/HTML/Sheet strings:
     - Normalizes line endings (\r\n -> \n)
     - Strips leading/trailing whitespace per line
-    - Collapses consecutive blank lines into a single blank line
+    - Omits empty lines
 
     For binary data (e.g. PDFs):
     - Returns raw bytes if string cannot be decoded
@@ -38,3 +42,14 @@ def compute_hash(content: str | bytes, source_type: str = "pdf") -> str:
     """Compute a deterministic SHA-256 hex digest for document content."""
     normalized_bytes = normalize_content(content, source_type=source_type)
     return hashlib.sha256(normalized_bytes).hexdigest()
+
+
+def compute_document_hash(fetched: "FetchedDocument") -> str:
+    """Compute deterministic SHA-256 hash for a FetchedDocument.
+
+    - For HTML & Sheets: Hashes normalized extracted_text + tables (ignores raw ephemeral scripts).
+    - For PDFs: Hashes raw binary payload.
+    """
+    if fetched.source_type in ("html", "sheet"):
+        return compute_hash(fetched.extracted_text, source_type=fetched.source_type)
+    return compute_hash(fetched.raw_content, source_type=fetched.source_type)
