@@ -76,19 +76,19 @@ This plan sequences the build so nothing later depends on something not yet buil
 **Goal:** Documents go in, get chunked, embedded, and stored — self-updating from day one, not bolted on later.
 
 ### 3.1 Fetchers
-- [ ] `fetch_pdf(url)` — download + extract text (PyMuPDF or pdfplumber)
-- [ ] `fetch_html(url)` — fetch + strip boilerplate (readability/BeautifulSoup)
-- [ ] `fetch_sheet(url_or_path)` — parse CSV/Sheets export into structured rows
+- [x] `fetch_pdf(url)` — download + extract text (PyMuPDF or pdfplumber)
+- [x] `fetch_html(url)` — fetch + strip boilerplate (readability/BeautifulSoup)
+- [x] `fetch_sheet(url_or_path)` — parse CSV/Sheets export into structured rows
 
 ### 3.2 Change Detection (per TDD §5.1)
-- [ ] Implement `normalize_content()` (strip whitespace/boilerplate before hashing)
-- [ ] Implement `compute_hash()` (SHA-256)
-- [ ] Implement comparison against stored `documents.content_hash`; mark `pending` on mismatch
+- [x] Implement `normalize_content()` (strip whitespace/boilerplate before hashing)
+- [x] Implement `compute_hash()` (SHA-256)
+- [x] Implement comparison against stored `documents.content_hash`; mark `pending` on mismatch
 
 ### 3.3 Chunking (per TDD §5.2)
-- [ ] Implement semantic-boundary chunker (headings/paragraphs first, 300–500 tokens, ~15% overlap)
-- [ ] Special-case: keep tables as single chunks
-- [ ] Attach parent metadata (department, owner, source_url) to every chunk
+- [x] Implement semantic-boundary chunker (headings/paragraphs first, 300–500 tokens, ~15% overlap)
+- [x] Special-case: keep tables as single chunks
+- [x] Attach parent metadata (department, owner, source_url) to every chunk
 
 ### 3.4 Embedding & Upsert
 - [ ] Wire in Sentence-Transformers (`all-MiniLM-L6-v2`) for local dev
