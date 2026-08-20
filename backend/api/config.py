@@ -21,12 +21,13 @@ class Settings(BaseSettings):
     CONFIDENCE_THRESHOLD: float = 0.55
 
     # LLM API Keys
-    ANTHROPIC_API_KEY: str | None = None
+    GEMINI_API_KEY: str | None = None
     OPENAI_API_KEY: str | None = None
 
     # Celery & Queue
     CELERY_TASK_ALWAYS_EAGER: bool = True
     REDIS_URL: str = "redis://localhost:6379/0"
+    REINGEST_INTERVAL_HOURS: int = 6
 
     model_config = SettingsConfigDict(
         env_file=".env",

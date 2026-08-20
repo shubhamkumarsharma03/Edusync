@@ -10,6 +10,7 @@ from ingestion.embedder import DocumentEmbedder
 from ingestion.fetchers.factory import fetch_document
 from ingestion.schemas import SourceType
 from ingestion.upsert import upsert_document_and_chunks
+from ingestion.conflict_detector import ConflictDetector
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,13 @@ async def ingest_document(
             embedder=embedder,
         )
 
+        # 6. Check for conflicts
+        is_conflicted = await ConflictDetector.check_conflicts(session, doc)
+
         action_status = "created" if detection.status == ChangeStatus.NEW else "updated"
+        if is_conflicted:
+            action_status = "conflicted"
+            
         return IngestionSummary(
             source_url=source,
             status=action_status,

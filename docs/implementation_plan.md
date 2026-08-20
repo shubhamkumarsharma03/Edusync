@@ -95,12 +95,12 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Write `upsert_chunks()` — insert new/changed chunks into Postgres + vector index, update `last_verified`
 
 ### 3.5 Conflict Detection (per TDD §5.4)
-- [ ] Implement rule-based same-department/same-type overlap check
-- [ ] On conflict: create `conflicts` row, set both documents' status to `conflicted`, exclude from retrieval
+- [x] Implement rule-based same-department/same-type overlap check
+- [x] On conflict: create `conflicts` row, set both documents' status to `conflicted`, exclude from retrieval
 
 ### 3.6 Scheduling
-- [ ] Set up Celery worker + Celery Beat (default interval: every 6 hours, configurable)
-- [ ] Add manual trigger task (used later by the admin "re-ingest" button)
+- [x] Set up Celery worker + Celery Beat (default interval: every 6 hours, configurable)
+- [x] Add manual trigger task (used later by the admin "re-ingest" button)
 
 **Exit criteria:** Running the ingestion task against the seeded sample documents produces correct rows in `documents`/`chunks`; re-running with an unchanged source produces zero new embeddings; editing a seed doc and re-running produces exactly the changed chunks.
 

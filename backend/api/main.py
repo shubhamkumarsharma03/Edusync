@@ -38,7 +38,7 @@ app.add_middleware(
 async def root() -> dict[str, str]:
     """Root info endpoint."""
     return {
-        "service": settings.APP_NAME,
+        "service": "EduSync API",
         "version": settings.APP_VERSION,
         "docs_url": "/docs",
     }
@@ -49,6 +49,6 @@ async def health_check() -> dict[str, str]:
     """Health check endpoint to verify backend operational status."""
     return {
         "status": "healthy",
-        "service": settings.APP_NAME,
+        "service": "EduSync API",
         "version": settings.APP_VERSION,
     }
