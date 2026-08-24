@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from uuid import UUID
 
@@ -119,21 +118,20 @@ class HybridSearcher:
         if not query.strip():
             return []
 
-        # Run vector and keyword searches concurrently
-        vector_task = self.vector_searcher.search(
+        # Run vector and keyword searches on the session sequentially
+        # Note: SQLAlchemy AsyncSession does not permit concurrent operations on the same session instance
+        vector_results = await self.vector_searcher.search(
             session=session,
             query=query,
             top_k=candidate_k,
             allowed_statuses=allowed_statuses,
         )
-        keyword_task = self.keyword_searcher.search(
+        keyword_results = await self.keyword_searcher.search(
             session=session,
             query=query,
             top_k=candidate_k,
             allowed_statuses=allowed_statuses,
         )
-
-        vector_results, keyword_results = await asyncio.gather(vector_task, keyword_task)
 
         return self.reciprocal_rank_fusion(
             vector_results=vector_results,
