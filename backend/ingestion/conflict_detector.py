@@ -29,23 +29,28 @@ class ConflictDetector:
         return {kw for kw in cls.TYPE_KEYWORDS if kw in url_lower}
 
     @classmethod
-    async def _check_llm_conflict(cls, session: AsyncSession, doc1: Document, doc2: Document) -> bool:
+    async def _check_llm_conflict(
+        cls, session: AsyncSession, doc1: Document, doc2: Document
+    ) -> bool:
         from google import genai
+
         from api.config import get_settings
         from models.chunk import Chunk
 
         settings = get_settings()
         if not settings.GEMINI_API_KEY or settings.GEMINI_API_KEY == "your-gemini-api-key":
-            logger.warning("Gemini API key not set, skipping LLM conflict check and assuming conflict.")
+            logger.warning(
+                "Gemini API key not set, skipping LLM conflict check and assuming conflict."
+            )
             return True
 
         # Fetch first chunk of both documents
         stmt1 = select(Chunk.content).where(Chunk.document_id == doc1.id).limit(1)
         stmt2 = select(Chunk.content).where(Chunk.document_id == doc2.id).limit(1)
-        
+
         chunk1 = (await session.execute(stmt1)).scalar_one_or_none()
         chunk2 = (await session.execute(stmt2)).scalar_one_or_none()
-        
+
         if not chunk1 or not chunk2:
             return True
 
@@ -69,15 +74,13 @@ Reply with ONLY the word "YES" or "NO".
             # Note: google-genai client methods might be synchronous, we can run them in a thread or just call it
             # The new google-genai library supports generate_content
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=prompt,
-                config={'max_output_tokens': 10}
+                model="gemini-2.5-flash", contents=prompt, config={"max_output_tokens": 10}
             )
             answer = response.text.strip().upper()
             return "YES" in answer
         except Exception as e:
             logger.error(f"LLM conflict check failed: {e}")
-            return True # Fail open to flagging a conflict
+            return True  # Fail open to flagging a conflict
 
     @classmethod
     async def check_conflicts(cls, session: AsyncSession, new_doc: Document) -> bool:
@@ -110,7 +113,7 @@ Reply with ONLY the word "YES" or "NO".
             if existing_doc.source_type == new_doc.source_type and shared_types:
                 # Use LLM to verify if it's a real conflict
                 is_real_conflict = await cls._check_llm_conflict(session, new_doc, existing_doc)
-                
+
                 if is_real_conflict:
                     logger.warning(
                         f"Conflict detected between {new_doc.id} ({new_doc.source_url}) "
