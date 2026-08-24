@@ -18,4 +18,5 @@ class RetrievedChunk:
     owner: str | None = None
     vector_score: float | None = None
     keyword_score: float | None = None
+    rerank_score: float | None = None
     rank: int | None = None

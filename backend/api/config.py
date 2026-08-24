@@ -15,9 +15,10 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/edusync"
 
-    # Vector Store
+    # Vector Store & Reranker
     VECTOR_STORE_TYPE: str = "pgvector"
     EMBEDDING_MODEL_NAME: str = "all-MiniLM-L6-v2"
+    RERANKER_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     CONFIDENCE_THRESHOLD: float = 0.55
 
     # LLM API Keys
