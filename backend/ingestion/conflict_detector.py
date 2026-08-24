@@ -56,7 +56,7 @@ class ConflictDetector:
 
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
         prompt = f"""
-You are helping an ingestion pipeline detect conflicts between two documents. 
+You are helping an ingestion pipeline detect conflicts between two documents.
 Both documents share the same department and source type.
 Your job is to determine if they are discussing the exact same specific event or subject, but disagree on facts (like dates, versions, or amounts), which means they CONFLICT.
 If they are discussing different events (e.g. Mid-Sem vs End-Sem, or 2025 vs 2026), they DO NOT conflict.
@@ -67,7 +67,7 @@ Document 1 (First part):
 Document 2 (First part):
 {chunk2[:1000]}
 
-Are these two documents conflicting versions of the exact same subject? 
+Are these two documents conflicting versions of the exact same subject?
 Reply with ONLY the word "YES" or "NO".
 """
         try:
