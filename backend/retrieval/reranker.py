@@ -58,7 +58,7 @@ class CrossEncoderReranker:
         if not chunks or not query.strip():
             return list(chunks[:top_k])
 
-        model = self.get_model(self.model_name)
+        model = self.get_rerank_model()
         pairs = [(query, chunk.content) for chunk in chunks]
 
         raw_scores = model.predict(pairs, show_progress_bar=False)

@@ -40,16 +40,14 @@ def test_sigmoid_normalization() -> None:
 
 def test_reranker_sorting_and_ranking() -> None:
     """Test that CrossEncoderReranker predicts scores, applies sigmoid, and sorts descending."""
-    reranker = CrossEncoderReranker()
+    mock_model = MagicMock()
+    # c2 has highest score, c1 medium, c3 negative
+    mock_model.predict.return_value = [-0.5, 4.2, -3.1]
+    reranker = CrossEncoderReranker(model=mock_model)
 
     c1 = create_sample_chunk("Chunk 1: general college info")
     c2 = create_sample_chunk("Chunk 2: exact mid term schedule dates")
     c3 = create_sample_chunk("Chunk 3: unrelated sports news")
-
-    mock_model = MagicMock()
-    # c2 has highest score, c1 medium, c3 negative
-    mock_model.predict.return_value = [-0.5, 4.2, -3.1]
-    reranker._model = mock_model
 
     results = reranker.rerank(
         query="when are the mid term exams",
@@ -69,13 +67,11 @@ def test_reranker_sorting_and_ranking() -> None:
 
 def test_top_k_truncation() -> None:
     """Test that reranker respects the top_k parameter."""
-    reranker = CrossEncoderReranker()
-
-    chunks = [create_sample_chunk(f"Content {i}") for i in range(10)]
-
     mock_model = MagicMock()
     mock_model.predict.return_value = list(range(10))
-    reranker._model = mock_model
+    reranker = CrossEncoderReranker(model=mock_model)
+
+    chunks = [create_sample_chunk(f"Content {i}") for i in range(10)]
 
     results = reranker.rerank(
         query="test query",
@@ -104,7 +100,10 @@ def test_empty_and_blank_query() -> None:
 def test_hybrid_search_to_rerank_pipeline() -> None:
     """Test integration flow from HybridSearcher RRF fusion to CrossEncoder reranking."""
     hybrid = HybridSearcher(rrf_k=60)
-    reranker = CrossEncoderReranker()
+    mock_model = MagicMock()
+    # c_distractor gets low score, c_relevant gets high score
+    mock_model.predict.return_value = [0.1, 3.8]
+    reranker = CrossEncoderReranker(model=mock_model)
 
     c_relevant = create_sample_chunk("Mid term exam timetable for Semester 7 CSE")
     c_distractor = create_sample_chunk("Semester 7 fee deposit circular")
@@ -118,11 +117,6 @@ def test_hybrid_search_to_rerank_pipeline() -> None:
     assert merged[0].content == c_distractor.content
 
     # Now rerank with cross-encoder which recognizes c_relevant is actually more relevant to "timetable"
-    mock_model = MagicMock()
-    # c_distractor gets low score, c_relevant gets high score
-    mock_model.predict.return_value = [0.1, 3.8]
-    reranker._model = mock_model
-
     reranked = reranker.rerank("when is the CSE sem 7 timetable", merged, top_k=5)
 
     # Reranker should elevate c_relevant to rank 1

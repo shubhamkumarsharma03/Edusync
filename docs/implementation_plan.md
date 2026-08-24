@@ -116,8 +116,8 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Merge + deduplicate results
 
 ### 4.2 Reranking
-- [ ] Integrate cross-encoder reranker (`ms-marco-MiniLM` locally, or Cohere Rerank API)
-- [ ] Sort merged candidates by rerank score
+- [x] Integrate cross-encoder reranker (`ms-marco-MiniLM` locally, or Cohere Rerank API)
+- [x] Sort merged candidates by rerank score
 
 ### 4.3 Confidence Gate & Fallback
 - [ ] Define `CONFIDENCE_THRESHOLD` as a configurable constant
