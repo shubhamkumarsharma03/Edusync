@@ -111,9 +111,9 @@ This plan sequences the build so nothing later depends on something not yet buil
 **Goal:** A working `/chat` endpoint with hybrid search, reranking, confidence gating, and citations.
 
 ### 4.1 Hybrid Search
-- [ ] Implement BM25/keyword search (e.g., Postgres full-text search or `rank_bm25`)
-- [ ] Implement vector ANN search against `chunks.embedding`
-- [ ] Merge + deduplicate results
+- [x] Implement BM25/keyword search (e.g., Postgres full-text search or `rank_bm25`)
+- [x] Implement vector ANN search against `chunks.embedding`
+- [x] Merge + deduplicate results
 
 ### 4.2 Reranking
 - [ ] Integrate cross-encoder reranker (`ms-marco-MiniLM` locally, or Cohere Rerank API)
