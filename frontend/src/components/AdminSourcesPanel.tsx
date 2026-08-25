@@ -23,7 +23,9 @@ import {
   ChevronRight,
   FileText,
   Eye,
+  Zap,
 } from 'lucide-react'
+
 import {
   IngestionSource,
   SourceCreatePayload,
@@ -128,6 +130,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedDeptFilter, setSelectedDeptFilter] = useState('all')
+  const [confirmBatchModalOpen, setConfirmBatchModalOpen] = useState(false)
+
 
   // ECA-style table pagination controls
   const [pageSize, setPageSize] = useState<number>(10)
@@ -509,12 +513,13 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
 
               <button
-                onClick={handleFetchAll}
+                onClick={() => setConfirmBatchModalOpen(true)}
                 disabled={actionLoading === 'all' || sources.length === 0}
-                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 via-indigo-600 to-indigo-700 hover:from-emerald-700 hover:to-indigo-800 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95 disabled:opacity-50"
+                title="Trigger serial fetching & embedding across all sources with confirmation"
               >
-                <Play className="w-3.5 h-3.5 fill-current" />
-                Fetch All by Priority
+                <Zap className="w-3.5 h-3.5 fill-current text-amber-300" />
+                <span>Ingest All (Serial)</span>
               </button>
 
               <button
@@ -526,6 +531,29 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               </button>
             </div>
           </div>
+
+          {/* Live Active Serial Ingestion Status Banner */}
+          {sources.some((s) => s.status === 'fetching') && (
+            <div className="bg-indigo-50/90 border border-indigo-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-indigo-950 shadow-sm animate-pulse">
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
+                </span>
+                <span className="font-bold text-indigo-900">
+                  ⚡ Serial Ingestion Active:
+                </span>
+                <span className="text-indigo-800">
+                  Currently fetching & embedding: <strong className="underline">{sources.find((s) => s.status === 'fetching')?.name || 'next source in priority'}</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md border border-indigo-200">
+                  Auto-Refreshing (2.5s)
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Toast Notification */}
           {notification && (
@@ -544,6 +572,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               {notification.message}
             </div>
           )}
+
 
           {/* Filter and Search Bar */}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1251,6 +1280,87 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
           </div>
         </div>
       )}
+
+      {/* Universal Ingest All Confirmation Modal */}
+      {confirmBatchModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 sm:p-6 border-b border-[#f0f0f2] flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-sm">
+                  <Zap className="w-5 h-5 fill-current" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-[#18181b]">Trigger Serial Ingestion</h3>
+                  <p className="text-xs text-neutral-500 mt-0.5">
+                    Synchronize all {activeCount} active data sources in sequence
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setConfirmBatchModalOpen(false)}
+                className="w-8 h-8 rounded-lg hover:bg-neutral-100 flex items-center justify-center text-neutral-500 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6 space-y-4 text-xs text-neutral-600 leading-relaxed">
+              <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3.5 space-y-2">
+                <p className="font-semibold text-neutral-800">What will happen when confirmed:</p>
+                <ul className="space-y-1.5 text-neutral-600 list-disc list-inside">
+                  <li>Crawls official circulars & downloads PDF attachments in <strong>priority sequence (#1 to #{sources.length})</strong>.</li>
+                  <li>Computes <strong>SHA-256 hash diffs</strong> to skip unchanged files and re-embed only new/updated circulars.</li>
+                  <li>Generates 384-dimensional vector embeddings and stores them in PostgreSQL (pgvector).</li>
+                  <li>Each source status updates live from <span className="text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">fetching</span> to <span className="text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">completed</span>.</li>
+                </ul>
+              </div>
+
+              <div>
+                <span className="font-semibold text-neutral-700 block mb-2">
+                  Sequential Queue Preview ({activeCount} Sources):
+                </span>
+                <div className="max-h-36 overflow-y-auto space-y-1 border border-neutral-200 rounded-xl p-2 bg-white">
+                  {sources
+                    .filter((s) => s.is_active)
+                    .sort((a, b) => a.priority - b.priority)
+                    .map((s, idx) => (
+                      <div key={s.id} className="flex items-center justify-between text-[11px] px-2.5 py-1 bg-neutral-50 rounded-lg">
+                        <span className="font-medium text-neutral-800 truncate max-w-[280px]">
+                          #{idx + 1}. {s.name}
+                        </span>
+                        <span className="text-neutral-400 shrink-0 text-[10px]">{s.department || s.category}</span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 sm:p-5 bg-neutral-50/80 border-t border-[#f0f0f2] flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmBatchModalOpen(false)}
+                className="px-4 py-2 bg-white border border-[#d4d4d8] hover:bg-neutral-100 text-neutral-700 rounded-xl text-xs font-semibold transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmBatchModalOpen(false)
+                  handleFetchAll()
+                }}
+                disabled={actionLoading === 'all'}
+                className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95"
+              >
+                <Zap className="w-3.5 h-3.5 fill-current text-amber-300" />
+                <span>Yes, Ingest All (Serial)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+
