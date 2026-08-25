@@ -12,7 +12,6 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     ALLOWED_ORIGINS: list[str] = ["*"]
 
-
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/edusync"
 
