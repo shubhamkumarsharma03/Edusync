@@ -10,7 +10,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "EduSync API"
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    ALLOWED_ORIGINS: list[str] = ["*"]
+
 
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/edusync"
