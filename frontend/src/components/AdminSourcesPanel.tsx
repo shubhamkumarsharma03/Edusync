@@ -1504,9 +1504,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
       {/* Add / Edit Source Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-xl p-6 shadow-2xl text-[#18181b]">
-            <div className="flex items-center justify-between pb-4 border-b border-[#f0f0f2]">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-xl max-h-[88vh] sm:max-h-[90vh] flex flex-col shadow-2xl text-[#18181b] overflow-hidden">
+            {/* Sticky Header */}
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[#f0f0f2] flex-shrink-0 bg-white">
               <div>
                 <h3 className="text-base font-bold text-[#18181b]">
                   {editingSource ? 'Edit Ingestion Source' : 'Add New Source Link'}
@@ -1523,190 +1524,193 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               </button>
             </div>
 
-            {/* Categorized Official Presets Selector */}
-            {!editingSource && (
-              <div className="my-4 p-3.5 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                    <span>Official ECA Portals & Links (40+ Pre-Configured)</span>
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+              <div className="overflow-y-auto p-4 sm:p-5 space-y-4 flex-1">
+                {/* Categorized Official Presets Selector */}
+                {!editingSource && (
+                  <div className="p-3.5 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                        <span>Official ECA Portals (Auto-Fill)</span>
+                      </div>
+                      <span className="text-[10px] text-neutral-500">Select to fill fields</span>
+                    </div>
+
+                    {/* Categorized Group Dropdown */}
+                    <select
+                      onChange={(e) => {
+                        const found = QUICK_PRESETS.find((p) => p.url === e.target.value)
+                        if (found) handleApplyPreset(found)
+                      }}
+                      defaultValue=""
+                      className="w-full px-3 py-2 bg-white border border-[#d4d4d8] rounded-xl text-xs text-[#18181b] font-medium focus:outline-none focus:border-indigo-600 shadow-sm"
+                    >
+                      <option value="" disabled>
+                        -- ⚡ Choose an official ECA department or cell to auto-fill --
+                      </option>
+                      {Array.from(new Set(QUICK_PRESETS.map((p) => p.group))).map((groupName) => (
+                        <optgroup key={groupName} label={`📁 ${groupName}`}>
+                          {QUICK_PRESETS.filter((p) => p.group === groupName).map((p) => (
+                            <option key={p.url} value={p.url}>
+                              {p.name} — {p.department}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+
+                    {/* Popular Fast-Pick Chips */}
+                    <div>
+                      <span className="text-[10px] font-semibold text-neutral-400 block mb-1.5 uppercase">
+                        Quick Fast-Picks:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
+                        {QUICK_PRESETS.slice(0, 8).map((preset) => (
+                          <button
+                            key={preset.name}
+                            type="button"
+                            onClick={() => handleApplyPreset(preset)}
+                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-neutral-700 hover:text-indigo-700 border border-neutral-200 hover:border-indigo-300 rounded-lg text-[11px] font-medium transition shadow-xs"
+                          >
+                            + {preset.name.replace(' Circulars & Notices', '').replace(' Circulars', '')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[10px] text-neutral-500">Select to auto-fill details</span>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Source Display Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="e.g. CSE Department Circulars"
+                    className="w-full px-3.5 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] placeholder-neutral-400 focus:outline-none focus:border-neutral-400"
+                  />
                 </div>
 
-                {/* Categorized Group Dropdown */}
-                <select
-                  onChange={(e) => {
-                    const found = QUICK_PRESETS.find((p) => p.url === e.target.value)
-                    if (found) handleApplyPreset(found)
-                  }}
-                  defaultValue=""
-                  className="w-full px-3 py-2 bg-white border border-[#d4d4d8] rounded-xl text-xs text-[#18181b] font-medium focus:outline-none focus:border-indigo-600 shadow-sm"
-                >
-                  <option value="" disabled>
-                    -- ⚡ Choose an official ECA department, cell, or portal to auto-fill --
-                  </option>
-                  {Array.from(new Set(QUICK_PRESETS.map((p) => p.group))).map((groupName) => (
-                    <optgroup key={groupName} label={`📁 ${groupName}`}>
-                      {QUICK_PRESETS.filter((p) => p.group === groupName).map((p) => (
-                        <option key={p.url} value={p.url}>
-                          {p.name} — {p.department}
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Source URL on ecajmer.ac.in *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={formData.url}
+                    onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                    placeholder="https://www.ecajmer.ac.in/departments/cs-it/circulars"
+                    className="w-full px-3.5 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] placeholder-neutral-400 focus:outline-none focus:border-neutral-400"
+                  />
+                  <p className="text-[11px] text-neutral-500 mt-1">
+                    Attached PDF notices and timetables will be downloaded and embedded automatically.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1">Department</label>
+                    <select
+                      value={formData.department || ''}
+                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                    >
+                      {DEPARTMENTS_LIST.map((dept) => (
+                        <option key={dept} value={dept}>
+                          {dept}
                         </option>
                       ))}
-                    </optgroup>
-                  ))}
-                </select>
+                    </select>
+                  </div>
 
-                {/* Popular Fast-Pick Chips */}
-                <div>
-                  <span className="text-[10px] font-semibold text-neutral-400 block mb-1.5 uppercase">
-                    Quick Fast-Picks:
-                  </span>
-                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                    {QUICK_PRESETS.slice(0, 10).map((preset) => (
-                      <button
-                        key={preset.name}
-                        type="button"
-                        onClick={() => handleApplyPreset(preset)}
-                        className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-neutral-700 hover:text-indigo-700 border border-neutral-200 hover:border-indigo-300 rounded-lg text-[11px] font-medium transition shadow-xs"
-                      >
-                        + {preset.name.replace(' Circulars & Notices', '').replace(' Circulars', '')}
-                      </button>
-                    ))}
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1">Category</label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                    >
+                      <option value="circulars">Circulars / Notices (Category 1)</option>
+                      <option value="timetable">Time Tables (Category 2)</option>
+                      <option value="announcements">Announcements</option>
+                      <option value="general_html">General Web Page</option>
+                    </select>
                   </div>
                 </div>
-              </div>
-            )}
 
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1">Priority Rank</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.priority || 1}
+                      onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })}
+                      className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                    />
+                  </div>
 
-            <form onSubmit={handleSave} className="space-y-4 mt-4">
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Source Display Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. CSE Department Circulars"
-                  className="w-full px-3.5 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] placeholder-neutral-400 focus:outline-none focus:border-neutral-400"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1">1st Time Limit</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={formData.initial_fetch_limit || 50}
+                      onChange={(e) =>
+                        setFormData({ ...formData, initial_fetch_limit: parseInt(e.target.value) || 50 })
+                      }
+                      className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                    />
+                  </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-neutral-700 mb-1">
-                  Source URL on ecajmer.ac.in *
-                </label>
-                <input
-                  type="url"
-                  required
-                  value={formData.url}
-                  onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                  placeholder="https://www.ecajmer.ac.in/departments/cs-it/circulars"
-                  className="w-full px-3.5 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] placeholder-neutral-400 focus:outline-none focus:border-neutral-400"
-                />
-                <p className="text-[11px] text-neutral-500 mt-1">
-                  Attached PDF notices and timetables will be downloaded and embedded automatically.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">Department</label>
-                  <select
-                    value={formData.department || ''}
-                    onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
-                  >
-                    {DEPARTMENTS_LIST.map((dept) => (
-                      <option key={dept} value={dept}>
-                        {dept}
-                      </option>
-                    ))}
-                  </select>
+                  <div>
+                    <label className="block text-xs font-semibold text-neutral-700 mb-1">Recurring Limit</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={formData.subsequent_fetch_limit || 20}
+                      onChange={(e) =>
+                        setFormData({ ...formData, subsequent_fetch_limit: parseInt(e.target.value) || 20 })
+                      }
+                      className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                    />
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">Category</label>
-                  <select
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
-                  >
-                    <option value="circulars">Circulars / Notices (Category 1)</option>
-                    <option value="timetable">Time Tables (Category 2)</option>
-                    <option value="announcements">Announcements</option>
-                    <option value="general_html">General Web Page</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">Priority Rank</label>
+                <div className="flex items-center gap-2 pt-1">
                   <input
-                    type="number"
-                    min="1"
-                    value={formData.priority || 1}
-                    onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) || 1 })}
-                    className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                    type="checkbox"
+                    id="is_active"
+                    checked={formData.is_active}
+                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+                    className="rounded border-[#d4d4d8] text-indigo-600 focus:ring-0"
                   />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">1st Time Limit</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={formData.initial_fetch_limit || 50}
-                    onChange={(e) =>
-                      setFormData({ ...formData, initial_fetch_limit: parseInt(e.target.value) || 50 })
-                    }
-                    className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 mb-1">Recurring Limit</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={formData.subsequent_fetch_limit || 20}
-                    onChange={(e) =>
-                      setFormData({ ...formData, subsequent_fetch_limit: parseInt(e.target.value) || 20 })
-                    }
-                    className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
-                  />
+                  <label htmlFor="is_active" className="text-xs text-neutral-700 font-medium">
+                    Active for automated background extraction
+                  </label>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 pt-2">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="rounded border-[#d4d4d8] text-indigo-600 focus:ring-0"
-                />
-                <label htmlFor="is_active" className="text-xs text-neutral-700 font-medium">
-                  Active for automated background extraction
-                </label>
-              </div>
-
-              <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#f0f0f2]">
+              {/* Sticky Footer */}
+              <div className="p-4 sm:p-5 bg-neutral-50/90 border-t border-[#f0f0f2] flex items-center justify-end gap-3 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="px-4 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-semibold transition"
+                  className="px-4 py-2 bg-white border border-[#d4d4d8] hover:bg-neutral-100 text-neutral-700 rounded-xl text-xs font-semibold transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#18181b] hover:bg-black text-white rounded-xl text-xs font-semibold shadow-sm transition"
+                  className="px-5 py-2 bg-[#18181b] hover:bg-black text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95"
                 >
                   {editingSource ? 'Update Source' : 'Add Source'}
                 </button>
@@ -1718,12 +1722,13 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
       {/* Universal Sync All Confirmation Modal */}
       {confirmBatchModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-5 sm:p-6 border-b border-[#f0f0f2] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-lg max-h-[88vh] sm:max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Sticky Header */}
+            <div className="p-4 sm:p-5 border-b border-[#f0f0f2] flex items-center justify-between flex-shrink-0 bg-white">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shadow-sm">
-                  <RefreshCw className="w-5 h-5" />
+                <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shadow-sm">
+                  <RefreshCw className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="font-bold text-base text-[#18181b]">Synchronize All Data Sources</h3>
@@ -1740,7 +1745,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               </button>
             </div>
 
-            <div className="p-5 sm:p-6 space-y-4 text-xs text-neutral-600 leading-relaxed">
+            {/* Scrollable Content */}
+            <div className="overflow-y-auto p-4 sm:p-5 space-y-4 text-xs text-neutral-600 leading-relaxed flex-1">
               <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3.5 space-y-2">
                 <p className="font-semibold text-neutral-800">What will happen during synchronization:</p>
                 <ul className="space-y-1.5 text-neutral-600 list-disc list-inside">
@@ -1755,7 +1761,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                 <span className="font-semibold text-neutral-700 block mb-2">
                   Sequential Queue Preview ({activeCount} Sources):
                 </span>
-                <div className="max-h-36 overflow-y-auto space-y-1 border border-neutral-200 rounded-xl p-2 bg-white">
+                <div className="max-h-32 overflow-y-auto space-y-1 border border-neutral-200 rounded-xl p-2 bg-white">
                   {sources
                     .filter((s) => s.is_active)
                     .sort((a, b) => a.priority - b.priority)
@@ -1771,7 +1777,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               </div>
             </div>
 
-            <div className="p-4 sm:p-5 bg-neutral-50/80 border-t border-[#f0f0f2] flex items-center justify-end gap-3">
+            {/* Sticky Footer */}
+            <div className="p-4 sm:p-5 bg-neutral-50/90 border-t border-[#f0f0f2] flex items-center justify-end gap-3 flex-shrink-0">
               <button
                 type="button"
                 onClick={() => setConfirmBatchModalOpen(false)}
@@ -1795,8 +1802,6 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
           </div>
         </div>
       )}
-
     </div>
   )
 }
-
