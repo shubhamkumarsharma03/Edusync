@@ -350,6 +350,7 @@ async def seed_default_sources(
                 initial_fetch_limit=50,
                 subsequent_fetch_limit=20,
                 status="idle",
+                is_active=True,
             )
             session.add(src)
 

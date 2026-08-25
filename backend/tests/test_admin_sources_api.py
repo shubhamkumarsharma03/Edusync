@@ -1,34 +1,97 @@
+import uuid
+from datetime import UTC, datetime
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
 
-from api.config import get_settings
 from api.main import app
 from db.session import get_db
-
-settings = get_settings()
+from models.source import IngestionSource
 
 
 @pytest.fixture
-async def async_test_session():
-    test_engine = create_async_engine(
-        settings.DATABASE_URL,
-        echo=False,
-        poolclass=NullPool,
-    )
-    test_session_maker = async_sessionmaker(
-        test_engine, class_=AsyncSession, expire_on_commit=False
-    )
-    async with test_session_maker() as session:
-        yield session
-    await test_engine.dispose()
+def mock_db_session():
+    """In-memory mock session for Admin Sources API tests to run in CI without live Postgres."""
+    sources_store: dict[uuid.UUID, IngestionSource] = {}
+
+    session = AsyncMock()
+
+    async def mock_execute(stmt):
+        mock_res = MagicMock()
+        items = list(sources_store.values())
+
+        # Check if querying single source by ID from statement params or where criteria
+        found_item = None
+        try:
+            compiled = stmt.compile()
+            for val in compiled.params.values():
+                if isinstance(val, uuid.UUID):
+                    found_item = sources_store.get(val)
+                    break
+                elif isinstance(val, str):
+                    try:
+                        u = uuid.UUID(val)
+                        if u in sources_store:
+                            found_item = sources_store[u]
+                            break
+                    except ValueError:
+                        pass
+        except Exception:
+            pass
+
+        mock_res.scalars.return_value.all.return_value = items
+        mock_res.scalar.return_value = len(items)
+        mock_res.scalar_one_or_none.return_value = found_item
+        return mock_res
+
+    async def mock_get(entity, entity_id):
+        if isinstance(entity_id, str):
+            entity_id = uuid.UUID(entity_id)
+        return sources_store.get(entity_id)
+
+    def mock_add(instance):
+        if not getattr(instance, "id", None):
+            instance.id = uuid.uuid4()
+        if getattr(instance, "is_active", None) is None:
+            instance.is_active = True
+        if getattr(instance, "sync_status", None) is None:
+            instance.sync_status = "idle"
+        if getattr(instance, "priority", None) is None:
+            instance.priority = 0
+        if getattr(instance, "documents_count", None) is None:
+            instance.documents_count = 0
+        if getattr(instance, "chunks_count", None) is None:
+            instance.chunks_count = 0
+        if getattr(instance, "created_at", None) is None:
+            now = datetime.now(UTC)
+            instance.created_at = now
+            instance.updated_at = now
+        sources_store[instance.id] = instance
+
+    async def mock_delete(instance):
+        sources_store.pop(instance.id, None)
+
+    async def mock_commit():
+        pass
+
+    async def mock_refresh(instance):
+        pass
+
+    session.execute = AsyncMock(side_effect=mock_execute)
+    session.get = AsyncMock(side_effect=mock_get)
+    session.add = MagicMock(side_effect=mock_add)
+    session.delete = AsyncMock(side_effect=mock_delete)
+    session.commit = AsyncMock(side_effect=mock_commit)
+    session.refresh = AsyncMock(side_effect=mock_refresh)
+
+    return session
 
 
 @pytest.mark.asyncio
-async def test_admin_sources_crud_flow(async_test_session):
+async def test_admin_sources_crud_flow(mock_db_session):
     """Verify full CRUD flow for Admin Sources API."""
-    app.dependency_overrides[get_db] = lambda: async_test_session
+    app.dependency_overrides[get_db] = lambda: mock_db_session
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
@@ -75,9 +138,9 @@ async def test_admin_sources_crud_flow(async_test_session):
 
 
 @pytest.mark.asyncio
-async def test_admin_sources_seed_defaults(async_test_session):
+async def test_admin_sources_seed_defaults(mock_db_session):
     """Verify seed defaults populates standard departments."""
-    app.dependency_overrides[get_db] = lambda: async_test_session
+    app.dependency_overrides[get_db] = lambda: mock_db_session
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
