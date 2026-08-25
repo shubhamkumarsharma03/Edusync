@@ -56,61 +56,481 @@ const DEPARTMENTS_LIST = [
   'Examination Section',
   'Registrar Section',
   'Academic Section',
-  'Central Library',
+  'Accounts Section',
+  'Proctor Section',
+  'Store Section',
   'First Year Cell',
+  'ERP Cell',
+  'Central Library',
   'Training & Placement Cell',
+  'Startup Cell',
+  'Institution\'s Innovation Cell (IIC)',
+  'Industry Institute Interaction Cell (IIIC)',
+  'AI/ML Club (CSE)',
+  'National Innovation & Startup Policy',
+  'Scholarship Cell',
+  'Student / Parent Grievance Cell',
+  'SC/ST/OBC Cell',
+  'Women Cell',
+  'Psychological Counseling & Mental Health Cell',
+  'Hostels Section',
+  'Sports Department',
+  'National Service Scheme (NSS)',
+  'National Cadet Corps (NCC)',
+  'Unnat Bharat Abhiyan (UBA)',
+  'Nasha Mukti Abhiyan (NMA)',
+  'Alumni Cell',
+  'AICTE Cell',
+  'Student Activity Center',
+  'Student Achievements',
+  'Academic Calendar',
+  'Bikaner Technical University (BTU)',
+  'Rajasthan Technical University (RTU)',
+  'General Administration',
 ]
 
-const QUICK_PRESETS = [
+export interface PresetSource {
+  name: string
+  url: string
+  department: string
+  category: 'circulars' | 'timetable' | 'announcements' | 'general_html'
+  group: string
+}
+
+const QUICK_PRESETS: PresetSource[] = [
+  // 1. Engineering & Academic Departments
   {
-    name: 'CSE Circulars',
+    name: 'CSE Circulars & Notices',
     url: 'https://www.ecajmer.ac.in/departments/cs-it/circulars',
     department: 'Computer Science and Engineering',
     category: 'circulars',
+    group: 'Academic Departments',
   },
   {
     name: 'CSE Time Tables',
     url: 'https://www.ecajmer.ac.in/departments/cs-it/timetable',
     department: 'Computer Science and Engineering',
     category: 'timetable',
-  },
-  {
-    name: 'Exam Section Circulars',
-    url: 'https://www.ecajmer.ac.in/ui/cells/examination-section/circulars',
-    department: 'Examination Section',
-    category: 'circulars',
-  },
-  {
-    name: 'Registrar Circulars',
-    url: 'https://www.ecajmer.ac.in/ui/cells/registrar/circulars',
-    department: 'Registrar Section',
-    category: 'circulars',
+    group: 'Academic Departments',
   },
   {
     name: 'Civil Engineering Circulars',
     url: 'https://www.ecajmer.ac.in/departments/ce/circulars',
     department: 'Civil Engineering',
     category: 'circulars',
+    group: 'Academic Departments',
   },
   {
     name: 'Electrical Engineering Circulars',
     url: 'https://www.ecajmer.ac.in/departments/ee/circulars',
     department: 'Electrical Engineering',
     category: 'circulars',
+    group: 'Academic Departments',
   },
   {
     name: 'Electronics & Comm. Circulars',
     url: 'https://www.ecajmer.ac.in/departments/ece/circulars',
     department: 'Electronics and Communication Engineering',
     category: 'circulars',
+    group: 'Academic Departments',
   },
   {
-    name: 'Mechanical Eng. Circulars',
+    name: 'EIC Department Circulars',
+    url: 'https://www.ecajmer.ac.in/departments/eic/circulars',
+    department: 'Electronic Instrumentation And Control Engineering',
+    category: 'circulars',
+    group: 'Academic Departments',
+  },
+  {
+    name: 'Mechanical Engineering Circulars',
     url: 'https://www.ecajmer.ac.in/departments/me/circulars',
     department: 'Mechanical Engineering',
     category: 'circulars',
+    group: 'Academic Departments',
+  },
+  {
+    name: 'Computer Applications (MCA) Circulars',
+    url: 'https://www.ecajmer.ac.in/departments/mca/circulars',
+    department: 'Computer Applications',
+    category: 'circulars',
+    group: 'Academic Departments',
+  },
+  {
+    name: 'Management Studies (MBA) Circulars',
+    url: 'https://www.ecajmer.ac.in/departments/mba/circulars',
+    department: 'Management Studies',
+    category: 'circulars',
+    group: 'Academic Departments',
+  },
+  {
+    name: 'Physics Department Circulars',
+    url: 'https://www.ecajmer.ac.in/departments/physics/circulars',
+    department: 'Physics',
+    category: 'circulars',
+    group: 'Academic Departments',
+  },
+  {
+    name: 'Chemistry Department Circulars',
+    url: 'https://www.ecajmer.ac.in/departments/chemistry/circulars',
+    department: 'Chemistry',
+    category: 'circulars',
+    group: 'Academic Departments',
+  },
+  {
+    name: 'Mathematics Department Circulars',
+    url: 'https://www.ecajmer.ac.in/departments/maths/circulars',
+    department: 'Mathematics',
+    category: 'circulars',
+    group: 'Academic Departments',
+  },
+  {
+    name: 'English Department Circulars',
+    url: 'https://www.ecajmer.ac.in/departments/english/circulars',
+    department: 'English',
+    category: 'circulars',
+    group: 'Academic Departments',
+  },
+  {
+    name: 'Economics Department Circulars',
+    url: 'https://www.ecajmer.ac.in/departments/economy/circulars',
+    department: 'Economics',
+    category: 'circulars',
+    group: 'Academic Departments',
+  },
+
+  // 2. Core Administration & Examination Sections
+  {
+    name: 'Examination Section Circulars',
+    url: 'https://www.ecajmer.ac.in/ui/cells/examination-section/circulars',
+    department: 'Examination Section',
+    category: 'circulars',
+    group: 'Administration & Exams',
+  },
+  {
+    name: 'Registrar Circulars & Orders',
+    url: 'https://www.ecajmer.ac.in/ui/cells/registrar/circulars',
+    department: 'Registrar Section',
+    category: 'circulars',
+    group: 'Administration & Exams',
+  },
+  {
+    name: 'Academic Section Circulars',
+    url: 'https://www.ecajmer.ac.in/ui/cells/academic-section/circulars',
+    department: 'Academic Section',
+    category: 'circulars',
+    group: 'Administration & Exams',
+  },
+  {
+    name: 'Academic Calendar 2025-26',
+    url: 'https://www.ecajmer.ac.in/academics/academic-calendar',
+    department: 'Academic Section',
+    category: 'general_html',
+    group: 'Administration & Exams',
+  },
+  {
+    name: 'First Year Cell',
+    url: 'https://www.ecajmer.ac.in/ui/cells/first-year',
+    department: 'First Year Cell',
+    category: 'circulars',
+    group: 'Administration & Exams',
+  },
+  {
+    name: 'Account Section & Fees',
+    url: 'https://www.ecajmer.ac.in/ui/cells/accounts',
+    department: 'Accounts Section',
+    category: 'general_html',
+    group: 'Administration & Exams',
+  },
+  {
+    name: 'Proctor Section',
+    url: 'https://www.ecajmer.ac.in/ui/cells/proctor',
+    department: 'Proctor Section',
+    category: 'general_html',
+    group: 'Administration & Exams',
+  },
+  {
+    name: 'ERP Cell',
+    url: 'https://www.ecajmer.ac.in/ui/cells/erp-cell',
+    department: 'ERP Cell',
+    category: 'general_html',
+    group: 'Administration & Exams',
+  },
+
+  // 3. Curriculum, Syllabi & Universities
+  {
+    name: 'BTU B.Tech Undergraduate Syllabus',
+    url: 'https://btu.ac.in/home/SYLLABUS-FOR-UNDERGRADUATE-PROGRAMME2020-2129-SYALLBUS',
+    department: 'Bikaner Technical University (BTU)',
+    category: 'general_html',
+    group: 'Curriculum & Syllabi',
+  },
+  {
+    name: 'BTU Main Academic Portal',
+    url: 'https://btu.ac.in/',
+    department: 'Bikaner Technical University (BTU)',
+    category: 'general_html',
+    group: 'Curriculum & Syllabi',
+  },
+  {
+    name: 'RTU Kota Portal',
+    url: 'https://www.rtu.ac.in/index/',
+    department: 'Rajasthan Technical University (RTU)',
+    category: 'general_html',
+    group: 'Curriculum & Syllabi',
+  },
+  {
+    name: 'UG Courses & Schemes',
+    url: 'https://www.ecajmer.ac.in/ui/cells/ug-courses',
+    department: 'Academic Section',
+    category: 'general_html',
+    group: 'Curriculum & Syllabi',
+  },
+  {
+    name: 'PG Courses (M.Tech/MCA/MBA)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/pg-courses',
+    department: 'Academic Section',
+    category: 'general_html',
+    group: 'Curriculum & Syllabi',
+  },
+  {
+    name: 'PhD Research Section',
+    url: 'https://www.ecajmer.ac.in/ui/cells/phd',
+    department: 'Academic Section',
+    category: 'general_html',
+    group: 'Curriculum & Syllabi',
+  },
+  {
+    name: 'SWAYAM MOOC Courses',
+    url: 'https://www.ecajmer.ac.in/MoocCourses',
+    department: 'Academic Section',
+    category: 'general_html',
+    group: 'Curriculum & Syllabi',
+  },
+
+  // 4. Training, Placements & Innovation Cells
+  {
+    name: 'Training & Placement Office (TPO)',
+    url: 'https://tpo.ecajmer.ac.in/',
+    department: 'Training & Placement Cell',
+    category: 'general_html',
+    group: 'Placements & Innovation',
+  },
+  {
+    name: 'Startup Cell ECA',
+    url: 'https://www.ecajmer.ac.in/ui/cells/startup-cell',
+    department: 'Startup Cell',
+    category: 'general_html',
+    group: 'Placements & Innovation',
+  },
+  {
+    name: 'Institution Innovation Council (IIC)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/iic-cell',
+    department: 'Institution\'s Innovation Cell (IIC)',
+    category: 'general_html',
+    group: 'Placements & Innovation',
+  },
+  {
+    name: 'Industry Institute Interaction (IIIC)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/iii-cell',
+    department: 'Industry Institute Interaction Cell (IIIC)',
+    category: 'general_html',
+    group: 'Placements & Innovation',
+  },
+  {
+    name: 'AI/ML Club (CSE Department)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/aimlclub',
+    department: 'Computer Science and Engineering',
+    category: 'general_html',
+    group: 'Placements & Innovation',
+  },
+  {
+    name: 'National Innovation & Startup Policy',
+    url: 'https://www.ecajmer.ac.in/nationalialnnovationandstartuppolicy',
+    department: 'Startup Cell',
+    category: 'general_html',
+    group: 'Placements & Innovation',
+  },
+  {
+    name: 'MOUs with Companies & Industry',
+    url: 'https://www.ecajmer.ac.in/MousWithCompanies',
+    department: 'Training & Placement Cell',
+    category: 'general_html',
+    group: 'Placements & Innovation',
+  },
+
+  // 5. Student Welfare, Services & Facilities
+  {
+    name: 'Scholarship Details & Notices',
+    url: 'https://www.ecajmer.ac.in/ui/cells/scholarship-details',
+    department: 'Scholarship Cell',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Student / Parent Grievance Cell',
+    url: 'https://www.ecajmer.ac.in/ui/cells/grievance',
+    department: 'Student / Parent Grievance Cell',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'SC/ST/OBC Cell',
+    url: 'https://www.ecajmer.ac.in/ui/cells/stsc',
+    department: 'SC/ST/OBC Cell',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Women Cell & Grievance',
+    url: 'https://www.ecajmer.ac.in/ui/cells/women-cell',
+    department: 'Women Cell',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Mental Health & Counseling (MHC)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/mhc',
+    department: 'Psychological Counseling & Mental Health Cell',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Central Library & E-Resources',
+    url: 'https://www.ecajmer.ac.in/ui/cells/central-library',
+    department: 'Central Library',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'E-Resources & E-Learning',
+    url: 'https://www.ecajmer.ac.in/EResources',
+    department: 'Central Library',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Campus Hostels',
+    url: 'https://www.ecajmer.ac.in/ui/cells/hostels',
+    department: 'Hostels Section',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Sports Department',
+    url: 'https://www.ecajmer.ac.in/ui/cells/sports-department',
+    department: 'Sports Department',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'National Service Scheme (NSS)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/nss',
+    department: 'National Service Scheme (NSS)',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'National Cadet Corps (NCC)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/ncc',
+    department: 'National Cadet Corps (NCC)',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Unnat Bharat Abhiyan (UBA)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/uba',
+    department: 'Unnat Bharat Abhiyan (UBA)',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Nasha Mukti Abhiyan (NMA)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/nma',
+    department: 'Nasha Mukti Abhiyan (NMA)',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Creative Art Society (CAS)',
+    url: 'https://www.ecajmer.ac.in/ui/cells/cas',
+    department: 'Student Activity Center',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Admission Corner & Enquiry',
+    url: 'https://www.ecajmer.ac.in/ui/admission-enquiry',
+    department: 'Academic Section',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+  {
+    name: 'Alumni Cell',
+    url: 'https://www.ecajmer.ac.in/ui/cells/alumni-cell',
+    department: 'Alumni Cell',
+    category: 'general_html',
+    group: 'Student Welfare & Services',
+  },
+
+  // 6. Institutional Policies & Governance
+  {
+    name: 'Principal Message & Leadership',
+    url: 'https://www.ecajmer.ac.in/administration/PrincipalMessage',
+    department: 'General Administration',
+    category: 'general_html',
+    group: 'Governance & Policies',
+  },
+  {
+    name: 'BOG (Minutes of Meetings)',
+    url: 'https://www.ecajmer.ac.in/administration/bog/Minutes-of-meetings',
+    department: 'General Administration',
+    category: 'general_html',
+    group: 'Governance & Policies',
+  },
+  {
+    name: 'Mandatory Disclosure',
+    url: 'https://www.ecajmer.ac.in/mandatorydisclousure',
+    department: 'General Administration',
+    category: 'general_html',
+    group: 'Governance & Policies',
+  },
+  {
+    name: 'Annual Reports',
+    url: 'https://www.ecajmer.ac.in/AnnualReports',
+    department: 'General Administration',
+    category: 'general_html',
+    group: 'Governance & Policies',
+  },
+  {
+    name: 'Audit Report & Balance Sheets',
+    url: 'https://www.ecajmer.ac.in/AuditReportandbalanaceSheets',
+    department: 'Accounts Section',
+    category: 'general_html',
+    group: 'Governance & Policies',
+  },
+  {
+    name: 'Higher Education Policy Document',
+    url: 'https://www.ecajmer.ac.in/assets/highereducationpolicy-Bi6EbfuP.pdf',
+    department: 'General Administration',
+    category: 'general_html',
+    group: 'Governance & Policies',
+  },
+  {
+    name: 'Online RTI Portal Rajasthan',
+    url: 'https://rti.rajasthan.gov.in/',
+    department: 'General Administration',
+    category: 'general_html',
+    group: 'Governance & Policies',
+  },
+  {
+    name: 'DigiLocker Verification',
+    url: 'https://www.digilocker.gov.in/',
+    department: 'Examination Section',
+    category: 'general_html',
+    group: 'Governance & Policies',
   },
 ]
+
 
 interface LiveCircularItem {
   id: number
@@ -1125,26 +1545,61 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               </button>
             </div>
 
-            {/* Quick Presets */}
+            {/* Categorized Official Presets Selector */}
             {!editingSource && (
-              <div className="my-4">
-                <div className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider mb-2">
-                  Quick Presets (ECAjmer Departments & Cells)
+              <div className="my-4 p-3.5 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Official ECA Portals & Links (40+ Pre-Configured)</span>
+                  </div>
+                  <span className="text-[10px] text-neutral-500">Select to auto-fill details</span>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {QUICK_PRESETS.map((preset) => (
-                    <button
-                      key={preset.name}
-                      type="button"
-                      onClick={() => handleApplyPreset(preset)}
-                      className="px-2.5 py-1 bg-neutral-100 hover:bg-indigo-50 text-neutral-700 hover:text-indigo-700 border border-neutral-200 hover:border-indigo-200 rounded-lg text-[11px] font-medium transition"
-                    >
-                      + {preset.name}
-                    </button>
+
+                {/* Categorized Group Dropdown */}
+                <select
+                  onChange={(e) => {
+                    const found = QUICK_PRESETS.find((p) => p.url === e.target.value)
+                    if (found) handleApplyPreset(found)
+                  }}
+                  defaultValue=""
+                  className="w-full px-3 py-2 bg-white border border-[#d4d4d8] rounded-xl text-xs text-[#18181b] font-medium focus:outline-none focus:border-indigo-600 shadow-sm"
+                >
+                  <option value="" disabled>
+                    -- ⚡ Choose an official ECA department, cell, or portal to auto-fill --
+                  </option>
+                  {Array.from(new Set(QUICK_PRESETS.map((p) => p.group))).map((groupName) => (
+                    <optgroup key={groupName} label={`📁 ${groupName}`}>
+                      {QUICK_PRESETS.filter((p) => p.group === groupName).map((p) => (
+                        <option key={p.url} value={p.url}>
+                          {p.name} — {p.department}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
+                </select>
+
+                {/* Popular Fast-Pick Chips */}
+                <div>
+                  <span className="text-[10px] font-semibold text-neutral-400 block mb-1.5 uppercase">
+                    Quick Fast-Picks:
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                    {QUICK_PRESETS.slice(0, 10).map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() => handleApplyPreset(preset)}
+                        className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-neutral-700 hover:text-indigo-700 border border-neutral-200 hover:border-indigo-300 rounded-lg text-[11px] font-medium transition shadow-xs"
+                      >
+                        + {preset.name.replace(' Circulars & Notices', '').replace(' Circulars', '')}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
+
 
             <form onSubmit={handleSave} className="space-y-4 mt-4">
               <div>
