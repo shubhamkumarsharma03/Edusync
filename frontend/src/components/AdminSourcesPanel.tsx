@@ -84,8 +84,6 @@ const DEPARTMENTS_LIST = [
   'Student Activity Center',
   'Student Achievements',
   'Academic Calendar',
-  'Bikaner Technical University (BTU)',
-  'Rajasthan Technical University (RTU)',
   'General Administration',
 ]
 
@@ -228,7 +226,7 @@ const QUICK_PRESETS: PresetSource[] = [
     group: 'Administration & Exams',
   },
   {
-    name: 'First Year Cell',
+    name: 'First Year Cell Circulars',
     url: 'https://www.ecajmer.ac.in/ui/cells/first-year',
     department: 'First Year Cell',
     category: 'circulars',
@@ -242,9 +240,16 @@ const QUICK_PRESETS: PresetSource[] = [
     group: 'Administration & Exams',
   },
   {
-    name: 'Proctor Section',
+    name: 'Proctor Section Notices',
     url: 'https://www.ecajmer.ac.in/ui/cells/proctor',
     department: 'Proctor Section',
+    category: 'general_html',
+    group: 'Administration & Exams',
+  },
+  {
+    name: 'Store Section',
+    url: 'https://www.ecajmer.ac.in/ui/cells/stores',
+    department: 'Store Section',
     category: 'general_html',
     group: 'Administration & Exams',
   },
@@ -255,56 +260,42 @@ const QUICK_PRESETS: PresetSource[] = [
     category: 'general_html',
     group: 'Administration & Exams',
   },
+  {
+    name: 'AICTE Cell',
+    url: 'https://www.ecajmer.ac.in/ui/cells/aicte',
+    department: 'AICTE Cell',
+    category: 'general_html',
+    group: 'Administration & Exams',
+  },
 
-  // 3. Curriculum, Syllabi & Universities
-  {
-    name: 'BTU B.Tech Undergraduate Syllabus',
-    url: 'https://btu.ac.in/home/SYLLABUS-FOR-UNDERGRADUATE-PROGRAMME2020-2129-SYALLBUS',
-    department: 'Bikaner Technical University (BTU)',
-    category: 'general_html',
-    group: 'Curriculum & Syllabi',
-  },
-  {
-    name: 'BTU Main Academic Portal',
-    url: 'https://btu.ac.in/',
-    department: 'Bikaner Technical University (BTU)',
-    category: 'general_html',
-    group: 'Curriculum & Syllabi',
-  },
-  {
-    name: 'RTU Kota Portal',
-    url: 'https://www.rtu.ac.in/index/',
-    department: 'Rajasthan Technical University (RTU)',
-    category: 'general_html',
-    group: 'Curriculum & Syllabi',
-  },
+  // 3. Curriculum, Courses & Research
   {
     name: 'UG Courses & Schemes',
     url: 'https://www.ecajmer.ac.in/ui/cells/ug-courses',
     department: 'Academic Section',
     category: 'general_html',
-    group: 'Curriculum & Syllabi',
+    group: 'Curriculum & Courses',
   },
   {
     name: 'PG Courses (M.Tech/MCA/MBA)',
     url: 'https://www.ecajmer.ac.in/ui/cells/pg-courses',
     department: 'Academic Section',
     category: 'general_html',
-    group: 'Curriculum & Syllabi',
+    group: 'Curriculum & Courses',
   },
   {
-    name: 'PhD Research Section',
+    name: 'PhD Research Cell',
     url: 'https://www.ecajmer.ac.in/ui/cells/phd',
     department: 'Academic Section',
     category: 'general_html',
-    group: 'Curriculum & Syllabi',
+    group: 'Curriculum & Courses',
   },
   {
-    name: 'SWAYAM MOOC Courses',
+    name: 'MOOC Courses Portal',
     url: 'https://www.ecajmer.ac.in/MoocCourses',
     department: 'Academic Section',
     category: 'general_html',
-    group: 'Curriculum & Syllabi',
+    group: 'Curriculum & Courses',
   },
 
   // 4. Training, Placements & Innovation Cells
@@ -515,21 +506,8 @@ const QUICK_PRESETS: PresetSource[] = [
     category: 'general_html',
     group: 'Governance & Policies',
   },
-  {
-    name: 'Online RTI Portal Rajasthan',
-    url: 'https://rti.rajasthan.gov.in/',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'DigiLocker Verification',
-    url: 'https://www.digilocker.gov.in/',
-    department: 'Examination Section',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
 ]
+
 
 
 interface LiveCircularItem {
