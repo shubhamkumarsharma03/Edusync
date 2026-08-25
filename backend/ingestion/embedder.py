@@ -18,12 +18,18 @@ class DocumentEmbedder:
 
     @classmethod
     def get_model(cls, model_name: str = MODEL_NAME) -> Any:
-        """Lazy load SentenceTransformer model in singleton pattern."""
+        """Lazy load SentenceTransformer model in singleton pattern from local cache or Hub."""
         if cls._model is None:
-            logger.info(f"Loading SentenceTransformer model '{model_name}' on CPU...")
+            from pathlib import Path
+
             from sentence_transformers import SentenceTransformer
 
-            cls._model = SentenceTransformer(model_name, device="cpu")
+            # Check local models_cache folder
+            local_cache_path = Path(__file__).resolve().parent.parent / "models_cache" / model_name
+            target = str(local_cache_path) if local_cache_path.exists() else model_name
+
+            logger.info(f"Loading SentenceTransformer model '{target}' on CPU...")
+            cls._model = SentenceTransformer(target, device="cpu")
         return cls._model
 
     def embed_texts(self, texts: list[str], batch_size: int = 32) -> list[list[float]]:

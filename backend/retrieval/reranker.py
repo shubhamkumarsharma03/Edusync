@@ -30,12 +30,21 @@ class CrossEncoderReranker:
 
     @classmethod
     def get_model(cls, model_name: str = DEFAULT_MODEL_NAME) -> Any:
-        """Lazy load CrossEncoder model as a singleton on CPU."""
+        """Lazy load CrossEncoder model as a singleton on CPU from local cache or Hub."""
         if cls._model is None:
-            logger.info(f"Loading CrossEncoder reranker model '{model_name}' on CPU...")
+            from pathlib import Path
+
             from sentence_transformers import CrossEncoder
 
-            cls._model = CrossEncoder(model_name, device="cpu")
+            # Check local models_cache folder
+            base_model_name = model_name.split("/")[-1]
+            local_cache_path = (
+                Path(__file__).resolve().parent.parent / "models_cache" / base_model_name
+            )
+            target = str(local_cache_path) if local_cache_path.exists() else model_name
+
+            logger.info(f"Loading CrossEncoder reranker model '{target}' on CPU...")
+            cls._model = CrossEncoder(target, device="cpu")
         return cls._model
 
     @staticmethod

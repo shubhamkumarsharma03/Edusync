@@ -65,4 +65,7 @@ Thumbs.db
 chroma_data/
 *.db
 *.sqlite3
+models_cache/
+backend/models_cache/
+
 

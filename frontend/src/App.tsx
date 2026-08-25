@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
 import {
-  Settings,
   History,
   Archive,
   Pin,
@@ -14,9 +13,13 @@ import {
   X,
   Bot,
   ExternalLink,
-  Share2,
+  Database,
+  MessageSquare,
 } from 'lucide-react'
 import { checkBackendHealth } from './api/client'
+import { sendChatMessage } from './api/chat'
+import { AdminSourcesPanel } from './components/AdminSourcesPanel'
+
 
 interface Message {
   id: string
@@ -48,6 +51,15 @@ const INITIAL_MESSAGES: Message[] = [
 ]
 
 export const App: React.FC = () => {
+  const [isAdminView, setIsAdminView] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return (
+      window.location.pathname.startsWith('/admin') ||
+      window.location.hash === '#admin' ||
+      window.location.search.includes('view=admin')
+    )
+  })
+
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES)
   const [input, setInput] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -55,6 +67,22 @@ export const App: React.FC = () => {
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setIsAdminView(
+        window.location.pathname.startsWith('/admin') ||
+        window.location.hash === '#admin' ||
+        window.location.search.includes('view=admin')
+      )
+    }
+    window.addEventListener('popstate', handlePopState)
+    window.addEventListener('hashchange', handlePopState)
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+      window.removeEventListener('hashchange', handlePopState)
+    }
+  }, [])
 
   useEffect(() => {
     checkBackendHealth()
@@ -79,9 +107,11 @@ export const App: React.FC = () => {
     }
   }
 
-  const handleSend = (textToSend?: string) => {
+  const [isTyping, setIsTyping] = useState(false)
+
+  const handleSend = async (textToSend?: string) => {
     const query = (textToSend || input).trim()
-    if (!query) return
+    if (!query || isTyping) return
 
     const userMsg: Message = {
       id: Date.now().toString(),
@@ -98,50 +128,34 @@ export const App: React.FC = () => {
       }
     }
 
-    // Responsive simulated bot reply
-    setTimeout(() => {
-      let botReply =
-        'Certainly. Recent developments in quantum error correction (QEC), specifically concerning surface codes, have focused on lowering overhead and improving logical qubit fidelity.\n\nReal-time decoding: Advancements in FPGA-based decoders allow for faster-than-coherence-time error tracking.'
-      let sources = [
-        {
-          title: 'Quantum Architecture Circular (Notice No. ECA/Res/2026/14)',
-          url: 'https://ecajmer.ac.in/notices/research-qec.pdf',
-          lastVerified: '2026-08-10',
-        },
-      ]
-
-      if (query.toLowerCase().includes('fee')) {
-        botReply =
-          'According to the Accounts Branch circular, the last date for submitting odd-semester academic fees without late fee penalty is 31 August 2026.'
-        sources = [
-          {
-            title: 'Odd-Semester Fee Schedule Notification 2026-27',
-            url: 'https://ecajmer.ac.in/accounts/fee-notice-2026.pdf',
-            lastVerified: '2026-08-12',
-          },
-        ]
-      } else if (query.toLowerCase().includes('exam') || query.toLowerCase().includes('schedule')) {
-        botReply =
-          'The mid-semester examinations for CS/IT are scheduled to commence from 14 September 2026 per the official examination cell notification.'
-        sources = [
-          {
-            title: 'Mid-Term Examination Circular (Notice No. ECA/Exam/2026/89)',
-            url: 'https://ecajmer.ac.in/notices/exam-2026.pdf',
-            lastVerified: '2026-08-10',
-          },
-        ]
-      }
-
+    setIsTyping(true)
+    try {
+      const res = await sendChatMessage(query)
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'assistant',
-        text: botReply,
+        text: res.answer,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        sources,
+        sources: res.sources.map((s) => ({
+          title: s.title,
+          url: s.url,
+          lastVerified: s.last_verified,
+        })),
       }
       setMessages((prev) => [...prev, botMsg])
-    }, 400)
+    } catch (err: any) {
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        sender: 'assistant',
+        text: 'Sorry, could not connect to the backend server. Please verify the API is running.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      }
+      setMessages((prev) => [...prev, errorMsg])
+    } finally {
+      setIsTyping(false)
+    }
   }
+
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -164,8 +178,17 @@ export const App: React.FC = () => {
     )
   }
 
+  const openAdminInNewTab = () => {
+    window.open('/admin', '_blank')
+  }
+
+  // If URL path is /admin or #admin, render full-page standalone Admin Sources Dashboard
+  if (isAdminView) {
+    return <AdminSourcesPanel isStandalone={true} />
+  }
+
   return (
-    <div className="flex h-[100dvh] w-full bg-[#fcfcfc] text-[#1a1a1a] overflow-hidden font-['Inter',sans-serif]">
+    <div className="flex h-[100dvh] w-full bg-[#fcfcfc] text-[#18181b] overflow-hidden font-['Inter',sans-serif]">
       {/* Mobile Backdrop Overlay */}
       {sidebarOpen && (
         <div
@@ -196,6 +219,38 @@ export const App: React.FC = () => {
             >
               <X className="w-5 h-5" />
             </button>
+          </div>
+
+          {/* Navigation Section */}
+          <div className="mb-6">
+            <h3 className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider px-2 mb-2">
+              Navigation
+            </h3>
+            <nav className="space-y-1">
+              <button
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg bg-[#eaecee] text-[#18181b]"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-neutral-700" />
+                <span>Student Assistant</span>
+              </button>
+
+              <button
+                onClick={openAdminInNewTab}
+                className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium rounded-lg text-neutral-600 hover:bg-neutral-200/50 hover:text-[#18181b] transition-colors group"
+                title="Open Admin Data Sources in a new tab"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Database className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Data Sources</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-bold border border-indigo-100">
+                    Admin
+                  </span>
+                  <ExternalLink className="w-3 h-3 text-neutral-400 group-hover:text-neutral-700" />
+                </div>
+              </button>
+            </nav>
           </div>
 
           {/* History Navigation */}
@@ -240,7 +295,7 @@ export const App: React.FC = () => {
       <div className="flex-1 flex flex-col h-full bg-[#fcfcfc] relative min-w-0">
         {/* Responsive Header */}
         <header className="h-14 border-b border-[#f0f0f2] flex items-center justify-between px-3 sm:px-6 bg-[#fcfcfc] sticky top-0 z-30 flex-shrink-0">
-          {/* Left Actions (Mobile drawer button / Share icon) */}
+          {/* Left Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
             <button
               onClick={() => setSidebarOpen(true)}
@@ -249,15 +304,9 @@ export const App: React.FC = () => {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <button
-              className="p-1.5 text-neutral-500 hover:text-neutral-800 rounded-md hover:bg-neutral-100 transition-colors hidden sm:flex"
-              title="Share chat"
-            >
-              <Share2 className="w-4 h-4" />
-            </button>
           </div>
 
-          {/* Center Brand / Status */}
+          {/* Center Brand */}
           <div className="flex items-center gap-2">
             <span className="font-semibold text-base sm:text-lg tracking-tight text-[#18181b]">
               EduSync
@@ -265,14 +314,19 @@ export const App: React.FC = () => {
             <span className="w-2 h-2 rounded-full bg-blue-500" />
           </div>
 
-          {/* Right Actions */}
-          <div className="flex items-center gap-1">
-            <button
-              title="Settings"
-              className="p-2 text-neutral-500 hover:text-neutral-900 rounded-md hover:bg-neutral-100 transition-colors"
+          {/* Right Actions: Admin Panel Link in New Tab */}
+          <div className="flex items-center gap-2">
+            <a
+              href="/admin"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-700 hover:text-[#18181b] rounded-xl text-xs font-semibold border border-[#e4e4e7] shadow-sm transition"
+              title="Open Admin Data Sources in a new tab"
             >
-              <Settings className="w-4 h-4" />
-            </button>
+              <Database className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Admin Panel</span>
+              <ExternalLink className="w-3 h-3 text-neutral-400" />
+            </a>
           </div>
         </header>
 
@@ -281,7 +335,7 @@ export const App: React.FC = () => {
           {/* Centered Timestamp */}
           <div className="text-center pt-1 pb-2">
             <span className="text-xs sm:text-[13px] text-neutral-400 font-normal">
-              {messages[0]?.timestamp || 'Today'}
+              {messages[0]?.timestamp || 'Today 9:41 AM'}
             </span>
           </div>
 
@@ -394,7 +448,21 @@ export const App: React.FC = () => {
             </div>
           ))}
 
+          {/* Loading / Typing Indicator */}
+          {isTyping && (
+            <div className="flex items-start gap-2.5 sm:gap-3.5 max-w-full sm:max-w-2xl md:max-w-3xl pr-4">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-[#18181b] flex-shrink-0 flex items-center justify-center text-white mt-1 shadow-sm">
+                <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </div>
+              <div className="bg-[#f4f4f5] rounded-2xl px-4 py-3 text-xs text-neutral-500 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
+                <span>Searching verified circulars & generating response...</span>
+              </div>
+            </div>
+          )}
+
           <div ref={messagesEndRef} />
+
         </main>
 
         {/* Dynamic Responsive Input Bar */}
