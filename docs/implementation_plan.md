@@ -120,8 +120,8 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Sort merged candidates by rerank score
 
 ### 4.3 Confidence Gate & Fallback
-- [ ] Define `CONFIDENCE_THRESHOLD` as a configurable constant
-- [ ] If top score < threshold → return fallback response (per PRD FR-15) instead of calling the LLM
+- [x] Define `CONFIDENCE_THRESHOLD` as a configurable constant
+- [x] If top score < threshold → return fallback response (per PRD FR-15) instead of calling the LLM
 
 ### 4.4 LLM Generation & Citations
 - [ ] Build the grounded-generation prompt (answer only from provided chunks, cite source)

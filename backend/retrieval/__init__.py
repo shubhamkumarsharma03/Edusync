@@ -1,5 +1,6 @@
 """EduSync Retrieval Package"""
 
+from retrieval.confidence_gate import ConfidenceGate, ConfidenceGateResult, ConfidenceLevel
 from retrieval.hybrid_search import HybridSearcher
 from retrieval.keyword_search import KeywordSearcher
 from retrieval.reranker import CrossEncoderReranker
@@ -12,4 +13,7 @@ __all__ = [
     "KeywordSearcher",
     "HybridSearcher",
     "CrossEncoderReranker",
+    "ConfidenceGate",
+    "ConfidenceGateResult",
+    "ConfidenceLevel",
 ]
