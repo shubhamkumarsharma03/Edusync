@@ -23,8 +23,8 @@ import {
   ChevronRight,
   FileText,
   Eye,
-  Zap,
 } from 'lucide-react'
+
 
 import {
   IngestionSource,
@@ -515,12 +515,13 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               <button
                 onClick={() => setConfirmBatchModalOpen(true)}
                 disabled={actionLoading === 'all' || sources.length === 0}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-emerald-600 via-indigo-600 to-indigo-700 hover:from-emerald-700 hover:to-indigo-800 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95 disabled:opacity-50"
-                title="Trigger serial fetching & embedding across all sources with confirmation"
+                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95 disabled:opacity-50"
+                title="Trigger sequential synchronization across all active sources"
               >
-                <Zap className="w-3.5 h-3.5 fill-current text-amber-300" />
-                <span>Ingest All (Serial)</span>
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Sync All Sources</span>
               </button>
+
 
               <button
                 onClick={handleOpenAdd}
@@ -532,7 +533,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
             </div>
           </div>
 
-          {/* Live Active Serial Ingestion Status Banner */}
+          {/* Live Active Synchronization Status Banner */}
           {sources.some((s) => s.status === 'fetching') && (
             <div className="bg-indigo-50/90 border border-indigo-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-indigo-950 shadow-sm animate-pulse">
               <div className="flex items-center gap-2.5">
@@ -541,19 +542,20 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
                 </span>
                 <span className="font-bold text-indigo-900">
-                  ⚡ Serial Ingestion Active:
+                  Data Synchronization Active:
                 </span>
                 <span className="text-indigo-800">
-                  Currently fetching & embedding: <strong className="underline">{sources.find((s) => s.status === 'fetching')?.name || 'next source in priority'}</strong>
+                  Currently syncing & embedding: <strong className="underline">{sources.find((s) => s.status === 'fetching')?.name || 'next source in queue'}</strong>
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-semibold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md border border-indigo-200">
-                  Auto-Refreshing (2.5s)
+                  Auto-Syncing (2.5s)
                 </span>
               </div>
             </div>
           )}
+
 
           {/* Toast Notification */}
           {notification && (
@@ -1281,19 +1283,19 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
         </div>
       )}
 
-      {/* Universal Ingest All Confirmation Modal */}
+      {/* Universal Sync All Confirmation Modal */}
       {confirmBatchModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             <div className="p-5 sm:p-6 border-b border-[#f0f0f2] flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-sm">
-                  <Zap className="w-5 h-5 fill-current" />
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 shadow-sm">
+                  <RefreshCw className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-base text-[#18181b]">Trigger Serial Ingestion</h3>
+                  <h3 className="font-bold text-base text-[#18181b]">Synchronize All Data Sources</h3>
                   <p className="text-xs text-neutral-500 mt-0.5">
-                    Synchronize all {activeCount} active data sources in sequence
+                    Process all {activeCount} active sources in sequential priority order
                   </p>
                 </div>
               </div>
@@ -1307,11 +1309,11 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
             <div className="p-5 sm:p-6 space-y-4 text-xs text-neutral-600 leading-relaxed">
               <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-3.5 space-y-2">
-                <p className="font-semibold text-neutral-800">What will happen when confirmed:</p>
+                <p className="font-semibold text-neutral-800">What will happen during synchronization:</p>
                 <ul className="space-y-1.5 text-neutral-600 list-disc list-inside">
                   <li>Crawls official circulars & downloads PDF attachments in <strong>priority sequence (#1 to #{sources.length})</strong>.</li>
-                  <li>Computes <strong>SHA-256 hash diffs</strong> to skip unchanged files and re-embed only new/updated circulars.</li>
-                  <li>Generates 384-dimensional vector embeddings and stores them in PostgreSQL (pgvector).</li>
+                  <li>Computes <strong>SHA-256 content hashes</strong> to skip unchanged files and re-embed only new/updated circulars.</li>
+                  <li>Generates 384-dimensional vector embeddings and upserts them to PostgreSQL (pgvector).</li>
                   <li>Each source status updates live from <span className="text-amber-700 font-semibold bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">fetching</span> to <span className="text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">completed</span>.</li>
                 </ul>
               </div>
@@ -1353,13 +1355,14 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                 disabled={actionLoading === 'all'}
                 className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95"
               >
-                <Zap className="w-3.5 h-3.5 fill-current text-amber-300" />
-                <span>Yes, Ingest All (Serial)</span>
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Confirm & Sync All</span>
               </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   )
 }
