@@ -19,6 +19,7 @@ import {
 import { checkBackendHealth } from './api/client'
 import { sendChatMessage } from './api/chat'
 import { AdminSourcesPanel } from './components/AdminSourcesPanel'
+import { MarkdownContent } from './components/MarkdownContent'
 
 
 interface Message {
@@ -360,7 +361,7 @@ export const App: React.FC = () => {
                   {/* Bubble Content */}
                   <div className="space-y-2 flex-1 min-w-0">
                     <div className="bg-[#f4f4f5] rounded-xl sm:rounded-2xl p-4 sm:p-5 text-sm sm:text-[15px] text-[#18181b] leading-relaxed break-words">
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                      <MarkdownContent content={msg.text} />
 
                       {/* Sources */}
                       {msg.sources && msg.sources.length > 0 && (
