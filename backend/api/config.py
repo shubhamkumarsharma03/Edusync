@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     CONFIDENCE_THRESHOLD: float = 0.55
 
     # LLM API Keys
+    ANTHROPIC_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
     OPENAI_API_KEY: str | None = None
 
