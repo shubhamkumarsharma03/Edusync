@@ -1,7 +1,6 @@
 """Script to download and save embedding and reranker models locally in backend/models_cache/."""
 
 import os
-import sys
 from pathlib import Path
 
 # Paths

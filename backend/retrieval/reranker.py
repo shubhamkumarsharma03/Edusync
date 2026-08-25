@@ -32,8 +32,8 @@ class CrossEncoderReranker:
     def get_model(cls, model_name: str = DEFAULT_MODEL_NAME) -> Any:
         """Lazy load CrossEncoder model as a singleton on CPU from local cache or Hub."""
         if cls._model is None:
-            import os
             from pathlib import Path
+
             from sentence_transformers import CrossEncoder
 
             # Check local models_cache folder
@@ -46,7 +46,6 @@ class CrossEncoderReranker:
             logger.info(f"Loading CrossEncoder reranker model '{target}' on CPU...")
             cls._model = CrossEncoder(target, device="cpu")
         return cls._model
-
 
     @staticmethod
     def sigmoid(logit: float) -> float:

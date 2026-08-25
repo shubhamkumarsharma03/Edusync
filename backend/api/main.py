@@ -11,11 +11,11 @@ from api.routes.chat import router as chat_router
 settings = get_settings()
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan context manager for startup and shutdown hooks."""
     import asyncio
+
     from api.routes.chat import warm_llm_client
     from ingestion.embedder import DocumentEmbedder
     from retrieval.reranker import CrossEncoderReranker
@@ -24,9 +24,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await asyncio.to_thread(DocumentEmbedder.get_model)
         await asyncio.to_thread(CrossEncoderReranker.get_model)
         await warm_llm_client()
-    except Exception as e:
+    except Exception:
         pass
-
 
     yield
 
@@ -52,7 +51,6 @@ app.add_middleware(
 # Include API routers
 app.include_router(admin_sources_router)
 app.include_router(chat_router)
-
 
 
 @app.get("/", tags=["General"])

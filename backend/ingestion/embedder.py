@@ -20,8 +20,8 @@ class DocumentEmbedder:
     def get_model(cls, model_name: str = MODEL_NAME) -> Any:
         """Lazy load SentenceTransformer model in singleton pattern from local cache or Hub."""
         if cls._model is None:
-            import os
             from pathlib import Path
+
             from sentence_transformers import SentenceTransformer
 
             # Check local models_cache folder
@@ -31,7 +31,6 @@ class DocumentEmbedder:
             logger.info(f"Loading SentenceTransformer model '{target}' on CPU...")
             cls._model = SentenceTransformer(target, device="cpu")
         return cls._model
-
 
     def embed_texts(self, texts: list[str], batch_size: int = 32) -> list[list[float]]:
         """Compute 384-dimensional dense vector embeddings for a list of texts."""

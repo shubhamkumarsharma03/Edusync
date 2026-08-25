@@ -1,7 +1,6 @@
 import logging
-from typing import Any
-from uuid import UUID
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,9 +41,8 @@ class ChatResponse(BaseModel):
     query: str
 
 
-import httpx
-
 # Persistent async HTTP client for fast REST Gemini calls
+
 _http_client: httpx.AsyncClient | None = None
 
 
@@ -56,7 +54,6 @@ def get_http_client() -> httpx.AsyncClient:
             limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
         )
     return _http_client
-
 
 
 async def warm_llm_client() -> None:
@@ -111,9 +108,6 @@ ANSWER:"""
     )
 
 
-
-
-
 @router.post("", response_model=ChatResponse)
 async def chat_endpoint(
     req: ChatRequest,
@@ -134,7 +128,6 @@ async def chat_endpoint(
         query=query,
         top_k=10,
     )
-
 
     if not raw_chunks:
         return ChatResponse(
@@ -194,8 +187,6 @@ async def chat_endpoint(
 
     # 5. Generate Grounded Answer asynchronously with persistent connection & timeout
     answer_text = await generate_llm_answer_async(query, combined_context)
-
-
 
     return ChatResponse(
         answer=answer_text,
