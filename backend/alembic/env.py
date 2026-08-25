@@ -2,7 +2,6 @@ import asyncio
 from logging.config import fileConfig
 
 from sqlalchemy import pool
-from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
@@ -50,6 +49,7 @@ def do_run_migrations(connection) -> None:
 async def run_async_migrations() -> None:
     """Run migrations asynchronously with cloud SSL support."""
     import ssl
+
     from sqlalchemy.ext.asyncio import create_async_engine
 
     db_url = settings.DATABASE_URL
@@ -77,7 +77,6 @@ async def run_async_migrations() -> None:
         await connection.run_sync(do_run_migrations)
 
     await connectable.dispose()
-
 
 
 def run_migrations_online() -> None:
