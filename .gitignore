@@ -57,7 +57,9 @@ Thumbs.db
 *.swp
 *.swo
 .idea/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 
 # Local Dev Data & Vector Store
 chroma_data/
