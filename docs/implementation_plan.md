@@ -124,9 +124,9 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] If top score < threshold → return fallback response (per PRD FR-15) instead of calling the LLM
 
 ### 4.4 LLM Generation & Citations
-- [ ] Build the grounded-generation prompt (answer only from provided chunks, cite source)
-- [ ] Call Claude API (primary) with OpenAI fallback on failure
-- [ ] Attach `sources[]` (document name, `last_verified`, `url`) to the response
+- [x] Build the grounded-generation prompt (answer only from provided chunks, cite source)
+- [x] Call Claude API (primary) with OpenAI fallback on failure
+- [x] Attach `sources[]` (document name, `last_verified`, `url`) to the response
 
 ### 4.5 API Endpoints (per TDD §6)
 - [ ] `POST /chat`
