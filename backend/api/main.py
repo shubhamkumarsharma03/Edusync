@@ -5,15 +5,31 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import get_settings
+from api.routes.admin_sources import router as admin_sources_router
+from api.routes.chat import router as chat_router
 
 settings = get_settings()
+
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan context manager for startup and shutdown hooks."""
-    # Startup logic (e.g. database pool init, model warming)
+    import asyncio
+    from api.routes.chat import warm_llm_client
+    from ingestion.embedder import DocumentEmbedder
+    from retrieval.reranker import CrossEncoderReranker
+
+    try:
+        await asyncio.to_thread(DocumentEmbedder.get_model)
+        await asyncio.to_thread(CrossEncoderReranker.get_model)
+        await warm_llm_client()
+    except Exception as e:
+        pass
+
+
     yield
+
     # Shutdown logic (e.g. closing connections)
 
 
@@ -32,6 +48,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include API routers
+app.include_router(admin_sources_router)
+app.include_router(chat_router)
+
 
 
 @app.get("/", tags=["General"])

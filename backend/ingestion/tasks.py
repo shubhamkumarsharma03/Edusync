@@ -1,42 +1,116 @@
 import asyncio
 import logging
+from datetime import UTC, datetime
+from uuid import UUID
 
 from celery import shared_task
 from sqlalchemy import select
 
 from db.session import async_session_maker
-from ingestion.pipeline import ingest_document
+from ingestion.pipeline import ingest_document, ingest_source
 from models.document import Document
+from models.source import IngestionSource
 
 logger = logging.getLogger(__name__)
 
 
-async def _run_reingest_all():
-    logger.info("Starting scheduled re-ingestion of all documents")
-    async with async_session_maker() as session:
-        # Get all unique source URLs
-        stmt = select(Document.source_url).distinct()
-        result = await session.execute(stmt)
-        urls = result.scalars().all()
+async def _run_fetch_source(source_id: UUID | str) -> dict:
+    """Execute prioritized ingestion for a specific IngestionSource."""
+    sid = UUID(str(source_id)) if isinstance(source_id, str) else source_id
+    logger.info(f"Starting prioritized ingestion for source ID: {sid}")
 
-        for url in urls:
-            try:
-                await ingest_document(session=session, source=url)
-            except Exception as e:
-                logger.error(f"Error re-ingesting {url}: {e}")
+    async with async_session_maker() as session:
+        stmt = select(IngestionSource).where(IngestionSource.id == sid)
+        result = await session.execute(stmt)
+        source = result.scalar_one_or_none()
+
+        if not source:
+            logger.error(f"Source with ID {sid} not found")
+            return {"error": "Source not found"}
+
+        source.status = "fetching"
+        source.error_message = None
+        await session.commit()
+
+        try:
+            # First time: initial_fetch_limit (50), subsequent: subsequent_fetch_limit (20)
+            limit = (
+                source.initial_fetch_limit
+                if source.last_fetched_at is None
+                else source.subsequent_fetch_limit
+            )
+
+            summary = await ingest_source(
+                session=session,
+                source_url=source.url,
+                limit=limit,
+                department=source.department,
+            )
+
+            source.status = "completed"
+            source.last_fetched_at = datetime.now(UTC)
+            source.error_message = None
+            await session.commit()
+
+            logger.info(f"Successfully finished ingestion for {source.name}: {summary.message}")
+            return summary.model_dump()
+        except Exception as e:
+            logger.error(f"Error executing ingestion for source {source.url}: {e}", exc_info=True)
+            source.status = "error"
+            source.error_message = str(e)
+            await session.commit()
+            return {"error": str(e)}
+
+
+@shared_task(name="ingestion.tasks.fetch_source_task")
+def fetch_source_task(source_id: str):
+    """Celery task to ingest a single configured source."""
+    return asyncio.run(_run_fetch_source(source_id))
+
+
+async def _run_fetch_all_sources_by_priority() -> list[dict]:
+    """Execute ingestion for all active sources ordered strictly by priority ASC (1, 2, 3...)."""
+    logger.info("Starting priority-queued batch ingestion across all active sources")
+    results = []
+
+    async with async_session_maker() as session:
+        stmt = (
+            select(IngestionSource)
+            .where(IngestionSource.is_active == True)  # noqa: E712
+            .order_by(IngestionSource.priority.asc(), IngestionSource.created_at.asc())
+        )
+        res = await session.execute(stmt)
+        sources = res.scalars().all()
+        source_ids = [s.id for s in sources]
+
+    for sid in source_ids:
+        try:
+            res_summary = await _run_fetch_source(sid)
+            results.append({"source_id": str(sid), "summary": res_summary})
+        except Exception as err:
+            logger.error(f"Failed during priority ingestion for {sid}: {err}")
+            results.append({"source_id": str(sid), "error": str(err)})
+
+    return results
 
 
 @shared_task(name="ingestion.tasks.reingest_all_documents")
 def reingest_all_documents():
-    """Celery task to re-ingest all registered documents."""
-    asyncio.run(_run_reingest_all())
+    """Scheduled task to run prioritized ingestion across all configured sources."""
+    asyncio.run(_run_fetch_all_sources_by_priority())
+
+
+@shared_task(name="ingestion.tasks.fetch_all_sources_task")
+def fetch_all_sources_task():
+    """Celery task to run all sources in priority order."""
+    return asyncio.run(_run_fetch_all_sources_by_priority())
 
 
 async def _run_reingest_single(source_url: str):
+    """Manual single-URL re-ingest fallback."""
     logger.info(f"Starting manual re-ingestion for {source_url}")
     async with async_session_maker() as session:
         try:
-            # We fetch existing metadata from DB
             stmt = select(Document).where(Document.source_url == source_url).limit(1)
             result = await session.execute(stmt)
             doc = result.scalar_one_or_none()
@@ -44,8 +118,6 @@ async def _run_reingest_single(source_url: str):
             department = doc.department if doc else None
             owner = doc.owner if doc else None
 
-            # Since source_type is an Enum/String in Document, we parse it if we can.
-            # However, `SourceType` is an Enum in ingestion.schemas.
             from ingestion.schemas import SourceType
 
             source_type_enum = None
@@ -61,7 +133,7 @@ async def _run_reingest_single(source_url: str):
                 source_type=source_type_enum,
                 department=department,
                 owner=owner,
-                force=True,  # Force re-embed on manual trigger
+                force=True,
             )
         except Exception as e:
             logger.error(f"Error re-ingesting {source_url}: {e}")

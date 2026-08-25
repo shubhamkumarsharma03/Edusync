@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class IngestionSummary(BaseModel):
-    """Execution summary for a document ingestion task."""
+    """Execution summary for a single document ingestion task."""
 
     source_url: str
     status: str
@@ -25,6 +25,20 @@ class IngestionSummary(BaseModel):
     document_id: str | None = None
     message: str = ""
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class SourceIngestionSummary(BaseModel):
+    """Aggregated execution summary for a multi-document source ingestion task."""
+
+    source_url: str
+    total_checked: int = 0
+    created_count: int = 0
+    updated_count: int = 0
+    unchanged_count: int = 0
+    total_chunks: int = 0
+    conflicted_count: int = 0
+    message: str = ""
+    details: list[IngestionSummary] = Field(default_factory=list)
 
 
 async def ingest_document(
@@ -37,14 +51,14 @@ async def ingest_document(
     embedder: DocumentEmbedder | None = None,
     **fetch_kwargs: Any,
 ) -> IngestionSummary:
-    """High-level end-to-end ingestion pipeline.
+    """High-level single-document ingestion pipeline.
 
     1. Fetches and parses document (PDF / HTML / Sheet).
     2. Runs content hash change detection vs PostgreSQL.
     3. If unchanged (and not force): returns immediately with 0 re-embed overhead.
     4. If new or modified: chunks text/tables and upserts embeddings into PostgreSQL.
     """
-    logger.info(f"Starting ingestion for: {source}")
+    logger.info(f"Starting ingestion for single document: {source}")
 
     try:
         # 1. Fetch document content
@@ -101,3 +115,123 @@ async def ingest_document(
     except Exception as e:
         logger.error(f"Ingestion failed for {source}: {e}", exc_info=True)
         raise
+
+
+async def ingest_source(
+    session: AsyncSession,
+    source_url: str,
+    limit: int = 50,
+    department: str | None = None,
+    owner: str | None = None,
+    force: bool = False,
+    embedder: DocumentEmbedder | None = None,
+) -> SourceIngestionSummary:
+    """Ingest institutional sources like department circulars or timetables.
+
+    Extracts up to `limit` individual notices and attached PDFs, running change-detection,
+    semantic chunking, and embedding on each item.
+    """
+    logger.info(f"Starting source batch ingestion for {source_url} (limit={limit})")
+    from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
+
+    fetcher = ECAjmerFetcher()
+    docs = await fetcher.fetch_all_source_documents(
+        source_url=source_url,
+        limit=limit,
+        department=department,
+    )
+
+    if not docs:
+        # Fallback to single document ingestion if not a multi-notice portal
+        single_summary = await ingest_document(
+            session=session,
+            source=source_url,
+            department=department,
+            owner=owner,
+            force=force,
+            embedder=embedder,
+        )
+        return SourceIngestionSummary(
+            source_url=source_url,
+            total_checked=1,
+            created_count=1 if single_summary.status == "created" else 0,
+            updated_count=1 if single_summary.status == "updated" else 0,
+            unchanged_count=1 if single_summary.status == "unchanged" else 0,
+            total_chunks=single_summary.chunks_count,
+            conflicted_count=1 if single_summary.status == "conflicted" else 0,
+            message=single_summary.message,
+            details=[single_summary],
+        )
+
+    summary = SourceIngestionSummary(
+        source_url=source_url,
+        total_checked=len(docs),
+    )
+
+    for fetched in docs:
+        try:
+            doc_dept = department or fetched.metadata.get("department")
+            detection = await ChangeDetector.check_document(
+                session, fetched, department=doc_dept, owner=owner
+            )
+
+            if detection.status == ChangeStatus.UNCHANGED and not force:
+                summary.unchanged_count += 1
+                summary.details.append(
+                    IngestionSummary(
+                        source_url=fetched.source_url,
+                        status="unchanged",
+                        reembedded=False,
+                        chunks_count=0,
+                        document_id=(
+                            str(detection.existing_document_id)
+                            if detection.existing_document_id
+                            else None
+                        ),
+                        message="Content unchanged. Skipped re-embedding.",
+                        metadata=fetched.metadata,
+                    )
+                )
+                continue
+
+            chunks = chunk_document(fetched, department=doc_dept, owner=owner)
+            doc, chunk_records = await upsert_document_and_chunks(
+                session=session,
+                fetched=fetched,
+                chunks=chunks,
+                department=doc_dept,
+                owner=owner,
+                embedder=embedder,
+            )
+
+            is_conflicted = await ConflictDetector.check_conflicts(session, doc)
+            action_status = "created" if detection.status == ChangeStatus.NEW else "updated"
+            if is_conflicted:
+                action_status = "conflicted"
+                summary.conflicted_count += 1
+            elif action_status == "created":
+                summary.created_count += 1
+            else:
+                summary.updated_count += 1
+
+            summary.total_chunks += len(chunk_records)
+            summary.details.append(
+                IngestionSummary(
+                    source_url=fetched.source_url,
+                    status=action_status,
+                    reembedded=True,
+                    chunks_count=len(chunk_records),
+                    document_id=str(doc.id),
+                    message=f"Successfully {action_status} notice ({len(chunk_records)} chunks).",
+                    metadata=fetched.metadata,
+                )
+            )
+        except Exception as e:
+            logger.error(f"Error ingesting item {fetched.source_url}: {e}")
+
+    summary.message = (
+        f"Ingestion complete: {summary.total_checked} checked, "
+        f"{summary.created_count} created, {summary.updated_count} updated, "
+        f"{summary.unchanged_count} unchanged, {summary.total_chunks} total chunks."
+    )
+    return summary

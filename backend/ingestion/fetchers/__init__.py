@@ -1,4 +1,5 @@
 from ingestion.fetchers.base import BaseFetcher
+from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
 from ingestion.fetchers.factory import detect_source_type, fetch_document, get_fetcher
 from ingestion.fetchers.html_fetcher import HTMLFetcher, fetch_html
 from ingestion.fetchers.pdf_fetcher import PDFFetcher, fetch_pdf
@@ -9,6 +10,7 @@ __all__ = [
     "PDFFetcher",
     "HTMLFetcher",
     "SheetFetcher",
+    "ECAjmerFetcher",
     "fetch_pdf",
     "fetch_html",
     "fetch_sheet",
