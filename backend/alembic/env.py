@@ -48,21 +48,36 @@ def do_run_migrations(connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    """In this scenario we need to create an Engine
-    and associate a connection with the context.
+    """Run migrations asynchronously with cloud SSL support."""
+    import ssl
+    from sqlalchemy.ext.asyncio import create_async_engine
 
-    """
+    db_url = settings.DATABASE_URL
+    connect_args: dict = {}
 
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
+    if "sslmode=" in db_url or "ssl=" in db_url:
+        db_url = db_url.split("?")[0]
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        connect_args["ssl"] = ctx
+    elif not any(h in db_url for h in ["localhost", "127.0.0.1", "::1"]):
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        connect_args["ssl"] = ctx
+
+    connectable = create_async_engine(
+        db_url,
         poolclass=pool.NullPool,
+        connect_args=connect_args,
     )
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)
 
     await connectable.dispose()
+
 
 
 def run_migrations_online() -> None:
