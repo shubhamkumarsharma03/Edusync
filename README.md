@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/logo.png" alt="EduSync Logo" width="380" />
+</p>
+
 # EduSync 🎓
 
 > **Self-Updating Retrieval-Augmented Knowledge Base Chatbot for Institutional Documents**  

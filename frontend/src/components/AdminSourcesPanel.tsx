@@ -810,10 +810,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
         {/* Top Standalone Header if opened in new tab */}
         {isStandalone && (
           <header className="bg-white border border-[#e4e4e7] rounded-2xl p-4 sm:p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-[#18181b] flex items-center justify-center text-white shadow-sm">
-                <Bot className="w-4 h-4" />
-              </div>
+            <div className="flex items-center gap-3.5">
+              <img src="/logo-icon.png" alt="EduSync" className="w-10 h-10 rounded-xl object-contain bg-white border border-[#e4e4e7] p-1 shadow-sm" />
               <div>
                 <div className="flex items-center gap-2">
                   <h1 className="font-bold text-lg tracking-tight text-[#18181b]">EduSync Admin</h1>
