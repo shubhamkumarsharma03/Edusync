@@ -49,6 +49,8 @@ frontend/build/
 .npm
 .vite/
 frontend/.vite/
+.vercel
+frontend/.vercel
 
 
 # Operating System & IDE
