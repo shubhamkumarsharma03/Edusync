@@ -333,6 +333,13 @@ async def seed_default_sources(
             "circulars",
             "physics",
         ),
+        (
+            "Proctor Section Circulars",
+            "https://www.ecajmer.ac.in/ui/cells/proctor/circulars",
+            "Proctor Section",
+            "circulars",
+            "proctor",
+        ),
     ]
 
     for idx, (name, url, dept, cat, slug) in enumerate(default_sources, start=1):

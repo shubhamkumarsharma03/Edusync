@@ -50,7 +50,7 @@ def get_http_client() -> httpx.AsyncClient:
     global _http_client
     if _http_client is None or _http_client.is_closed:
         _http_client = httpx.AsyncClient(
-            timeout=3.5,
+            timeout=12.0,
             limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
         )
     return _http_client
@@ -69,42 +69,52 @@ async def warm_llm_client() -> None:
 
 
 async def generate_llm_answer_async(query: str, chunks_text: str) -> str:
-    """Generate grounded answer using high-speed async Gemini REST API with instant fallback."""
+    """Generate grounded answer using high-speed async Gemini REST API with clean synthesis fallback."""
     api_key = settings.GEMINI_API_KEY
     if api_key and not api_key.startswith("mock"):
-        prompt = f"""You are EduSync, the institutional AI assistant for Engineering College Ajmer (ECA).
-Answer the student's question accurately and helpfully based ONLY on the verified official circulars and notices below.
-Do not speculate or hallucinate outside the provided context. If the notice contains dates, deadlines, or instructions, summarize them clearly in bullet points.
+        prompt = f"""You are EduSync, the official AI assistant for Engineering College Ajmer (ECA).
+Answer the student's question clearly, concisely, and helpfully based ONLY on the verified official notices provided below.
 
-VERIFIED OFFICIAL CIRCULARS & NOTICES:
+Formatting Guidelines:
+- Structure the response with clear headings (e.g. ## Notice Title or Overview) and bullet points.
+- Highlight important details like dates, fees, links, and notice numbers in **bold**.
+- Do NOT output raw metadata tags like "[Document Notice]" or internal database markers.
+- If multiple notices apply, organize them clearly.
+- Maintain a polite, professional, and student-friendly tone.
+
+VERIFIED OFFICIAL NOTICES:
 {chunks_text[:4000]}
 
 STUDENT QUESTION:
 {query}
 
 ANSWER:"""
-        try:
-            client = get_http_client()
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
-            payload = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.2, "maxOutputTokens": 800},
-            }
-            resp = await client.post(url, json=payload)
-            if resp.status_code == 200:
-                data = resp.json()
-                candidates = data.get("candidates", [])
-                if candidates and "content" in candidates[0]:
-                    parts = candidates[0]["content"].get("parts", [])
-                    if parts and "text" in parts[0]:
-                        return parts[0]["text"].strip()
-        except Exception as e:
-            logger.warning(f"Fast Gemini generation fallback: {e}")
+        client = get_http_client()
+        for model in ["gemini-3.6-flash", "gemini-flash-latest"]:
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+                payload = {
+                    "contents": [{"parts": [{"text": prompt}]}],
+                    "generationConfig": {"temperature": 0.2, "maxOutputTokens": 800},
+                }
+                resp = await client.post(url, json=payload)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    candidates = data.get("candidates", [])
+                    if candidates and "content" in candidates[0]:
+                        parts = candidates[0]["content"].get("parts", [])
+                        if parts and "text" in parts[0]:
+                            return parts[0]["text"].strip()
+            except Exception as e:
+                logger.warning(f"Fast Gemini generation ({model}) fallback: {e}")
 
-    # Instant grounded synthesis fallback
+    # Clean grounded synthesis fallback if LLM is unavailable
+    cleaned_chunks = (
+        chunks_text.replace("--- Document Notice ---", "").replace("[Document Notice]", "").strip()
+    )
     return (
         f"Here are the verified official details from Engineering College Ajmer notices:\n\n"
-        f"{chunks_text[:1400]}"
+        f"{cleaned_chunks[:1400]}"
     )
 
 
@@ -166,7 +176,7 @@ async def chat_endpoint(
     seen_urls: set[str] = set()
 
     for chunk in gate_result.qualifying_chunks:
-        context_blocks.append(f"--- Document Notice ---\n{chunk.content}")
+        context_blocks.append(chunk.content.strip())
         url = chunk.source_url or "https://www.ecajmer.ac.in"
         if url not in seen_urls:
             seen_urls.add(url)

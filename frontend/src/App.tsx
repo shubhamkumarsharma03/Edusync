@@ -11,7 +11,6 @@ import {
   ThumbsDown,
   Menu,
   X,
-  Bot,
   ExternalLink,
   Database,
   MessageSquare,
@@ -19,6 +18,7 @@ import {
 import { checkBackendHealth } from './api/client'
 import { sendChatMessage } from './api/chat'
 import { AdminSourcesPanel } from './components/AdminSourcesPanel'
+import { MarkdownContent } from './components/MarkdownContent'
 
 
 interface Message {
@@ -207,10 +207,7 @@ export const App: React.FC = () => {
           {/* Logo Header */}
           <div className="flex items-center justify-between pb-6">
             <div className="flex items-center gap-2.5">
-              <div className="w-6 h-6 rounded-md bg-[#18181b] flex items-center justify-center text-white shadow-sm">
-                <Bot className="w-3.5 h-3.5" />
-              </div>
-              <span className="font-bold text-base tracking-tight text-[#18181b]">EduSync</span>
+              <img src="/logo.png" alt="EduSync" className="h-7 w-auto object-contain" />
             </div>
             <button
               className="lg:hidden p-1.5 text-neutral-400 hover:text-neutral-700 rounded-md"
@@ -308,10 +305,11 @@ export const App: React.FC = () => {
 
           {/* Center Brand */}
           <div className="flex items-center gap-2">
+            <img src="/logo-icon.png" alt="EduSync" className="w-6 h-6 object-contain" />
             <span className="font-semibold text-base sm:text-lg tracking-tight text-[#18181b]">
               EduSync
             </span>
-            <span className="w-2 h-2 rounded-full bg-blue-500" />
+            <span className={`w-2 h-2 rounded-full ${isBackendOnline ? 'bg-emerald-500' : 'bg-neutral-300'}`} title={isBackendOnline ? 'Online' : 'Offline'} />
           </div>
 
           {/* Right Actions: Admin Panel Link in New Tab */}
@@ -353,14 +351,14 @@ export const App: React.FC = () => {
                 /* Assistant Bubble */
                 <div className="flex items-start gap-2.5 sm:gap-3.5 max-w-full sm:max-w-2xl md:max-w-3xl pr-4 sm:pr-8">
                   {/* Bot Icon */}
-                  <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-[#18181b] flex-shrink-0 flex items-center justify-center text-white mt-1 shadow-sm">
-                    <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-[#e4e4e7] flex-shrink-0 flex items-center justify-center p-1 mt-0.5 shadow-sm">
+                    <img src="/logo-icon.png" alt="EduSync AI" className="w-full h-full object-contain" />
                   </div>
 
                   {/* Bubble Content */}
                   <div className="space-y-2 flex-1 min-w-0">
                     <div className="bg-[#f4f4f5] rounded-xl sm:rounded-2xl p-4 sm:p-5 text-sm sm:text-[15px] text-[#18181b] leading-relaxed break-words">
-                      <p className="whitespace-pre-wrap">{msg.text}</p>
+                      <MarkdownContent content={msg.text} />
 
                       {/* Sources */}
                       {msg.sources && msg.sources.length > 0 && (
@@ -451,8 +449,8 @@ export const App: React.FC = () => {
           {/* Loading / Typing Indicator */}
           {isTyping && (
             <div className="flex items-start gap-2.5 sm:gap-3.5 max-w-full sm:max-w-2xl md:max-w-3xl pr-4">
-              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md bg-[#18181b] flex-shrink-0 flex items-center justify-center text-white mt-1 shadow-sm">
-                <Bot className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-[#e4e4e7] flex-shrink-0 flex items-center justify-center p-1 mt-0.5 shadow-sm">
+                <img src="/logo-icon.png" alt="EduSync AI" className="w-full h-full object-contain animate-pulse" />
               </div>
               <div className="bg-[#f4f4f5] rounded-2xl px-4 py-3 text-xs text-neutral-500 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
