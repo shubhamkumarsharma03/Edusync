@@ -49,9 +49,8 @@ class ConfidenceGate:
 
     def __init__(self, threshold: float | None = None) -> None:
         settings = get_settings()
-        self.threshold = (
-            threshold if threshold is not None else getattr(settings, "CONFIDENCE_THRESHOLD", 0.55)
-        )
+        raw_val = threshold if threshold is not None else getattr(settings, "CONFIDENCE_THRESHOLD", 0.55)
+        self.threshold: float = float(raw_val)
 
     def classify_confidence_level(self, score: float) -> ConfidenceLevel:
         """Classify a normalized relevance score into High, Medium, or Low."""
