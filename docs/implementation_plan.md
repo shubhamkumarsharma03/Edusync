@@ -77,6 +77,7 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 ### 3.1 Fetchers
 - [x] `fetch_pdf(url)` — download + extract text (PyMuPDF or pdfplumber)
+- [ ] `fetch_pdf` OCR Fallback — automatically trigger Gemini Vision OCR when scanned pages contain 0 or minimal text (<40 chars)
 - [x] `fetch_html(url)` — fetch + strip boilerplate (readability/BeautifulSoup)
 - [x] `fetch_sheet(url_or_path)` — parse CSV/Sheets export into structured rows
 
@@ -89,6 +90,7 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Implement semantic-boundary chunker (headings/paragraphs first, 300–500 tokens, ~15% overlap)
 - [x] Special-case: keep tables as single chunks
 - [x] Attach parent metadata (department, owner, source_url) to every chunk
+- [ ] Ingest and chunk all pages of scanned documents (replacing single header chunks with rich multi-page chunks)
 
 ### 3.4 Embedding & Upsert
 - [x] Wire in Sentence-Transformers (`all-MiniLM-L6-v2`) for local dev
@@ -102,7 +104,11 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Set up Celery worker + Celery Beat (default interval: every 6 hours, configurable)
 - [x] Add manual trigger task (used later by the admin "re-ingest" button)
 
-**Exit criteria:** Running the ingestion task against the seeded sample documents produces correct rows in `documents`/`chunks`; re-running with an unchanged source produces zero new embeddings; editing a seed doc and re-running produces exactly the changed chunks.
+### 3.7 Static College Knowledge Base
+- [ ] Create curated static Markdown documents in `backend/data/static/` (About College, Academic Regulations, Departments/HODs, Fee Structure, Hostels & Facilities, Helplines)
+- [ ] Implement `scripts/ingest_static_data.py` to chunk, hash-check, and embed static documents into PostgreSQL pgvector
+
+**Exit criteria:** Running the ingestion task against seeded and real scanned documents produces complete multi-page chunks with tables; re-running with an unchanged source produces zero new embeddings; static institutional documents are fully queryable.
 
 ---
 
@@ -114,6 +120,7 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Implement BM25/keyword search (e.g., Postgres full-text search or `rank_bm25`)
 - [x] Implement vector ANN search against `chunks.embedding`
 - [x] Merge + deduplicate results
+- [ ] Add department-segregation filter (`WHERE Document.department = :dept`) to VectorSearcher and KeywordSearcher
 
 ### 4.2 Reranking
 - [x] Integrate cross-encoder reranker (`ms-marco-MiniLM` locally, or Cohere Rerank API)
@@ -129,7 +136,7 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Attach `sources[]` (document name, `last_verified`, `url`) to the response
 
 ### 4.5 API Endpoints (per TDD §6)
-- [ ] `POST /chat`
+- [x] `POST /chat` (supports `query`, `department` filter, and auto-department routing)
 - [ ] `POST /feedback`
 - [ ] `GET /admin/documents`
 - [ ] `POST /admin/documents/{id}/reingest`
@@ -149,12 +156,13 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 **Goal:** A student can ask a question and see a trustworthy, cited answer.
 
-- [ ] `ChatWindow` component: message list + input box
-- [ ] `MessageBubble` component: renders answer text, source citation(s), `last_verified` date, confidence indicator (High/Medium/Low)
-- [ ] API wrapper (`/src/api/chat.ts`) calling `POST /chat`
+- [x] `ChatWindow` component: message list + input box
+- [x] `MessageBubble` component: renders answer text, source citation(s), `last_verified` date, confidence indicator (High/Medium/Low)
+- [x] API wrapper (`/src/api/chat.ts`) calling `POST /chat`
+- [ ] Department Selector filter (All, CSE, Examination, Registrar, Civil, EE, Mech, ECE, MCA, MBA) passed to chat API
 - [ ] Feedback control (thumbs up/down) wired to `POST /feedback`
 - [ ] Loading/error states (API timeout, fallback response styling distinct from normal answers)
-- [ ] Basic responsive layout (mobile + desktop)
+- [x] Basic responsive layout (mobile + desktop)
 
 **Exit criteria:** End-to-end manual test — type a question in the browser, see a real answer with citation sourced from the seeded documents.
 
