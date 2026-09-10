@@ -132,3 +132,84 @@ export async function seedDefaultSources(): Promise<IngestionSource[]> {
   }
   return res.json()
 }
+
+export interface IngestedDocumentItem {
+  id: string
+  source_url: string
+  source_type: string
+  department?: string | null
+  title: string
+  notice_sno?: string | null
+  notice_date?: string | null
+  content_hash: string
+  status: string
+  chunk_count: number
+  ingested_at: string
+  last_checked_at: string
+  preview?: string | null
+}
+
+export interface IngestedDocumentsResponse {
+  total: number
+  page: number
+  limit: number
+  source_id: string
+  source_name: string
+  documents: IngestedDocumentItem[]
+}
+
+export interface DocumentChunkItem {
+  id: string
+  token_count: number
+  last_verified: string
+  content: string
+}
+
+export async function getSourceDocuments(
+  sourceId: string,
+  page: number = 1,
+  limit: number = 10,
+  search?: string
+): Promise<IngestedDocumentsResponse> {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+  })
+  if (search && search.trim()) {
+    params.append('search', search.trim())
+  }
+  const res = await fetch(`${API_BASE_URL}/admin/sources/${sourceId}/documents?${params.toString()}`)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch source documents: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function getDocumentChunks(
+  sourceId: string,
+  documentId: string
+): Promise<DocumentChunkItem[]> {
+  const res = await fetch(`${API_BASE_URL}/admin/sources/${sourceId}/documents/${documentId}/chunks`)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch document chunks: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function getSourceLiveFeed(
+  sourceId: string,
+  page: number = 1,
+  limit: number = 10,
+  search: string = ''
+): Promise<{ success: boolean; data: any[]; pagination?: { totalItems: number } }> {
+  const params = new URLSearchParams({
+    page: String(page),
+    limit: String(limit),
+    search,
+  })
+  const res = await fetch(`${API_BASE_URL}/admin/sources/${sourceId}/live-feed?${params.toString()}`)
+  if (!res.ok) {
+    throw new Error(`Failed to fetch live feed: ${res.status}`)
+  }
+  return res.json()
+}

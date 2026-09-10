@@ -11,6 +11,7 @@ from ingestion.schemas import ExtractedTable, FetchedDocument, SourceType
 
 logger = logging.getLogger(__name__)
 
+
 # Known mappings for ECAjmer departments and cells
 KNOWN_DEPARTMENTS: dict[str, str] = {
     "cs-it": "Computer Science and Engineering",
@@ -118,8 +119,18 @@ class ECAjmerFetcher(BaseFetcher):
             logger.error(f"Failed to fetch ECAjmer API circular entries from {api_url}: {e}")
             return []
 
-    async def fetch_pdf_content(self, pdf_url: str) -> tuple[bytes, str, list[ExtractedTable], int]:
-        """Download a PDF file and extract plain text and tables using PyMuPDF."""
+    async def fetch_pdf_content(
+        self,
+        pdf_url: str,
+        existing_hash: str | None = None,
+    ) -> tuple[bytes, str, list[ExtractedTable], int]:
+        """Download a PDF file and extract plain text and tables using PyMuPDF.
+
+        Fast-paths when existing_hash matches the downloaded binary hash, completely
+        bypassing PyMuPDF parsing, rasterization, and OCR inference.
+        """
+        import hashlib
+
         try:
             async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
                 resp = await client.get(pdf_url, headers=self.headers)
@@ -130,6 +141,15 @@ class ECAjmerFetcher(BaseFetcher):
         except Exception as e:
             logger.warning(f"Error requesting PDF {pdf_url}: {e}")
             return b"", "", [], 0
+
+        # Fast-path: Check binary hash against existing stored hash
+        if existing_hash:
+            doc_hash = hashlib.sha256(raw_bytes).hexdigest()
+            if doc_hash == existing_hash:
+                logger.info(
+                    f"PDF binary hash matches existing record for {pdf_url.split('/')[-1]} - skipping OCR and extraction"
+                )
+                return raw_bytes, "", [], 0
 
         page_texts: list[str] = []
         tables: list[ExtractedTable] = []
@@ -202,6 +222,7 @@ class ECAjmerFetcher(BaseFetcher):
         entry: dict[str, Any],
         department_name: str,
         category_name: str = "Circular",
+        existing_hash: str | None = None,
     ) -> FetchedDocument:
         """Construct a full FetchedDocument from an individual circular entry and its attached PDF."""
         title = entry.get("title", "").strip()
@@ -224,7 +245,10 @@ class ECAjmerFetcher(BaseFetcher):
         page_count = 0
 
         if pdf_url and pdf_url.lower().endswith(".pdf"):
-            raw_bytes, pdf_text, tables, page_count = await self.fetch_pdf_content(pdf_url)
+            raw_bytes, pdf_text, tables, page_count = await self.fetch_pdf_content(
+                pdf_url,
+                existing_hash=existing_hash,
+            )
 
         # Fallback raw_bytes if empty
         if not raw_bytes:
@@ -273,6 +297,7 @@ class ECAjmerFetcher(BaseFetcher):
         source_url: str,
         limit: int = 50,
         department: str | None = None,
+        existing_hashes: dict[str, str] | None = None,
     ) -> list[FetchedDocument]:
         """Fetch all circulars / timetable documents for a given source link up to the specified limit (e.g. 50 or 20)."""
         slug, category_id, detected_dept = self.parse_url(source_url)
@@ -291,10 +316,27 @@ class ECAjmerFetcher(BaseFetcher):
         documents: list[FetchedDocument] = []
         for entry in entries:
             try:
+                # Pre-determine PDF URL to check against existing_hashes
+                content_rel = entry.get("content", "").strip()
+                pdf_url = ""
+                if content_rel:
+                    if content_rel.startswith("http://") or content_rel.startswith("https://"):
+                        pdf_url = content_rel
+                    else:
+                        clean_rel = content_rel.lstrip("/")
+                        pdf_url = f"https://ecajmer.ac.in/{clean_rel}"
+
+                entry_hash = (
+                    existing_hashes.get(pdf_url)
+                    if (existing_hashes and pdf_url)
+                    else None
+                )
+
                 doc = await self.fetch_single_notice(
                     entry=entry,
                     department_name=dept_name,
                     category_name=category_name,
+                    existing_hash=entry_hash,
                 )
                 documents.append(doc)
             except Exception as item_err:
@@ -308,6 +350,7 @@ class ECAjmerFetcher(BaseFetcher):
             source_url=source,
             limit=kwargs.get("limit", 1),
             department=kwargs.get("department"),
+            existing_hashes=kwargs.get("existing_hashes"),
         )
         if docs:
             return docs[0]

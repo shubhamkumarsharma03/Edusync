@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ingestion.change_detector import ChangeDetector, ChangeStatus
@@ -11,6 +12,7 @@ from ingestion.embedder import DocumentEmbedder
 from ingestion.fetchers.factory import fetch_document
 from ingestion.schemas import SourceType
 from ingestion.upsert import upsert_document_and_chunks
+from models.document import Document
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +63,14 @@ async def ingest_document(
     logger.info(f"Starting ingestion for single document: {source}")
 
     try:
+        # Pre-check existing document hash from DB for fast-path check
+        if not force and "existing_hash" not in fetch_kwargs:
+            stmt = select(Document.content_hash).where(Document.source_url == source)
+            res = await session.execute(stmt)
+            existing_h = res.scalar_one_or_none()
+            if existing_h:
+                fetch_kwargs["existing_hash"] = existing_h
+
         # 1. Fetch document content
         fetched = await fetch_document(source, source_type=source_type, **fetch_kwargs)
 
@@ -135,10 +145,21 @@ async def ingest_source(
     from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
 
     fetcher = ECAjmerFetcher()
+
+    # Pre-query existing hashes for documents from DB to bypass OCR on unchanged PDFs
+    existing_hashes: dict[str, str] = {}
+    if not force:
+        stmt = select(Document.source_url, Document.content_hash)
+        if department:
+            stmt = stmt.where(Document.department == department)
+        rows = (await session.execute(stmt)).all()
+        existing_hashes = {r[0]: r[1] for r in rows if r[0] and r[1]}
+
     docs = await fetcher.fetch_all_source_documents(
         source_url=source_url,
         limit=limit,
         department=department,
+        existing_hashes=existing_hashes if not force else None,
     )
 
     if not docs:

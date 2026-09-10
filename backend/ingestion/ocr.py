@@ -32,6 +32,17 @@ class DocumentOCR:
         self.min_text_threshold: int = getattr(self.settings, "OCR_MIN_TEXT_THRESHOLD", 40)
         self.format_output: bool = getattr(self.settings, "GOT_OCR_FORMAT", True)
 
+        raw_cache_dir = getattr(self.settings, "GOT_OCR_CACHE_DIR", "models_cache/ocr_cache")
+        cache_path = Path(raw_cache_dir)
+        if not cache_path.is_absolute():
+            base_dir = Path(__file__).resolve().parent.parent
+            cache_path = base_dir / cache_path
+        self.cache_dir: Path = cache_path
+        try:
+            self.cache_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as e:
+            logger.warning(f"Could not create OCR cache directory {self.cache_dir}: {e}")
+
         self._model: Any = None
         self._processor: Any = None
         self.device: str = "cpu"
@@ -159,8 +170,21 @@ class DocumentOCR:
         else:
             raise ValueError(f"Unsupported image input type: {type(image_input)}")
 
+        # 1. Check L1 Memory Cache
         if cache_key and cache_key in self._cache:
             return self._cache[cache_key]
+
+        # 2. Check L2 Disk Cache
+        if cache_key:
+            cache_file = self.cache_dir / f"{cache_key}.txt"
+            if cache_file.is_file():
+                try:
+                    cached_text = cache_file.read_text(encoding="utf-8")
+                    self._cache[cache_key] = cached_text
+                    logger.debug(f"OCR L2 disk cache hit for {cache_key[:12]}")
+                    return cached_text
+                except Exception as read_err:
+                    logger.warning(f"Failed to read OCR cache file {cache_file}: {read_err}")
 
         page_info = f" (Page {page_number})" if page_number is not None else ""
         doc_info = f" for '{doc_name}'" if doc_name else ""
@@ -171,6 +195,11 @@ class DocumentOCR:
             extracted_text = await asyncio.to_thread(self._ocr_image_sync, pil_image)
             if cache_key and extracted_text:
                 self._cache[cache_key] = extracted_text
+                try:
+                    cache_file = self.cache_dir / f"{cache_key}.txt"
+                    cache_file.write_text(extracted_text, encoding="utf-8")
+                except Exception as write_err:
+                    logger.warning(f"Failed to write OCR cache file: {write_err}")
             return extracted_text
         except Exception as e:
             logger.error(f"Error during local GOT-OCR 2.0 inference: {e}", exc_info=True)

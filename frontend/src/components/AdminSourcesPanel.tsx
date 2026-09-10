@@ -21,14 +21,16 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
-  FileText,
   Eye,
+  Globe,
+  FileCode,
 } from 'lucide-react'
-
 
 import {
   IngestionSource,
   SourceCreatePayload,
+  IngestedDocumentItem,
+  DocumentChunkItem,
   getSources,
   createSource,
   updateSource,
@@ -37,474 +39,49 @@ import {
   triggerFetchSource,
   triggerFetchAll,
   seedDefaultSources,
+  getSourceDocuments,
+  getDocumentChunks,
+  getSourceLiveFeed,
 } from '../api/sources'
+import { Department, getDepartments, createDepartment } from '../api/departments'
 
-const DEPARTMENTS_LIST = [
-  'Computer Science and Engineering',
-  'Civil Engineering',
-  'Electrical Engineering',
-  'Electronics and Communication Engineering',
-  'Electronic Instrumentation And Control Engineering',
-  'Mechanical Engineering',
-  'Computer Applications',
-  'Management Studies',
-  'Physics',
-  'Chemistry',
-  'Mathematics',
-  'English',
-  'Economics',
-  'Examination Section',
-  'Registrar Section',
-  'Academic Section',
-  'Accounts Section',
-  'Proctor Section',
-  'Store Section',
-  'First Year Cell',
-  'ERP Cell',
-  'Central Library',
-  'Training & Placement Cell',
-  'Startup Cell',
-  'Institution\'s Innovation Cell (IIC)',
-  'Industry Institute Interaction Cell (IIIC)',
-  'AI/ML Club (CSE)',
-  'National Innovation & Startup Policy',
-  'Scholarship Cell',
-  'Student / Parent Grievance Cell',
-  'SC/ST/OBC Cell',
-  'Women Cell',
-  'Psychological Counseling & Mental Health Cell',
-  'Hostels Section',
-  'Sports Department',
-  'National Service Scheme (NSS)',
-  'National Cadet Corps (NCC)',
-  'Unnat Bharat Abhiyan (UBA)',
-  'Nasha Mukti Abhiyan (NMA)',
-  'Alumni Cell',
-  'AICTE Cell',
-  'Student Activity Center',
-  'Student Achievements',
-  'Academic Calendar',
-  'General Administration',
-]
-
-export interface PresetSource {
+export interface HardcodedPrefetchSource {
   name: string
   url: string
   department: string
-  category: 'circulars' | 'timetable' | 'announcements' | 'general_html'
-  group: string
+  category: 'circulars' | 'timetable' | 'general_html'
+  deptId: number
 }
 
-const QUICK_PRESETS: PresetSource[] = [
-  // 1. Engineering & Academic Departments
+// 4 Hardcoded Core Sources kept for fast one-click prefetching & seeding
+export const HARDCODED_PREFETCH_SOURCES: HardcodedPrefetchSource[] = [
   {
-    name: 'CSE Circulars & Notices',
+    name: 'CSE Circulars',
     url: 'https://www.ecajmer.ac.in/departments/cs-it/circulars',
     department: 'Computer Science and Engineering',
     category: 'circulars',
-    group: 'Academic Departments',
+    deptId: 1,
   },
-  {
-    name: 'CSE Time Tables',
-    url: 'https://www.ecajmer.ac.in/departments/cs-it/timetable',
-    department: 'Computer Science and Engineering',
-    category: 'timetable',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Civil Engineering Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/ce/circulars',
-    department: 'Civil Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Electrical Engineering Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/ee/circulars',
-    department: 'Electrical Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Electronics & Comm. Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/ece/circulars',
-    department: 'Electronics and Communication Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'EIC Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/eic/circulars',
-    department: 'Electronic Instrumentation And Control Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Mechanical Engineering Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/me/circulars',
-    department: 'Mechanical Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Computer Applications (MCA) Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/mca/circulars',
-    department: 'Computer Applications',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Management Studies (MBA) Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/mba/circulars',
-    department: 'Management Studies',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Physics Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/physics/circulars',
-    department: 'Physics',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Chemistry Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/chemistry/circulars',
-    department: 'Chemistry',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Mathematics Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/maths/circulars',
-    department: 'Mathematics',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'English Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/english/circulars',
-    department: 'English',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Economics Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/economy/circulars',
-    department: 'Economics',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-
-  // 2. Core Administration & Examination Sections
   {
     name: 'Examination Section Circulars',
     url: 'https://www.ecajmer.ac.in/ui/cells/examination-section/circulars',
     department: 'Examination Section',
     category: 'circulars',
-    group: 'Administration & Exams',
+    deptId: 2,
   },
   {
     name: 'Registrar Circulars & Orders',
     url: 'https://www.ecajmer.ac.in/ui/cells/registrar/circulars',
     department: 'Registrar Section',
     category: 'circulars',
-    group: 'Administration & Exams',
+    deptId: 3,
   },
   {
-    name: 'Academic Section Circulars',
+    name: 'Academic Section Notices',
     url: 'https://www.ecajmer.ac.in/ui/cells/academic-section/circulars',
     department: 'Academic Section',
     category: 'circulars',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'Academic Calendar 2025-26',
-    url: 'https://www.ecajmer.ac.in/academics/academic-calendar',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'First Year Cell Circulars',
-    url: 'https://www.ecajmer.ac.in/ui/cells/first-year',
-    department: 'First Year Cell',
-    category: 'circulars',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'Account Section & Fees',
-    url: 'https://www.ecajmer.ac.in/ui/cells/accounts',
-    department: 'Accounts Section',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'Proctor Section Notices',
-    url: 'https://www.ecajmer.ac.in/ui/cells/proctor',
-    department: 'Proctor Section',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'Store Section',
-    url: 'https://www.ecajmer.ac.in/ui/cells/stores',
-    department: 'Store Section',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'ERP Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/erp-cell',
-    department: 'ERP Cell',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'AICTE Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/aicte',
-    department: 'AICTE Cell',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-
-  // 3. Curriculum, Courses & Research
-  {
-    name: 'UG Courses & Schemes',
-    url: 'https://www.ecajmer.ac.in/ui/cells/ug-courses',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Curriculum & Courses',
-  },
-  {
-    name: 'PG Courses (M.Tech/MCA/MBA)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/pg-courses',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Curriculum & Courses',
-  },
-  {
-    name: 'PhD Research Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/phd',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Curriculum & Courses',
-  },
-  {
-    name: 'MOOC Courses Portal',
-    url: 'https://www.ecajmer.ac.in/MoocCourses',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Curriculum & Courses',
-  },
-
-  // 4. Training, Placements & Innovation Cells
-  {
-    name: 'Training & Placement Office (TPO)',
-    url: 'https://tpo.ecajmer.ac.in/',
-    department: 'Training & Placement Cell',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'Startup Cell ECA',
-    url: 'https://www.ecajmer.ac.in/ui/cells/startup-cell',
-    department: 'Startup Cell',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'Institution Innovation Council (IIC)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/iic-cell',
-    department: 'Institution\'s Innovation Cell (IIC)',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'Industry Institute Interaction (IIIC)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/iii-cell',
-    department: 'Industry Institute Interaction Cell (IIIC)',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'AI/ML Club (CSE Department)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/aimlclub',
-    department: 'Computer Science and Engineering',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'National Innovation & Startup Policy',
-    url: 'https://www.ecajmer.ac.in/nationalialnnovationandstartuppolicy',
-    department: 'Startup Cell',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'MOUs with Companies & Industry',
-    url: 'https://www.ecajmer.ac.in/MousWithCompanies',
-    department: 'Training & Placement Cell',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-
-  // 5. Student Welfare, Services & Facilities
-  {
-    name: 'Scholarship Details & Notices',
-    url: 'https://www.ecajmer.ac.in/ui/cells/scholarship-details',
-    department: 'Scholarship Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Student / Parent Grievance Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/grievance',
-    department: 'Student / Parent Grievance Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'SC/ST/OBC Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/stsc',
-    department: 'SC/ST/OBC Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Women Cell & Grievance',
-    url: 'https://www.ecajmer.ac.in/ui/cells/women-cell',
-    department: 'Women Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Mental Health & Counseling (MHC)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/mhc',
-    department: 'Psychological Counseling & Mental Health Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Central Library & E-Resources',
-    url: 'https://www.ecajmer.ac.in/ui/cells/central-library',
-    department: 'Central Library',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'E-Resources & E-Learning',
-    url: 'https://www.ecajmer.ac.in/EResources',
-    department: 'Central Library',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Campus Hostels',
-    url: 'https://www.ecajmer.ac.in/ui/cells/hostels',
-    department: 'Hostels Section',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Sports Department',
-    url: 'https://www.ecajmer.ac.in/ui/cells/sports-department',
-    department: 'Sports Department',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'National Service Scheme (NSS)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/nss',
-    department: 'National Service Scheme (NSS)',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'National Cadet Corps (NCC)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/ncc',
-    department: 'National Cadet Corps (NCC)',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Unnat Bharat Abhiyan (UBA)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/uba',
-    department: 'Unnat Bharat Abhiyan (UBA)',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Nasha Mukti Abhiyan (NMA)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/nma',
-    department: 'Nasha Mukti Abhiyan (NMA)',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Creative Art Society (CAS)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/cas',
-    department: 'Student Activity Center',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Admission Corner & Enquiry',
-    url: 'https://www.ecajmer.ac.in/ui/admission-enquiry',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Alumni Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/alumni-cell',
-    department: 'Alumni Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-
-  // 6. Institutional Policies & Governance
-  {
-    name: 'Principal Message & Leadership',
-    url: 'https://www.ecajmer.ac.in/administration/PrincipalMessage',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'BOG (Minutes of Meetings)',
-    url: 'https://www.ecajmer.ac.in/administration/bog/Minutes-of-meetings',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'Mandatory Disclosure',
-    url: 'https://www.ecajmer.ac.in/mandatorydisclousure',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'Annual Reports',
-    url: 'https://www.ecajmer.ac.in/AnnualReports',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'Audit Report & Balance Sheets',
-    url: 'https://www.ecajmer.ac.in/AuditReportandbalanaceSheets',
-    department: 'Accounts Section',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'Higher Education Policy Document',
-    url: 'https://www.ecajmer.ac.in/assets/highereducationpolicy-Bi6EbfuP.pdf',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
+    deptId: 4,
   },
 ]
 
@@ -536,16 +113,41 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [yearFilter, setYearFilter] = useState<string>('All')
 
-  // Live Circulars Explorer Modal State
+  // Explorer Modal State (Database Documents & Live ECA Notices)
   const [explorerOpen, setExplorerOpen] = useState(false)
   const [explorerSource, setExplorerSource] = useState<IngestionSource | null>(null)
+  const [explorerTab, setExplorerTab] = useState<'db' | 'live'>('db')
+
+  // DB Ingested Documents State
+  const [dbDocuments, setDbDocuments] = useState<IngestedDocumentItem[]>([])
+  const [dbTotal, setDbTotal] = useState(0)
+  const [dbLoading, setDbLoading] = useState(false)
+  const [dbPageSize, setDbPageSize] = useState(10)
+  const [dbCurrentPage, setDbCurrentPage] = useState(1)
+  const [dbSearchQuery, setDbSearchQuery] = useState('')
+
+  // Chunk Inspection Modal State
+  const [chunkModalDoc, setChunkModalDoc] = useState<IngestedDocumentItem | null>(null)
+  const [docChunks, setDocChunks] = useState<DocumentChunkItem[]>([])
+  const [chunksLoading, setChunksLoading] = useState(false)
+
+  // Live ECA Notices State (proxied via backend)
   const [liveCirculars, setLiveCirculars] = useState<LiveCircularItem[]>([])
   const [liveLoading, setLiveLoading] = useState(false)
   const [livePageSize, setLivePageSize] = useState(10)
   const [liveCurrentPage, setLiveCurrentPage] = useState(1)
   const [liveTotalItems, setLiveTotalItems] = useState(0)
-  const [liveYearFilter, setLiveYearFilter] = useState('All')
   const [liveSearchQuery, setLiveSearchQuery] = useState('')
+
+  // Dynamic Departments from PostgreSQL (Simple IDs 1, 2, 3...)
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [departmentsLoading, setDepartmentsLoading] = useState(false)
+  const [newDeptModalOpen, setNewDeptModalOpen] = useState(false)
+  const [newDeptForm, setNewDeptForm] = useState({
+    name: '',
+    code: '',
+    category: 'Engineering',
+  })
 
   const [formData, setFormData] = useState<SourceCreatePayload>({
     name: '',
@@ -554,8 +156,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     category: 'circulars',
     priority: 1,
     is_active: true,
-    initial_fetch_limit: 50,
-    subsequent_fetch_limit: 20,
+    initial_fetch_limit: 10,
+    subsequent_fetch_limit: 5,
   })
 
   const loadSources = async (showSpinner = true) => {
@@ -570,8 +172,36 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     }
   }
 
+  const loadDepartments = async () => {
+    try {
+      setDepartmentsLoading(true)
+      const data = await getDepartments()
+      setDepartments(data)
+    } catch (err: any) {
+      console.error('Failed to load dynamic departments:', err)
+    } finally {
+      setDepartmentsLoading(false)
+    }
+  }
+
+  const handleCreateDepartment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newDeptForm.name.trim()) return
+    try {
+      const created = await createDepartment(newDeptForm)
+      showNotice(`Created department #${created.id}: ${created.name}`)
+      await loadDepartments()
+      setFormData((prev) => ({ ...prev, department: created.name }))
+      setNewDeptModalOpen(false)
+      setNewDeptForm({ name: '', code: '', category: 'Engineering' })
+    } catch (err: any) {
+      showNotice(err.message || 'Failed to create department', 'error')
+    }
+  }
+
   useEffect(() => {
     loadSources(true)
+    loadDepartments()
   }, [])
 
   // Auto-poll every 2.5 seconds when any source is actively in "fetching" state
@@ -601,8 +231,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
       category: 'circulars',
       priority: nextPriority,
       is_active: true,
-      initial_fetch_limit: 50,
-      subsequent_fetch_limit: 20,
+      initial_fetch_limit: 10,
+      subsequent_fetch_limit: 5,
     })
     setModalOpen(true)
   }
@@ -622,7 +252,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setModalOpen(true)
   }
 
-  const handleApplyPreset = (preset: (typeof QUICK_PRESETS)[0]) => {
+  const handleApplyPreset = (preset: HardcodedPrefetchSource) => {
     const nextPriority = sources.length > 0 ? Math.max(...sources.map((s) => s.priority)) + 1 : 1
     setFormData({
       name: preset.name,
@@ -631,8 +261,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
       category: preset.category,
       priority: nextPriority,
       is_active: true,
-      initial_fetch_limit: 50,
-      subsequent_fetch_limit: 20,
+      initial_fetch_limit: 10,
+      subsequent_fetch_limit: 5,
     })
   }
 
@@ -735,18 +365,27 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     }
   }
 
-  // Live Circulars Fetcher from ECA API
-  const fetchLiveEcaCirculars = async (src: IngestionSource, page = 1, limit = 10, search = '') => {
-    setLiveLoading(true)
-    const slug = src.slug || 'cs-it'
-    const categoryId = src.category === 'timetable' ? 2 : 1
-    const url = `https://ecajmer.ac.in/api/circulars/public/${slug}?page=${page}&limit=${limit}&mainCategoryId=${categoryId}&search=${encodeURIComponent(
-      search
-    )}`
-
+  // DB Documents Fetcher
+  const loadDbDocuments = async (src: IngestionSource, page = 1, limit = 10, search = '') => {
     try {
-      const res = await fetch(url)
-      const data = await res.json()
+      setDbLoading(true)
+      const res = await getSourceDocuments(src.id, page, limit, search)
+      setDbDocuments(res.documents)
+      setDbTotal(res.total)
+    } catch (err: any) {
+      console.error('Failed to load stored documents:', err)
+      setDbDocuments([])
+      setDbTotal(0)
+    } finally {
+      setDbLoading(false)
+    }
+  }
+
+  // Live Circulars Fetcher from backend proxy (no CORS issues)
+  const fetchLiveEcaCirculars = async (src: IngestionSource, page = 1, limit = 10, search = '') => {
+    try {
+      setLiveLoading(true)
+      const data = await getSourceLiveFeed(src.id, page, limit, search)
       if (data && data.success) {
         setLiveCirculars(data.data || [])
         setLiveTotalItems(data.pagination?.totalItems || (data.data || []).length)
@@ -757,6 +396,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     } catch (err) {
       console.error('Failed to load live circulars:', err)
       setLiveCirculars([])
+      setLiveTotalItems(0)
     } finally {
       setLiveLoading(false)
     }
@@ -764,12 +404,30 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
   const handleOpenExplorer = (src: IngestionSource) => {
     setExplorerSource(src)
+    setExplorerTab('db')
+    setDbCurrentPage(1)
+    setDbPageSize(10)
+    setDbSearchQuery('')
     setLiveCurrentPage(1)
     setLivePageSize(10)
-    setLiveYearFilter('All')
     setLiveSearchQuery('')
     setExplorerOpen(true)
-    fetchLiveEcaCirculars(src, 1, 10, '')
+    loadDbDocuments(src, 1, 10, '')
+  }
+
+  const handleOpenChunks = async (doc: IngestedDocumentItem) => {
+    if (!explorerSource) return
+    setChunkModalDoc(doc)
+    setChunksLoading(true)
+    try {
+      const chunks = await getDocumentChunks(explorerSource.id, doc.id)
+      setDocChunks(chunks)
+    } catch (err) {
+      console.error('Failed to load document chunks:', err)
+      setDocChunks([])
+    } finally {
+      setChunksLoading(false)
+    }
   }
 
   // Filtered Sources
@@ -794,6 +452,11 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
   const activeCount = sources.filter((s) => s.is_active).length
   const completedCount = sources.filter((s) => s.status === 'completed').length
+
+  // DB Documents Pagination calculation
+  const dbTotalPages = Math.ceil(dbTotal / dbPageSize) || 1
+  const dbStartIdx = dbTotal === 0 ? 0 : (dbCurrentPage - 1) * dbPageSize + 1
+  const dbEndIdx = Math.min(dbCurrentPage * dbPageSize, dbTotal)
 
   // Live Explorer Pagination calculation
   const liveTotalPages = Math.ceil(liveTotalItems / livePageSize) || 1
@@ -998,10 +661,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                 }}
                 className="px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-neutral-700 focus:outline-none"
               >
-                <option value="all">All Departments</option>
-                {DEPARTMENTS_LIST.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
+                <option value="all">All Departments / Sections</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.name}>
+                    [#{d.id}] {d.name}
                   </option>
                 ))}
               </select>
@@ -1296,22 +959,36 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
         </div>
       </div>
 
-      {/* LIVE CIRCULARS EXPLORER MODAL (ECA-STYLE TABLE & CONTROLS) */}
+      {/* INGESTED DOCUMENTS & LIVE EXPLORER MODAL */}
       {explorerOpen && explorerSource && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-5xl p-6 shadow-2xl text-[#18181b] max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-5xl shadow-2xl text-[#18181b] max-h-[90vh] flex flex-col overflow-hidden">
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-[#f0f0f2] flex-shrink-0">
+            <div className="flex items-center justify-between p-4 sm:p-5 border-b border-[#f0f0f2] flex-shrink-0 bg-white">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-xl">
-                  <FileText className="w-5 h-5" />
+                <div className="p-2.5 bg-indigo-50 border border-indigo-100 text-indigo-600 rounded-xl">
+                  <Database className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#18181b]">
-                    {explorerSource.name} &bull; Live ECA Notices
-                  </h3>
-                  <p className="text-xs text-neutral-500 mt-0.5">
-                    Live synchronization view from {explorerSource.url}
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base font-bold text-[#18181b]">
+                      {explorerSource.name}
+                    </h3>
+                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
+                      {explorerSource.department || 'General'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-1.5 truncate max-w-xl">
+                    <span>Source Target:</span>
+                    <a
+                      href={explorerSource.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-indigo-600 hover:underline flex items-center gap-1"
+                    >
+                      {explorerSource.url}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
                   </p>
                 </div>
               </div>
@@ -1323,177 +1000,456 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               </button>
             </div>
 
-            {/* Modal Filter & ECA Pagination Bar */}
-            <div className="py-4 space-y-3 flex-shrink-0">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="relative flex-1 min-w-[200px] max-w-sm">
-                  <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search circulars by title or S.No..."
-                    value={liveSearchQuery}
-                    onChange={(e) => {
-                      setLiveSearchQuery(e.target.value)
-                      setLiveCurrentPage(1)
-                      fetchLiveEcaCirculars(explorerSource, 1, livePageSize, e.target.value)
-                    }}
-                    className="w-full pl-9 pr-3 py-1.5 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] placeholder-neutral-400 focus:outline-none"
-                  />
+            {/* Navigation Tabs (DB Documents vs Live ECA Portal) */}
+            <div className="px-5 pt-3 border-b border-[#f0f0f2] flex items-center gap-4 bg-[#fafbfc]">
+              <button
+                onClick={() => {
+                  setExplorerTab('db')
+                  loadDbDocuments(explorerSource, 1, dbPageSize, dbSearchQuery)
+                }}
+                className={`pb-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
+                  explorerTab === 'db'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                }`}
+              >
+                <Database className="w-4 h-4" />
+                <span>Stored in EduSync DB</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-indigo-100 text-indigo-700 font-bold">
+                  {dbTotal}
+                </span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setExplorerTab('live')
+                  fetchLiveEcaCirculars(explorerSource, 1, livePageSize, liveSearchQuery)
+                }}
+                className={`pb-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
+                  explorerTab === 'live'
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                }`}
+              >
+                <Globe className="w-4 h-4" />
+                <span>Live ECA Portal Feed</span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-neutral-200 text-neutral-700 font-bold">
+                  {liveTotalItems}
+                </span>
+              </button>
+            </div>
+
+            {/* TAB CONTENT */}
+            {explorerTab === 'db' ? (
+              <div className="p-4 flex-1 flex flex-col overflow-hidden space-y-3">
+                {/* Search & Pagination Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+                  <div className="relative flex-1 min-w-[220px] max-w-md">
+                    <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search stored notices by title, S.No, or OCR content..."
+                      value={dbSearchQuery}
+                      onChange={(e) => {
+                        setDbSearchQuery(e.target.value)
+                        setDbCurrentPage(1)
+                        loadDbDocuments(explorerSource, 1, dbPageSize, e.target.value)
+                      }}
+                      className="w-full pl-9 pr-3 py-1.5 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] placeholder-neutral-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3 text-xs text-neutral-600 flex-wrap">
+                    <div>
+                      Showing <span className="font-semibold text-neutral-900">{dbStartIdx} - {dbEndIdx}</span> of{' '}
+                      <span className="font-semibold text-neutral-900">{dbTotal}</span> stored documents
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-neutral-500">Show:</span>
+                      <select
+                        value={dbPageSize}
+                        onChange={(e) => {
+                          const newLimit = Number(e.target.value)
+                          setDbPageSize(newLimit)
+                          setDbCurrentPage(1)
+                          loadDbDocuments(explorerSource, 1, newLimit, dbSearchQuery)
+                        }}
+                        className="px-2 py-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg text-xs font-semibold text-neutral-800 focus:outline-none cursor-pointer"
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={30}>30</option>
+                        <option value={50}>50</option>
+                      </select>
+                      <span className="text-neutral-500">entries</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={dbCurrentPage}
+                        onChange={(e) => {
+                          const newP = Number(e.target.value)
+                          setDbCurrentPage(newP)
+                          loadDbDocuments(explorerSource, newP, dbPageSize, dbSearchQuery)
+                        }}
+                        className="px-2 py-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg text-xs font-semibold text-neutral-800 focus:outline-none cursor-pointer"
+                      >
+                        {Array.from({ length: dbTotalPages }, (_, i) => i + 1).map((p) => (
+                          <option key={p} value={p}>
+                            {String(p).padStart(2, '0')}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-neutral-500">of {dbTotalPages} Pages</span>
+
+                      <button
+                        onClick={() => {
+                          const p = Math.max(1, dbCurrentPage - 1)
+                          setDbCurrentPage(p)
+                          loadDbDocuments(explorerSource, p, dbPageSize, dbSearchQuery)
+                        }}
+                        disabled={dbCurrentPage === 1}
+                        className="p-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg hover:bg-neutral-200 disabled:opacity-30 transition"
+                        title="Previous Page"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5 text-neutral-700" />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const p = Math.min(dbTotalPages, dbCurrentPage + 1)
+                          setDbCurrentPage(p)
+                          loadDbDocuments(explorerSource, p, dbPageSize, dbSearchQuery)
+                        }}
+                        disabled={dbCurrentPage >= dbTotalPages}
+                        className="p-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg hover:bg-neutral-200 disabled:opacity-30 transition"
+                        title="Next Page"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5 text-neutral-700" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                {/* ECA Pagination Controls */}
-                <div className="flex items-center gap-3 text-xs text-neutral-600 flex-wrap">
-                  <div>
-                    Showing <span className="font-semibold text-neutral-900">{liveStartIdx} - {liveEndIdx}</span> of{' '}
-                    <span className="font-semibold text-neutral-900">{liveTotalItems}</span> entries
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-neutral-500">Show:</span>
-                    <select
-                      value={livePageSize}
-                      onChange={(e) => {
-                        const newLimit = Number(e.target.value)
-                        setLivePageSize(newLimit)
-                        setLiveCurrentPage(1)
-                        fetchLiveEcaCirculars(explorerSource, 1, newLimit, liveSearchQuery)
-                      }}
-                      className="px-2 py-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg text-xs font-semibold text-neutral-800 focus:outline-none cursor-pointer"
-                    >
-                      <option value={10}>10</option>
-                      <option value={20}>20</option>
-                      <option value={30}>30</option>
-                      <option value={50}>50</option>
-                    </select>
-                    <span className="text-neutral-500">entries</span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-neutral-500">Year:</span>
-                    <select
-                      value={liveYearFilter}
-                      onChange={(e) => setLiveYearFilter(e.target.value)}
-                      className="px-2 py-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg text-xs font-semibold text-neutral-800 focus:outline-none cursor-pointer"
-                    >
-                      <option value="All">All</option>
-                      <option value="2026">2026</option>
-                      <option value="2025">2025</option>
-                      <option value="2024">2024</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center gap-1.5">
-                    <select
-                      value={liveCurrentPage}
-                      onChange={(e) => {
-                        const newP = Number(e.target.value)
-                        setLiveCurrentPage(newP)
-                        fetchLiveEcaCirculars(explorerSource, newP, livePageSize, liveSearchQuery)
-                      }}
-                      className="px-2 py-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg text-xs font-semibold text-neutral-800 focus:outline-none cursor-pointer"
-                    >
-                      {Array.from({ length: liveTotalPages }, (_, i) => i + 1).map((p) => (
-                        <option key={p} value={p}>
-                          {String(p).padStart(2, '0')}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-neutral-500">of {liveTotalPages} Pages</span>
-
-                    <button
-                      onClick={() => {
-                        const p = Math.max(1, liveCurrentPage - 1)
-                        setLiveCurrentPage(p)
-                        fetchLiveEcaCirculars(explorerSource, p, livePageSize, liveSearchQuery)
-                      }}
-                      disabled={liveCurrentPage === 1}
-                      className="p-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg hover:bg-neutral-200 disabled:opacity-30 transition"
-                      title="Previous Page"
-                    >
-                      <ChevronLeft className="w-3.5 h-3.5 text-neutral-700" />
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        const p = Math.min(liveTotalPages, liveCurrentPage + 1)
-                        setLiveCurrentPage(p)
-                        fetchLiveEcaCirculars(explorerSource, p, livePageSize, liveSearchQuery)
-                      }}
-                      disabled={liveCurrentPage >= liveTotalPages}
-                      className="p-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg hover:bg-neutral-200 disabled:opacity-30 transition"
-                      title="Next Page"
-                    >
-                      <ChevronRight className="w-3.5 h-3.5 text-neutral-700" />
-                    </button>
-                  </div>
+                {/* Stored Documents Table */}
+                <div className="overflow-y-auto flex-1 border border-[#e4e4e7] rounded-xl">
+                  {dbLoading ? (
+                    <div className="py-16 flex flex-col items-center justify-center text-neutral-500 gap-3">
+                      <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
+                      <span className="text-sm">Loading ingested documents from database...</span>
+                    </div>
+                  ) : dbDocuments.length === 0 ? (
+                    <div className="py-16 text-center text-neutral-500 text-xs">
+                      No documents found in database for this selection. Click "Fetch & Embed" on this source to ingest notices.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#f8f9fa] border-b border-[#e4e4e7] text-[11px] font-bold text-neutral-500 uppercase tracking-wider sticky top-0">
+                          <th className="py-3 px-4 w-32">S.No</th>
+                          <th className="py-3 px-4 w-28">Date</th>
+                          <th className="py-3 px-4">Document / Notice Title</th>
+                          <th className="py-3 px-4 w-36 text-center">Status & Chunks</th>
+                          <th className="py-3 px-4 w-40 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#ebecee] text-xs">
+                        {dbDocuments.map((doc) => (
+                          <tr key={doc.id} className="hover:bg-[#f8f9fa] transition">
+                            <td className="py-3 px-4 font-mono font-medium text-neutral-700">
+                              {doc.notice_sno || `#${doc.id.slice(0, 8)}`}
+                            </td>
+                            <td className="py-3 px-4 text-neutral-600">
+                              {doc.notice_date ||
+                                (doc.ingested_at
+                                  ? new Date(doc.ingested_at).toLocaleDateString([], {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                    })
+                                  : 'N/A')}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="font-semibold text-[#18181b]">{doc.title}</div>
+                              <div className="text-[11px] text-neutral-400 font-mono truncate max-w-md mt-0.5">
+                                {doc.source_url}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <div className="inline-flex items-center gap-1.5">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-md text-[10px] font-semibold uppercase">
+                                  <CheckCircle2 className="w-2.5 h-2.5" />
+                                  {doc.status}
+                                </span>
+                                <span className="px-2 py-0.5 bg-neutral-100 text-neutral-700 border border-neutral-200 rounded-md text-[10px] font-semibold">
+                                  {doc.chunk_count} chunks
+                                </span>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  onClick={() => handleOpenChunks(doc)}
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-xs font-semibold border border-neutral-200 transition"
+                                  title="Inspect extracted chunks and embeddings"
+                                >
+                                  <FileCode className="w-3.5 h-3.5 text-neutral-500" />
+                                  <span>Chunks</span>
+                                </button>
+                                {doc.source_url && (
+                                  <a
+                                    href={doc.source_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-xs font-semibold border border-indigo-200 transition"
+                                  >
+                                    <span>View PDF</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
-            </div>
+            ) : (
+              /* LIVE ECA PORTAL FEED TAB */
+              <div className="p-4 flex-1 flex flex-col overflow-hidden space-y-3">
+                {/* Search & Pagination Bar */}
+                <div className="flex flex-wrap items-center justify-between gap-3 flex-shrink-0">
+                  <div className="relative flex-1 min-w-[200px] max-w-sm">
+                    <Search className="w-4 h-4 text-neutral-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search circulars by title or S.No..."
+                      value={liveSearchQuery}
+                      onChange={(e) => {
+                        setLiveSearchQuery(e.target.value)
+                        setLiveCurrentPage(1)
+                        fetchLiveEcaCirculars(explorerSource, 1, livePageSize, e.target.value)
+                      }}
+                      className="w-full pl-9 pr-3 py-1.5 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] placeholder-neutral-400 focus:outline-none"
+                    />
+                  </div>
 
-            {/* Live ECA Table */}
-            <div className="overflow-y-auto flex-1 border border-[#e4e4e7] rounded-xl">
-              {liveLoading ? (
-                <div className="py-16 flex flex-col items-center justify-center text-neutral-500 gap-3">
-                  <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
-                  <span className="text-sm">Fetching live circulars from ECA portal...</span>
+                  <div className="flex items-center gap-3 text-xs text-neutral-600 flex-wrap">
+                    <div>
+                      Showing <span className="font-semibold text-neutral-900">{liveStartIdx} - {liveEndIdx}</span> of{' '}
+                      <span className="font-semibold text-neutral-900">{liveTotalItems}</span> live entries
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-neutral-500">Show:</span>
+                      <select
+                        value={livePageSize}
+                        onChange={(e) => {
+                          const newLimit = Number(e.target.value)
+                          setLivePageSize(newLimit)
+                          setLiveCurrentPage(1)
+                          fetchLiveEcaCirculars(explorerSource, 1, newLimit, liveSearchQuery)
+                        }}
+                        className="px-2 py-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg text-xs font-semibold text-neutral-800 focus:outline-none cursor-pointer"
+                      >
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={30}>30</option>
+                        <option value={50}>50</option>
+                      </select>
+                      <span className="text-neutral-500">entries</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={liveCurrentPage}
+                        onChange={(e) => {
+                          const newP = Number(e.target.value)
+                          setLiveCurrentPage(newP)
+                          fetchLiveEcaCirculars(explorerSource, newP, livePageSize, liveSearchQuery)
+                        }}
+                        className="px-2 py-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg text-xs font-semibold text-neutral-800 focus:outline-none cursor-pointer"
+                      >
+                        {Array.from({ length: liveTotalPages }, (_, i) => i + 1).map((p) => (
+                          <option key={p} value={p}>
+                            {String(p).padStart(2, '0')}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-neutral-500">of {liveTotalPages} Pages</span>
+
+                      <button
+                        onClick={() => {
+                          const p = Math.max(1, liveCurrentPage - 1)
+                          setLiveCurrentPage(p)
+                          fetchLiveEcaCirculars(explorerSource, p, livePageSize, liveSearchQuery)
+                        }}
+                        disabled={liveCurrentPage === 1}
+                        className="p-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg hover:bg-neutral-200 disabled:opacity-30 transition"
+                        title="Previous Page"
+                      >
+                        <ChevronLeft className="w-3.5 h-3.5 text-neutral-700" />
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          const p = Math.min(liveTotalPages, liveCurrentPage + 1)
+                          setLiveCurrentPage(p)
+                          fetchLiveEcaCirculars(explorerSource, p, livePageSize, liveSearchQuery)
+                        }}
+                        disabled={liveCurrentPage >= liveTotalPages}
+                        className="p-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg hover:bg-neutral-200 disabled:opacity-30 transition"
+                        title="Next Page"
+                      >
+                        <ChevronRight className="w-3.5 h-3.5 text-neutral-700" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              ) : liveCirculars.length === 0 ? (
-                <div className="py-16 text-center text-neutral-500 text-xs">
-                  No circulars found for this selection.
-                </div>
-              ) : (
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-[#f8f9fa] border-b border-[#e4e4e7] text-[11px] font-bold text-neutral-500 uppercase tracking-wider sticky top-0">
-                      <th className="py-3 px-4 w-32">S.No</th>
-                      <th className="py-3 px-4 w-28">Date</th>
-                      <th className="py-3 px-4">Title</th>
-                      <th className="py-3 px-4 w-24 text-right">View</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[#ebecee] text-xs">
-                    {liveCirculars.map((item) => {
-                      const pdfUrl = item.content?.startsWith('http')
-                        ? item.content
-                        : `https://ecajmer.ac.in/${item.content?.replace(/^\//, '')}`
-                      return (
-                        <tr key={item.id} className="hover:bg-[#f8f9fa] transition">
-                          <td className="py-3 px-4 font-mono font-medium text-neutral-700">
-                            {item.sno || `#${item.id}`}
-                          </td>
-                          <td className="py-3 px-4 text-neutral-600">{item.date || 'N/A'}</td>
-                          <td className="py-3 px-4 font-medium text-[#18181b]">{item.title}</td>
-                          <td className="py-3 px-4 text-right">
-                            {item.content ? (
-                              <a
-                                href={pdfUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-xs font-semibold border border-indigo-200 transition"
-                              >
-                                <span>View</span>
-                                <ExternalLink className="w-3 h-3" />
-                              </a>
-                            ) : (
-                              <span className="text-neutral-400 text-xs">N/A</span>
-                            )}
-                          </td>
+
+                {/* Live ECA Table */}
+                <div className="overflow-y-auto flex-1 border border-[#e4e4e7] rounded-xl">
+                  {liveLoading ? (
+                    <div className="py-16 flex flex-col items-center justify-center text-neutral-500 gap-3">
+                      <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
+                      <span className="text-sm">Fetching live circulars from ECA portal via proxy...</span>
+                    </div>
+                  ) : liveCirculars.length === 0 ? (
+                    <div className="py-16 text-center text-neutral-500 text-xs">
+                      No circulars found on ECA portal for this selection.
+                    </div>
+                  ) : (
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-[#f8f9fa] border-b border-[#e4e4e7] text-[11px] font-bold text-neutral-500 uppercase tracking-wider sticky top-0">
+                          <th className="py-3 px-4 w-32">S.No</th>
+                          <th className="py-3 px-4 w-28">Date</th>
+                          <th className="py-3 px-4">Title</th>
+                          <th className="py-3 px-4 w-24 text-right">View</th>
                         </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              )}
-            </div>
+                      </thead>
+                      <tbody className="divide-y divide-[#ebecee] text-xs">
+                        {liveCirculars.map((item) => {
+                          const pdfUrl = item.content?.startsWith('http')
+                            ? item.content
+                            : `https://ecajmer.ac.in/${item.content?.replace(/^\//, '')}`
+                          return (
+                            <tr key={item.id} className="hover:bg-[#f8f9fa] transition">
+                              <td className="py-3 px-4 font-mono font-medium text-neutral-700">
+                                {item.sno || `#${item.id}`}
+                              </td>
+                              <td className="py-3 px-4 text-neutral-600">{item.date || 'N/A'}</td>
+                              <td className="py-3 px-4 font-medium text-[#18181b]">{item.title}</td>
+                              <td className="py-3 px-4 text-right">
+                                {item.content ? (
+                                  <a
+                                    href={pdfUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg text-xs font-semibold border border-indigo-200 transition"
+                                  >
+                                    <span>View</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </a>
+                                ) : (
+                                  <span className="text-neutral-400 text-xs">N/A</span>
+                                )}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Modal Footer */}
-            <div className="pt-4 mt-3 border-t border-[#f0f0f2] flex items-center justify-between text-xs text-neutral-500 flex-shrink-0">
-              <span>Connected to https://ecajmer.ac.in API</span>
+            <div className="p-4 border-t border-[#f0f0f2] flex items-center justify-between text-xs text-neutral-500 flex-shrink-0 bg-white">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>
+                  {explorerTab === 'db'
+                    ? `Connected to PostgreSQL • Showing ${dbDocuments.length} of ${dbTotal} ingested documents`
+                    : `Proxied through backend • Connected to ecajmer.ac.in`}
+                </span>
+              </div>
               <button
                 onClick={() => setExplorerOpen(false)}
                 className="px-4 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-xl font-semibold transition"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CHUNK INSPECTION SUB-MODAL */}
+      {chunkModalDoc && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-3xl shadow-2xl text-[#18181b] max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-[#f0f0f2] bg-white">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-purple-50 border border-purple-100 text-purple-600 rounded-xl">
+                  <FileCode className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-[#18181b]">{chunkModalDoc.title}</h4>
+                  <p className="text-[11px] text-neutral-500 font-mono mt-0.5">
+                    ID: {chunkModalDoc.id} &bull; SHA256: {chunkModalDoc.content_hash.slice(0, 16)}...
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setChunkModalDoc(null)}
+                className="p-1 text-neutral-400 hover:text-neutral-900 rounded-lg hover:bg-neutral-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto flex-1 space-y-3 bg-[#fafbfc]">
+              {chunksLoading ? (
+                <div className="py-12 flex flex-col items-center justify-center text-neutral-500 gap-2">
+                  <RefreshCw className="w-5 h-5 animate-spin text-purple-600" />
+                  <span className="text-xs">Loading chunks and token counts...</span>
+                </div>
+              ) : docChunks.length === 0 ? (
+                <div className="py-12 text-center text-neutral-500 text-xs">No chunks found for this document.</div>
+              ) : (
+                docChunks.map((chunk, index) => (
+                  <div
+                    key={chunk.id}
+                    className="p-3.5 bg-white border border-[#e4e4e7] rounded-xl shadow-sm text-xs space-y-2"
+                  >
+                    <div className="flex items-center justify-between text-[11px] text-neutral-500 border-b border-neutral-100 pb-2">
+                      <span className="font-semibold text-neutral-800">Chunk #{index + 1}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="px-2 py-0.5 bg-purple-50 text-purple-700 rounded font-mono font-medium">
+                          {chunk.token_count} tokens
+                        </span>
+                        <span>{new Date(chunk.last_verified).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                    </div>
+                    <pre className="text-[11px] font-mono text-neutral-800 whitespace-pre-wrap bg-[#f8f9fa] p-2.5 rounded-lg border border-neutral-200 overflow-x-auto max-h-48">
+                      {chunk.content}
+                    </pre>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="p-3 border-t border-[#f0f0f2] flex justify-end bg-white">
+              <button
+                onClick={() => setChunkModalDoc(null)}
+                className="px-3.5 py-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-800 rounded-lg text-xs font-semibold"
+              >
+                Done
               </button>
             </div>
           </div>
@@ -1531,51 +1487,32 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                     <div className="flex items-center justify-between">
                       <div className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Official ECA Portals (Auto-Fill)</span>
+                        <span>Core Official Portals (Hardcoded Prefetch Presets)</span>
                       </div>
-                      <span className="text-[10px] text-neutral-500">Select to fill fields</span>
+                      <span className="text-[10px] text-neutral-500">1-Click Fast Pick</span>
                     </div>
 
-                    {/* Categorized Group Dropdown */}
-                    <select
-                      onChange={(e) => {
-                        const found = QUICK_PRESETS.find((p) => p.url === e.target.value)
-                        if (found) handleApplyPreset(found)
-                      }}
-                      defaultValue=""
-                      className="w-full px-3 py-2 bg-white border border-[#d4d4d8] rounded-xl text-xs text-[#18181b] font-medium focus:outline-none focus:border-indigo-600 shadow-sm"
-                    >
-                      <option value="" disabled>
-                        -- ⚡ Choose an official ECA department or cell to auto-fill --
-                      </option>
-                      {Array.from(new Set(QUICK_PRESETS.map((p) => p.group))).map((groupName) => (
-                        <optgroup key={groupName} label={`📁 ${groupName}`}>
-                          {QUICK_PRESETS.filter((p) => p.group === groupName).map((p) => (
-                            <option key={p.url} value={p.url}>
-                              {p.name} — {p.department}
-                            </option>
-                          ))}
-                        </optgroup>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {HARDCODED_PREFETCH_SOURCES.map((preset) => (
+                        <button
+                          key={preset.url}
+                          type="button"
+                          onClick={() => handleApplyPreset(preset)}
+                          className="flex items-center justify-between p-2.5 bg-white hover:bg-indigo-50/70 border border-neutral-200 hover:border-indigo-300 rounded-xl text-left transition shadow-xs group"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="text-xs font-semibold text-neutral-900 truncate group-hover:text-indigo-700">
+                              {preset.name}
+                            </div>
+                            <div className="text-[10px] text-neutral-500 truncate">
+                              {preset.department}
+                            </div>
+                          </div>
+                          <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                            #{preset.deptId}
+                          </span>
+                        </button>
                       ))}
-                    </select>
-
-                    {/* Popular Fast-Pick Chips */}
-                    <div>
-                      <span className="text-[10px] font-semibold text-neutral-400 block mb-1.5 uppercase">
-                        Quick Fast-Picks:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
-                        {QUICK_PRESETS.slice(0, 8).map((preset) => (
-                          <button
-                            key={preset.name}
-                            type="button"
-                            onClick={() => handleApplyPreset(preset)}
-                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-neutral-700 hover:text-indigo-700 border border-neutral-200 hover:border-indigo-300 rounded-lg text-[11px] font-medium transition shadow-xs"
-                          >
-                            + {preset.name.replace(' Circulars & Notices', '').replace(' Circulars', '')}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   </div>
                 )}
@@ -1613,17 +1550,31 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">Department</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-neutral-700">Department / Section</label>
+                      <button
+                        type="button"
+                        onClick={() => setNewDeptModalOpen(true)}
+                        className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add Section</span>
+                      </button>
+                    </div>
                     <select
                       value={formData.department || ''}
                       onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                       className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
                     >
-                      {DEPARTMENTS_LIST.map((dept) => (
-                        <option key={dept} value={dept}>
-                          {dept}
-                        </option>
-                      ))}
+                      {departmentsLoading ? (
+                        <option value="">Loading sections...</option>
+                      ) : (
+                        departments.map((dept) => (
+                          <option key={dept.id} value={dept.name}>
+                            [#{dept.id}] {dept.name} ({dept.code || dept.category})
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -1660,9 +1611,9 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                       type="number"
                       min="1"
                       max="100"
-                      value={formData.initial_fetch_limit || 50}
+                      value={formData.initial_fetch_limit || 10}
                       onChange={(e) =>
-                        setFormData({ ...formData, initial_fetch_limit: parseInt(e.target.value) || 50 })
+                        setFormData({ ...formData, initial_fetch_limit: parseInt(e.target.value) || 10 })
                       }
                       className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
                     />
@@ -1674,9 +1625,9 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                       type="number"
                       min="1"
                       max="100"
-                      value={formData.subsequent_fetch_limit || 20}
+                      value={formData.subsequent_fetch_limit || 5}
                       onChange={(e) =>
-                        setFormData({ ...formData, subsequent_fetch_limit: parseInt(e.target.value) || 20 })
+                        setFormData({ ...formData, subsequent_fetch_limit: parseInt(e.target.value) || 5 })
                       }
                       className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
                     />
@@ -1800,6 +1751,97 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
           </div>
         </div>
       )}
+
+      {/* ADD NEW DEPARTMENT / SECTION MODAL */}
+      {newDeptModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-neutral-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <Database className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">Add New Department / Section</h3>
+                  <p className="text-[11px] text-neutral-500">Assigned a simple ID number automatically in database</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewDeptModalOpen(false)}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDepartment} className="p-4 space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Section / Department Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newDeptForm.name}
+                  onChange={(e) => setNewDeptForm({ ...newDeptForm, name: e.target.value })}
+                  placeholder="e.g. Sports & Cultural Committee"
+                  className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Code / Abbreviation
+                  </label>
+                  <input
+                    type="text"
+                    value={newDeptForm.code}
+                    onChange={(e) => setNewDeptForm({ ...newDeptForm, code: e.target.value })}
+                    placeholder="e.g. SPORTS"
+                    className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={newDeptForm.category}
+                    onChange={(e) => setNewDeptForm({ ...newDeptForm, category: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                  >
+                    <option value="Engineering">Engineering</option>
+                    <option value="Basic Sciences">Basic Sciences</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Cell / Committee">Cell / Committee</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setNewDeptModalOpen(false)}
+                  className="px-3.5 py-1.5 text-xs text-neutral-600 hover:text-neutral-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs"
+                >
+                  Save Section
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+

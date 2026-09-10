@@ -16,8 +16,26 @@ class PDFFetcher(BaseFetcher):
     source_type: SourceType = "pdf"
 
     async def fetch(self, source: str, **kwargs: Any) -> FetchedDocument:
-        """Fetch a PDF document from URL or local path and extract text + tables."""
+        """Fetch a PDF document from URL or local path and extract text + tables.
+
+        Fast-paths when existing_hash matches the downloaded binary hash, completely
+        bypassing PyMuPDF parsing, rasterization, and OCR inference.
+        """
+        import hashlib
+
         raw_bytes, base_meta = await self._get_raw_bytes(source)
+
+        existing_hash = kwargs.get("existing_hash")
+        if existing_hash and hashlib.sha256(raw_bytes).hexdigest() == existing_hash:
+            logger.info(f"PDF content hash matches existing record for {source} - skipping OCR")
+            return FetchedDocument(
+                source_url=source,
+                source_type="pdf",
+                raw_content=raw_bytes,
+                extracted_text="",
+                tables=[],
+                metadata=base_meta,
+            )
 
         try:
             doc = fitz.open(stream=raw_bytes, filetype="pdf")

@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     GOT_OCR_DPI: int = 150
     OCR_MIN_TEXT_THRESHOLD: int = 40
     GOT_OCR_FORMAT: bool = True
+    GOT_OCR_CACHE_DIR: str = "models_cache/ocr_cache"
 
     # LLM API Keys
     ANTHROPIC_API_KEY: str | None = None
