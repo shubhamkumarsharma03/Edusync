@@ -280,20 +280,13 @@ async def seed_default_sources(
     session: AsyncSession = Depends(get_db),
 ) -> list[IngestionSource]:
     """One-click preload all official departments and sections from ecajmer.ac.in."""
+    # Keep 4 core links hardcoded for instant prefetching & seeding
     default_sources = [
-        # High Priority: CSE, Examination, Registrar
         (
             "CSE Circulars",
             "https://www.ecajmer.ac.in/departments/cs-it/circulars",
             "Computer Science and Engineering",
             "circulars",
-            "cs-it",
-        ),
-        (
-            "CSE Time Tables",
-            "https://www.ecajmer.ac.in/departments/cs-it/timetable",
-            "Computer Science and Engineering",
-            "timetable",
             "cs-it",
         ),
         (
@@ -311,75 +304,11 @@ async def seed_default_sources(
             "registrar",
         ),
         (
-            "Academic Section",
+            "Academic Section Notices",
             "https://www.ecajmer.ac.in/ui/cells/academic-section/circulars",
             "Academic Section",
             "circulars",
             "academic-section",
-        ),
-        # Other Engineering Departments
-        (
-            "Civil Engineering Circulars",
-            "https://www.ecajmer.ac.in/departments/ce/circulars",
-            "Civil Engineering",
-            "circulars",
-            "ce",
-        ),
-        (
-            "Electrical Engineering Circulars",
-            "https://www.ecajmer.ac.in/departments/ee/circulars",
-            "Electrical Engineering",
-            "circulars",
-            "ee",
-        ),
-        (
-            "Electronics & Communication Circulars",
-            "https://www.ecajmer.ac.in/departments/ece/circulars",
-            "Electronics and Communication Engineering",
-            "circulars",
-            "ece",
-        ),
-        (
-            "Mechanical Engineering Circulars",
-            "https://www.ecajmer.ac.in/departments/me/circulars",
-            "Mechanical Engineering",
-            "circulars",
-            "me",
-        ),
-        (
-            "EIC Department Circulars",
-            "https://www.ecajmer.ac.in/departments/eic/circulars",
-            "Electronic Instrumentation And Control Engineering",
-            "circulars",
-            "eic",
-        ),
-        (
-            "MCA Department Circulars",
-            "https://www.ecajmer.ac.in/departments/mca/circulars",
-            "Computer Applications",
-            "circulars",
-            "mca",
-        ),
-        (
-            "MBA Department Circulars",
-            "https://www.ecajmer.ac.in/departments/mba/circulars",
-            "Management Studies",
-            "circulars",
-            "mba",
-        ),
-        (
-            "Applied Sciences (Physics/Chem/Maths)",
-            "https://www.ecajmer.ac.in/departments/physics/circulars",
-            "Physics",
-            "circulars",
-            "physics",
-        ),
-        (
-            "Proctor Section Circulars",
-            "https://www.ecajmer.ac.in/ui/cells/proctor/circulars",
-            "Proctor Section",
-            "circulars",
-            "proctor",
         ),
     ]
 

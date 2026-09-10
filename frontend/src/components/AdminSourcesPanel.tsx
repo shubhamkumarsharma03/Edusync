@@ -43,473 +43,45 @@ import {
   getDocumentChunks,
   getSourceLiveFeed,
 } from '../api/sources'
+import { Department, getDepartments, createDepartment } from '../api/departments'
 
-const DEPARTMENTS_LIST = [
-  'Computer Science and Engineering',
-  'Civil Engineering',
-  'Electrical Engineering',
-  'Electronics and Communication Engineering',
-  'Electronic Instrumentation And Control Engineering',
-  'Mechanical Engineering',
-  'Computer Applications',
-  'Management Studies',
-  'Physics',
-  'Chemistry',
-  'Mathematics',
-  'English',
-  'Economics',
-  'Examination Section',
-  'Registrar Section',
-  'Academic Section',
-  'Accounts Section',
-  'Proctor Section',
-  'Store Section',
-  'First Year Cell',
-  'ERP Cell',
-  'Central Library',
-  'Training & Placement Cell',
-  'Startup Cell',
-  'Institution\'s Innovation Cell (IIC)',
-  'Industry Institute Interaction Cell (IIIC)',
-  'AI/ML Club (CSE)',
-  'National Innovation & Startup Policy',
-  'Scholarship Cell',
-  'Student / Parent Grievance Cell',
-  'SC/ST/OBC Cell',
-  'Women Cell',
-  'Psychological Counseling & Mental Health Cell',
-  'Hostels Section',
-  'Sports Department',
-  'National Service Scheme (NSS)',
-  'National Cadet Corps (NCC)',
-  'Unnat Bharat Abhiyan (UBA)',
-  'Nasha Mukti Abhiyan (NMA)',
-  'Alumni Cell',
-  'AICTE Cell',
-  'Student Activity Center',
-  'Student Achievements',
-  'Academic Calendar',
-  'General Administration',
-]
-
-export interface PresetSource {
+export interface HardcodedPrefetchSource {
   name: string
   url: string
   department: string
-  category: 'circulars' | 'timetable' | 'announcements' | 'general_html'
-  group: string
+  category: 'circulars' | 'timetable' | 'general_html'
+  deptId: number
 }
 
-const QUICK_PRESETS: PresetSource[] = [
-  // 1. Engineering & Academic Departments
+// 4 Hardcoded Core Sources kept for fast one-click prefetching & seeding
+export const HARDCODED_PREFETCH_SOURCES: HardcodedPrefetchSource[] = [
   {
-    name: 'CSE Circulars & Notices',
+    name: 'CSE Circulars',
     url: 'https://www.ecajmer.ac.in/departments/cs-it/circulars',
     department: 'Computer Science and Engineering',
     category: 'circulars',
-    group: 'Academic Departments',
+    deptId: 1,
   },
-  {
-    name: 'CSE Time Tables',
-    url: 'https://www.ecajmer.ac.in/departments/cs-it/timetable',
-    department: 'Computer Science and Engineering',
-    category: 'timetable',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Civil Engineering Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/ce/circulars',
-    department: 'Civil Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Electrical Engineering Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/ee/circulars',
-    department: 'Electrical Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Electronics & Comm. Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/ece/circulars',
-    department: 'Electronics and Communication Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'EIC Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/eic/circulars',
-    department: 'Electronic Instrumentation And Control Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Mechanical Engineering Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/me/circulars',
-    department: 'Mechanical Engineering',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Computer Applications (MCA) Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/mca/circulars',
-    department: 'Computer Applications',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Management Studies (MBA) Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/mba/circulars',
-    department: 'Management Studies',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Physics Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/physics/circulars',
-    department: 'Physics',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Chemistry Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/chemistry/circulars',
-    department: 'Chemistry',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Mathematics Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/maths/circulars',
-    department: 'Mathematics',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'English Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/english/circulars',
-    department: 'English',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-  {
-    name: 'Economics Department Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/economy/circulars',
-    department: 'Economics',
-    category: 'circulars',
-    group: 'Academic Departments',
-  },
-
-  // 2. Core Administration & Examination Sections
   {
     name: 'Examination Section Circulars',
     url: 'https://www.ecajmer.ac.in/ui/cells/examination-section/circulars',
     department: 'Examination Section',
     category: 'circulars',
-    group: 'Administration & Exams',
+    deptId: 2,
   },
   {
     name: 'Registrar Circulars & Orders',
     url: 'https://www.ecajmer.ac.in/ui/cells/registrar/circulars',
     department: 'Registrar Section',
     category: 'circulars',
-    group: 'Administration & Exams',
+    deptId: 3,
   },
   {
-    name: 'Academic Section Circulars',
+    name: 'Academic Section Notices',
     url: 'https://www.ecajmer.ac.in/ui/cells/academic-section/circulars',
     department: 'Academic Section',
     category: 'circulars',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'Academic Calendar 2025-26',
-    url: 'https://www.ecajmer.ac.in/academics/academic-calendar',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'First Year Cell Circulars',
-    url: 'https://www.ecajmer.ac.in/ui/cells/first-year',
-    department: 'First Year Cell',
-    category: 'circulars',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'Account Section & Fees',
-    url: 'https://www.ecajmer.ac.in/ui/cells/accounts',
-    department: 'Accounts Section',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'Proctor Section Notices',
-    url: 'https://www.ecajmer.ac.in/ui/cells/proctor',
-    department: 'Proctor Section',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'Store Section',
-    url: 'https://www.ecajmer.ac.in/ui/cells/stores',
-    department: 'Store Section',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'ERP Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/erp-cell',
-    department: 'ERP Cell',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-  {
-    name: 'AICTE Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/aicte',
-    department: 'AICTE Cell',
-    category: 'general_html',
-    group: 'Administration & Exams',
-  },
-
-  // 3. Curriculum, Courses & Research
-  {
-    name: 'UG Courses & Schemes',
-    url: 'https://www.ecajmer.ac.in/ui/cells/ug-courses',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Curriculum & Courses',
-  },
-  {
-    name: 'PG Courses (M.Tech/MCA/MBA)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/pg-courses',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Curriculum & Courses',
-  },
-  {
-    name: 'PhD Research Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/phd',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Curriculum & Courses',
-  },
-  {
-    name: 'MOOC Courses Portal',
-    url: 'https://www.ecajmer.ac.in/MoocCourses',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Curriculum & Courses',
-  },
-
-  // 4. Training, Placements & Innovation Cells
-  {
-    name: 'Training & Placement Office (TPO)',
-    url: 'https://tpo.ecajmer.ac.in/',
-    department: 'Training & Placement Cell',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'Startup Cell ECA',
-    url: 'https://www.ecajmer.ac.in/ui/cells/startup-cell',
-    department: 'Startup Cell',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'Institution Innovation Council (IIC)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/iic-cell',
-    department: 'Institution\'s Innovation Cell (IIC)',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'Industry Institute Interaction (IIIC)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/iii-cell',
-    department: 'Industry Institute Interaction Cell (IIIC)',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'AI/ML Club (CSE Department)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/aimlclub',
-    department: 'Computer Science and Engineering',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'National Innovation & Startup Policy',
-    url: 'https://www.ecajmer.ac.in/nationalialnnovationandstartuppolicy',
-    department: 'Startup Cell',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-  {
-    name: 'MOUs with Companies & Industry',
-    url: 'https://www.ecajmer.ac.in/MousWithCompanies',
-    department: 'Training & Placement Cell',
-    category: 'general_html',
-    group: 'Placements & Innovation',
-  },
-
-  // 5. Student Welfare, Services & Facilities
-  {
-    name: 'Scholarship Details & Notices',
-    url: 'https://www.ecajmer.ac.in/ui/cells/scholarship-details',
-    department: 'Scholarship Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Student / Parent Grievance Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/grievance',
-    department: 'Student / Parent Grievance Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'SC/ST/OBC Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/stsc',
-    department: 'SC/ST/OBC Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Women Cell & Grievance',
-    url: 'https://www.ecajmer.ac.in/ui/cells/women-cell',
-    department: 'Women Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Mental Health & Counseling (MHC)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/mhc',
-    department: 'Psychological Counseling & Mental Health Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Central Library & E-Resources',
-    url: 'https://www.ecajmer.ac.in/ui/cells/central-library',
-    department: 'Central Library',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'E-Resources & E-Learning',
-    url: 'https://www.ecajmer.ac.in/EResources',
-    department: 'Central Library',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Campus Hostels',
-    url: 'https://www.ecajmer.ac.in/ui/cells/hostels',
-    department: 'Hostels Section',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Sports Department',
-    url: 'https://www.ecajmer.ac.in/ui/cells/sports-department',
-    department: 'Sports Department',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'National Service Scheme (NSS)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/nss',
-    department: 'National Service Scheme (NSS)',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'National Cadet Corps (NCC)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/ncc',
-    department: 'National Cadet Corps (NCC)',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Unnat Bharat Abhiyan (UBA)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/uba',
-    department: 'Unnat Bharat Abhiyan (UBA)',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Nasha Mukti Abhiyan (NMA)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/nma',
-    department: 'Nasha Mukti Abhiyan (NMA)',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Creative Art Society (CAS)',
-    url: 'https://www.ecajmer.ac.in/ui/cells/cas',
-    department: 'Student Activity Center',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Admission Corner & Enquiry',
-    url: 'https://www.ecajmer.ac.in/ui/admission-enquiry',
-    department: 'Academic Section',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-  {
-    name: 'Alumni Cell',
-    url: 'https://www.ecajmer.ac.in/ui/cells/alumni-cell',
-    department: 'Alumni Cell',
-    category: 'general_html',
-    group: 'Student Welfare & Services',
-  },
-
-  // 6. Institutional Policies & Governance
-  {
-    name: 'Principal Message & Leadership',
-    url: 'https://www.ecajmer.ac.in/administration/PrincipalMessage',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'BOG (Minutes of Meetings)',
-    url: 'https://www.ecajmer.ac.in/administration/bog/Minutes-of-meetings',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'Mandatory Disclosure',
-    url: 'https://www.ecajmer.ac.in/mandatorydisclousure',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'Annual Reports',
-    url: 'https://www.ecajmer.ac.in/AnnualReports',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'Audit Report & Balance Sheets',
-    url: 'https://www.ecajmer.ac.in/AuditReportandbalanaceSheets',
-    department: 'Accounts Section',
-    category: 'general_html',
-    group: 'Governance & Policies',
-  },
-  {
-    name: 'Higher Education Policy Document',
-    url: 'https://www.ecajmer.ac.in/assets/highereducationpolicy-Bi6EbfuP.pdf',
-    department: 'General Administration',
-    category: 'general_html',
-    group: 'Governance & Policies',
+    deptId: 4,
   },
 ]
 
@@ -567,6 +139,16 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const [liveTotalItems, setLiveTotalItems] = useState(0)
   const [liveSearchQuery, setLiveSearchQuery] = useState('')
 
+  // Dynamic Departments from PostgreSQL (Simple IDs 1, 2, 3...)
+  const [departments, setDepartments] = useState<Department[]>([])
+  const [departmentsLoading, setDepartmentsLoading] = useState(false)
+  const [newDeptModalOpen, setNewDeptModalOpen] = useState(false)
+  const [newDeptForm, setNewDeptForm] = useState({
+    name: '',
+    code: '',
+    category: 'Engineering',
+  })
+
   const [formData, setFormData] = useState<SourceCreatePayload>({
     name: '',
     url: '',
@@ -590,8 +172,36 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     }
   }
 
+  const loadDepartments = async () => {
+    try {
+      setDepartmentsLoading(true)
+      const data = await getDepartments()
+      setDepartments(data)
+    } catch (err: any) {
+      console.error('Failed to load dynamic departments:', err)
+    } finally {
+      setDepartmentsLoading(false)
+    }
+  }
+
+  const handleCreateDepartment = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newDeptForm.name.trim()) return
+    try {
+      const created = await createDepartment(newDeptForm)
+      showNotice(`Created department #${created.id}: ${created.name}`)
+      await loadDepartments()
+      setFormData((prev) => ({ ...prev, department: created.name }))
+      setNewDeptModalOpen(false)
+      setNewDeptForm({ name: '', code: '', category: 'Engineering' })
+    } catch (err: any) {
+      showNotice(err.message || 'Failed to create department', 'error')
+    }
+  }
+
   useEffect(() => {
     loadSources(true)
+    loadDepartments()
   }, [])
 
   // Auto-poll every 2.5 seconds when any source is actively in "fetching" state
@@ -642,7 +252,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setModalOpen(true)
   }
 
-  const handleApplyPreset = (preset: (typeof QUICK_PRESETS)[0]) => {
+  const handleApplyPreset = (preset: HardcodedPrefetchSource) => {
     const nextPriority = sources.length > 0 ? Math.max(...sources.map((s) => s.priority)) + 1 : 1
     setFormData({
       name: preset.name,
@@ -1051,10 +661,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                 }}
                 className="px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-neutral-700 focus:outline-none"
               >
-                <option value="all">All Departments</option>
-                {DEPARTMENTS_LIST.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
+                <option value="all">All Departments / Sections</option>
+                {departments.map((d) => (
+                  <option key={d.id} value={d.name}>
+                    [#{d.id}] {d.name}
                   </option>
                 ))}
               </select>
@@ -1877,51 +1487,32 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                     <div className="flex items-center justify-between">
                       <div className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Official ECA Portals (Auto-Fill)</span>
+                        <span>Core Official Portals (Hardcoded Prefetch Presets)</span>
                       </div>
-                      <span className="text-[10px] text-neutral-500">Select to fill fields</span>
+                      <span className="text-[10px] text-neutral-500">1-Click Fast Pick</span>
                     </div>
 
-                    {/* Categorized Group Dropdown */}
-                    <select
-                      onChange={(e) => {
-                        const found = QUICK_PRESETS.find((p) => p.url === e.target.value)
-                        if (found) handleApplyPreset(found)
-                      }}
-                      defaultValue=""
-                      className="w-full px-3 py-2 bg-white border border-[#d4d4d8] rounded-xl text-xs text-[#18181b] font-medium focus:outline-none focus:border-indigo-600 shadow-sm"
-                    >
-                      <option value="" disabled>
-                        -- ⚡ Choose an official ECA department or cell to auto-fill --
-                      </option>
-                      {Array.from(new Set(QUICK_PRESETS.map((p) => p.group))).map((groupName) => (
-                        <optgroup key={groupName} label={`📁 ${groupName}`}>
-                          {QUICK_PRESETS.filter((p) => p.group === groupName).map((p) => (
-                            <option key={p.url} value={p.url}>
-                              {p.name} — {p.department}
-                            </option>
-                          ))}
-                        </optgroup>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {HARDCODED_PREFETCH_SOURCES.map((preset) => (
+                        <button
+                          key={preset.url}
+                          type="button"
+                          onClick={() => handleApplyPreset(preset)}
+                          className="flex items-center justify-between p-2.5 bg-white hover:bg-indigo-50/70 border border-neutral-200 hover:border-indigo-300 rounded-xl text-left transition shadow-xs group"
+                        >
+                          <div className="min-w-0 pr-2">
+                            <div className="text-xs font-semibold text-neutral-900 truncate group-hover:text-indigo-700">
+                              {preset.name}
+                            </div>
+                            <div className="text-[10px] text-neutral-500 truncate">
+                              {preset.department}
+                            </div>
+                          </div>
+                          <span className="inline-flex items-center justify-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 shrink-0">
+                            #{preset.deptId}
+                          </span>
+                        </button>
                       ))}
-                    </select>
-
-                    {/* Popular Fast-Pick Chips */}
-                    <div>
-                      <span className="text-[10px] font-semibold text-neutral-400 block mb-1.5 uppercase">
-                        Quick Fast-Picks:
-                      </span>
-                      <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto">
-                        {QUICK_PRESETS.slice(0, 8).map((preset) => (
-                          <button
-                            key={preset.name}
-                            type="button"
-                            onClick={() => handleApplyPreset(preset)}
-                            className="px-2.5 py-1 bg-white hover:bg-indigo-50 text-neutral-700 hover:text-indigo-700 border border-neutral-200 hover:border-indigo-300 rounded-lg text-[11px] font-medium transition shadow-xs"
-                          >
-                            + {preset.name.replace(' Circulars & Notices', '').replace(' Circulars', '')}
-                          </button>
-                        ))}
-                      </div>
                     </div>
                   </div>
                 )}
@@ -1959,17 +1550,31 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                   <div>
-                    <label className="block text-xs font-semibold text-neutral-700 mb-1">Department</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-semibold text-neutral-700">Department / Section</label>
+                      <button
+                        type="button"
+                        onClick={() => setNewDeptModalOpen(true)}
+                        className="text-[11px] font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-0.5"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add Section</span>
+                      </button>
+                    </div>
                     <select
                       value={formData.department || ''}
                       onChange={(e) => setFormData({ ...formData, department: e.target.value })}
                       className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
                     >
-                      {DEPARTMENTS_LIST.map((dept) => (
-                        <option key={dept} value={dept}>
-                          {dept}
-                        </option>
-                      ))}
+                      {departmentsLoading ? (
+                        <option value="">Loading sections...</option>
+                      ) : (
+                        departments.map((dept) => (
+                          <option key={dept.id} value={dept.name}>
+                            [#{dept.id}] {dept.name} ({dept.code || dept.category})
+                          </option>
+                        ))
+                      )}
                     </select>
                   </div>
 
@@ -2146,6 +1751,97 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
           </div>
         </div>
       )}
+
+      {/* ADD NEW DEPARTMENT / SECTION MODAL */}
+      {newDeptModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-neutral-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-4 border-b border-neutral-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                  <Database className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-neutral-900">Add New Department / Section</h3>
+                  <p className="text-[11px] text-neutral-500">Assigned a simple ID number automatically in database</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNewDeptModalOpen(false)}
+                className="text-neutral-400 hover:text-neutral-600 p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateDepartment} className="p-4 space-y-3.5">
+              <div>
+                <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                  Section / Department Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newDeptForm.name}
+                  onChange={(e) => setNewDeptForm({ ...newDeptForm, name: e.target.value })}
+                  placeholder="e.g. Sports & Cultural Committee"
+                  className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Code / Abbreviation
+                  </label>
+                  <input
+                    type="text"
+                    value={newDeptForm.code}
+                    onChange={(e) => setNewDeptForm({ ...newDeptForm, code: e.target.value })}
+                    placeholder="e.g. SPORTS"
+                    className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-neutral-700 mb-1">
+                    Category
+                  </label>
+                  <select
+                    value={newDeptForm.category}
+                    onChange={(e) => setNewDeptForm({ ...newDeptForm, category: e.target.value })}
+                    className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
+                  >
+                    <option value="Engineering">Engineering</option>
+                    <option value="Basic Sciences">Basic Sciences</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Cell / Committee">Cell / Committee</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2 border-t border-neutral-100">
+                <button
+                  type="button"
+                  onClick={() => setNewDeptModalOpen(false)}
+                  className="px-3.5 py-1.5 text-xs text-neutral-600 hover:text-neutral-900"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-xs"
+                >
+                  Save Section
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
+

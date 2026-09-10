@@ -147,10 +147,11 @@ async def test_admin_sources_seed_defaults(mock_db_session):
             res = await ac.post("/admin/sources/seed-defaults")
             assert res.status_code == 200
             sources = res.json()
-            assert len(sources) >= 10
+            assert len(sources) == 4
             slugs = [s["slug"] for s in sources]
             assert "cs-it" in slugs
-            assert "ce" in slugs
+            assert "examination-section" in slugs
             assert "registrar" in slugs
+            assert "academic-section" in slugs
     finally:
         app.dependency_overrides.pop(get_db, None)
