@@ -5,11 +5,26 @@ from urllib.parse import urlparse
 import httpx
 import pymupdf as fitz
 
+from api.config import get_settings
 from ingestion.fetchers.base import BaseFetcher
 from ingestion.ocr import ocr_service
 from ingestion.schemas import ExtractedTable, FetchedDocument, SourceType
 
 logger = logging.getLogger(__name__)
+
+# Non-academic procurement/administrative keywords to skip
+NON_ACADEMIC_KEYWORDS: set[str] = {
+    "tender",
+    "quotation",
+    "niq",
+    "auction",
+    "scrap",
+    "bid",
+    "expression of interest",
+    "condemnation",
+    "procurement",
+}
+
 
 # Known mappings for ECAjmer departments and cells
 KNOWN_DEPARTMENTS: dict[str, str] = {
@@ -118,8 +133,19 @@ class ECAjmerFetcher(BaseFetcher):
             logger.error(f"Failed to fetch ECAjmer API circular entries from {api_url}: {e}")
             return []
 
-    async def fetch_pdf_content(self, pdf_url: str) -> tuple[bytes, str, list[ExtractedTable], int]:
-        """Download a PDF file and extract plain text and tables using PyMuPDF."""
+    async def fetch_pdf_content(
+        self,
+        pdf_url: str,
+        existing_hash: str | None = None,
+        max_ocr_pages: int | None = None,
+    ) -> tuple[bytes, str, list[ExtractedTable], int]:
+        """Download a PDF file and extract plain text and tables using PyMuPDF.
+
+        Fast-paths when existing_hash matches the downloaded binary hash, completely
+        bypassing PyMuPDF parsing, rasterization, and OCR inference.
+        """
+        import hashlib
+
         try:
             async with httpx.AsyncClient(timeout=self.timeout, follow_redirects=True) as client:
                 resp = await client.get(pdf_url, headers=self.headers)
@@ -131,9 +157,24 @@ class ECAjmerFetcher(BaseFetcher):
             logger.warning(f"Error requesting PDF {pdf_url}: {e}")
             return b"", "", [], 0
 
+        # Fast-path: Check binary hash against existing stored hash
+        if existing_hash:
+            doc_hash = hashlib.sha256(raw_bytes).hexdigest()
+            if doc_hash == existing_hash:
+                logger.info(
+                    f"PDF binary hash matches existing record for {pdf_url.split('/')[-1]} - skipping OCR and extraction"
+                )
+                return raw_bytes, "", [], 0
+
         page_texts: list[str] = []
         tables: list[ExtractedTable] = []
         page_count = 0
+        max_ocr = (
+            max_ocr_pages
+            if max_ocr_pages is not None
+            else getattr(ocr_service, "max_pages_per_doc", 5)
+        )
+        ocr_pages_done = 0
 
         try:
             with fitz.open(stream=raw_bytes, filetype="pdf") as doc:
@@ -143,7 +184,7 @@ class ECAjmerFetcher(BaseFetcher):
                     text = page.get_text("text").strip()
                     if len(text) >= ocr_service.min_text_threshold:
                         page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
-                    else:
+                    elif ocr_pages_done < max_ocr:
                         # Scanned image page -> Convert page to image and run local GOT-OCR 2.0
                         try:
                             pix = page.get_pixmap(dpi=ocr_service.dpi)
@@ -153,6 +194,7 @@ class ECAjmerFetcher(BaseFetcher):
                                 page_number=page_num + 1,
                                 doc_name=pdf_url.split("/")[-1],
                             )
+                            ocr_pages_done += 1
                             if ocr_text:
                                 page_texts.append(f"--- Page {page_num + 1} (GOT-OCR) ---\n{ocr_text}")
                             elif text:
@@ -163,6 +205,12 @@ class ECAjmerFetcher(BaseFetcher):
                             )
                             if text:
                                 page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+                    else:
+                        logger.info(
+                            f"Skipping OCR on page {page_num + 1} of {pdf_url.split('/')[-1]} (reached max OCR limit: {max_ocr})"
+                        )
+                        if text:
+                            page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
 
                     try:
                         tabs = page.find_tables()
@@ -202,6 +250,8 @@ class ECAjmerFetcher(BaseFetcher):
         entry: dict[str, Any],
         department_name: str,
         category_name: str = "Circular",
+        existing_hash: str | None = None,
+        max_ocr_pages: int | None = None,
     ) -> FetchedDocument:
         """Construct a full FetchedDocument from an individual circular entry and its attached PDF."""
         title = entry.get("title", "").strip()
@@ -224,7 +274,11 @@ class ECAjmerFetcher(BaseFetcher):
         page_count = 0
 
         if pdf_url and pdf_url.lower().endswith(".pdf"):
-            raw_bytes, pdf_text, tables, page_count = await self.fetch_pdf_content(pdf_url)
+            raw_bytes, pdf_text, tables, page_count = await self.fetch_pdf_content(
+                pdf_url,
+                existing_hash=existing_hash,
+                max_ocr_pages=max_ocr_pages,
+            )
 
         # Fallback raw_bytes if empty
         if not raw_bytes:
@@ -273,6 +327,8 @@ class ECAjmerFetcher(BaseFetcher):
         source_url: str,
         limit: int = 50,
         department: str | None = None,
+        existing_hashes: dict[str, str] | None = None,
+        max_ocr_pages: int | None = None,
     ) -> list[FetchedDocument]:
         """Fetch all circulars / timetable documents for a given source link up to the specified limit (e.g. 50 or 20)."""
         slug, category_id, detected_dept = self.parse_url(source_url)
@@ -288,13 +344,40 @@ class ECAjmerFetcher(BaseFetcher):
 
         logger.info(f"Retrieved {len(entries)} notice entries for {source_url} (limit={limit})")
 
+        should_filter = getattr(get_settings(), "FILTER_NON_ACADEMIC_NOTICES", True)
+
         documents: list[FetchedDocument] = []
         for entry in entries:
             try:
+                title = entry.get("title", "").strip()
+                if should_filter and title:
+                    title_lower = title.lower()
+                    if any(kw in title_lower for kw in NON_ACADEMIC_KEYWORDS):
+                        logger.info(f"Skipping non-academic/procurement notice: '{title}'")
+                        continue
+
+                # Pre-determine PDF URL to check against existing_hashes
+                content_rel = entry.get("content", "").strip()
+                pdf_url = ""
+                if content_rel:
+                    if content_rel.startswith("http://") or content_rel.startswith("https://"):
+                        pdf_url = content_rel
+                    else:
+                        clean_rel = content_rel.lstrip("/")
+                        pdf_url = f"https://ecajmer.ac.in/{clean_rel}"
+
+                entry_hash = (
+                    existing_hashes.get(pdf_url)
+                    if (existing_hashes and pdf_url)
+                    else None
+                )
+
                 doc = await self.fetch_single_notice(
                     entry=entry,
                     department_name=dept_name,
                     category_name=category_name,
+                    existing_hash=entry_hash,
+                    max_ocr_pages=max_ocr_pages,
                 )
                 documents.append(doc)
             except Exception as item_err:
@@ -308,6 +391,8 @@ class ECAjmerFetcher(BaseFetcher):
             source_url=source,
             limit=kwargs.get("limit", 1),
             department=kwargs.get("department"),
+            existing_hashes=kwargs.get("existing_hashes"),
+            max_ocr_pages=kwargs.get("max_ocr_pages"),
         )
         if docs:
             return docs[0]

@@ -24,8 +24,8 @@ class SourceBase(BaseModel):
     slug: str | None = Field(None, description="URL slug e.g. cs-it, ce, registrar")
     priority: int | None = Field(None, description="Sequential priority rank (1, 2, 3...)")
     is_active: bool = Field(True, description="Whether source is enabled for scheduled ingestion")
-    initial_fetch_limit: int = Field(50, description="Max notices to fetch on first run")
-    subsequent_fetch_limit: int = Field(20, description="Max notices to fetch on recurring runs")
+    initial_fetch_limit: int = Field(10, description="Max notices to fetch on first run")
+    subsequent_fetch_limit: int = Field(5, description="Max notices to fetch on recurring runs")
 
 
 class SourceCreate(SourceBase):
@@ -194,6 +194,7 @@ async def reorder_sources(
 @router.post("/{source_id}/fetch")
 async def trigger_source_fetch(
     source_id: UUID,
+    limit: int | None = None,
     session: AsyncSession = Depends(get_db),
 ) -> dict:
     """Trigger ingestion for a single source immediately."""
@@ -208,7 +209,7 @@ async def trigger_source_fetch(
 
     from ingestion.tasks import _run_fetch_source
 
-    asyncio.create_task(_run_fetch_source(str(source_id)))
+    asyncio.create_task(_run_fetch_source(str(source_id), limit=limit))
 
     return {
         "status": "triggered",
@@ -354,8 +355,8 @@ async def seed_default_sources(
                 category=cat,
                 slug=slug,
                 priority=idx,
-                initial_fetch_limit=50,
-                subsequent_fetch_limit=20,
+                initial_fetch_limit=10,
+                subsequent_fetch_limit=5,
                 status="idle",
                 is_active=True,
             )

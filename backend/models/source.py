@@ -22,10 +22,10 @@ class IngestionSource(Base, UUIDMixin):
         Boolean, nullable=False, default=True, server_default="true"
     )
     initial_fetch_limit: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=50, server_default="50"
+        Integer, nullable=False, default=10, server_default="10"
     )
     subsequent_fetch_limit: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=20, server_default="20"
+        Integer, nullable=False, default=5, server_default="5"
     )
     last_fetched_at: Mapped[datetime | None] = mapped_column(
         TIMESTAMP(timezone=True), nullable=True

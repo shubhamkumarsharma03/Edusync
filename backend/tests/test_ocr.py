@@ -1,6 +1,5 @@
 import io
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from PIL import Image
@@ -10,8 +9,10 @@ from ingestion.ocr import DocumentOCR
 
 
 @pytest.fixture
-def ocr_instance():
-    return DocumentOCR()
+def ocr_instance(tmp_path):
+    ocr = DocumentOCR()
+    ocr.cache_dir = tmp_path
+    return ocr
 
 
 def test_ocr_is_available(ocr_instance):

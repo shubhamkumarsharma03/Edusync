@@ -16,8 +16,26 @@ class PDFFetcher(BaseFetcher):
     source_type: SourceType = "pdf"
 
     async def fetch(self, source: str, **kwargs: Any) -> FetchedDocument:
-        """Fetch a PDF document from URL or local path and extract text + tables."""
+        """Fetch a PDF document from URL or local path and extract text + tables.
+
+        Fast-paths when existing_hash matches the downloaded binary hash, completely
+        bypassing PyMuPDF parsing, rasterization, and OCR inference.
+        """
+        import hashlib
+
         raw_bytes, base_meta = await self._get_raw_bytes(source)
+
+        existing_hash = kwargs.get("existing_hash")
+        if existing_hash and hashlib.sha256(raw_bytes).hexdigest() == existing_hash:
+            logger.info(f"PDF content hash matches existing record for {source} - skipping OCR")
+            return FetchedDocument(
+                source_url=source,
+                source_type="pdf",
+                raw_content=raw_bytes,
+                extracted_text="",
+                tables=[],
+                metadata=base_meta,
+            )
 
         try:
             doc = fitz.open(stream=raw_bytes, filetype="pdf")
@@ -27,6 +45,10 @@ class PDFFetcher(BaseFetcher):
 
         page_texts: list[str] = []
         tables: list[ExtractedTable] = []
+        max_ocr = kwargs.get("max_ocr_pages")
+        if max_ocr is None:
+            max_ocr = getattr(ocr_service, "max_pages_per_doc", 5)
+        ocr_pages_done = 0
 
         try:
             for page_num in range(len(doc)):
@@ -34,7 +56,7 @@ class PDFFetcher(BaseFetcher):
                 text = page.get_text("text").strip()
                 if len(text) >= ocr_service.min_text_threshold:
                     page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
-                else:
+                elif ocr_pages_done < max_ocr:
                     try:
                         pix = page.get_pixmap(dpi=ocr_service.dpi)
                         img_bytes = pix.tobytes("png")
@@ -43,6 +65,7 @@ class PDFFetcher(BaseFetcher):
                             page_number=page_num + 1,
                             doc_name=source.split("/")[-1].split("\\")[-1],
                         )
+                        ocr_pages_done += 1
                         if ocr_text:
                             page_texts.append(f"--- Page {page_num + 1} (GOT-OCR) ---\n{ocr_text}")
                         elif text:
@@ -53,6 +76,12 @@ class PDFFetcher(BaseFetcher):
                         )
                         if text:
                             page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+                else:
+                    logger.info(
+                        f"Skipping OCR on page {page_num + 1} of {source.split('/')[-1]} (reached max OCR limit: {max_ocr})"
+                    )
+                    if text:
+                        page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
 
                 # Extract structured tables using PyMuPDF table finder
                 try:

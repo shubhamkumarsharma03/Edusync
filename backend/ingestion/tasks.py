@@ -14,7 +14,7 @@ from models.source import IngestionSource
 logger = logging.getLogger(__name__)
 
 
-async def _run_fetch_source(source_id: UUID | str) -> dict:
+async def _run_fetch_source(source_id: UUID | str, limit: int | None = None) -> dict:
     """Execute prioritized ingestion for a specific IngestionSource."""
     sid = UUID(str(source_id)) if isinstance(source_id, str) else source_id
     logger.info(f"Starting prioritized ingestion for source ID: {sid}")
@@ -33,17 +33,18 @@ async def _run_fetch_source(source_id: UUID | str) -> dict:
         await session.commit()
 
         try:
-            # First time: initial_fetch_limit (50), subsequent: subsequent_fetch_limit (20)
-            limit = (
-                source.initial_fetch_limit
-                if source.last_fetched_at is None
-                else source.subsequent_fetch_limit
-            )
+            fetch_limit = limit
+            if fetch_limit is None:
+                fetch_limit = (
+                    source.initial_fetch_limit
+                    if source.last_fetched_at is None
+                    else source.subsequent_fetch_limit
+                )
 
             summary = await ingest_source(
                 session=session,
                 source_url=source.url,
-                limit=limit,
+                limit=fetch_limit,
                 department=source.department,
             )
 

@@ -554,8 +554,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     category: 'circulars',
     priority: 1,
     is_active: true,
-    initial_fetch_limit: 50,
-    subsequent_fetch_limit: 20,
+    initial_fetch_limit: 10,
+    subsequent_fetch_limit: 5,
   })
 
   const loadSources = async (showSpinner = true) => {
@@ -601,8 +601,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
       category: 'circulars',
       priority: nextPriority,
       is_active: true,
-      initial_fetch_limit: 50,
-      subsequent_fetch_limit: 20,
+      initial_fetch_limit: 10,
+      subsequent_fetch_limit: 5,
     })
     setModalOpen(true)
   }
@@ -631,8 +631,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
       category: preset.category,
       priority: nextPriority,
       is_active: true,
-      initial_fetch_limit: 50,
-      subsequent_fetch_limit: 20,
+      initial_fetch_limit: 10,
+      subsequent_fetch_limit: 5,
     })
   }
 
@@ -1660,9 +1660,9 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                       type="number"
                       min="1"
                       max="100"
-                      value={formData.initial_fetch_limit || 50}
+                      value={formData.initial_fetch_limit || 10}
                       onChange={(e) =>
-                        setFormData({ ...formData, initial_fetch_limit: parseInt(e.target.value) || 50 })
+                        setFormData({ ...formData, initial_fetch_limit: parseInt(e.target.value) || 10 })
                       }
                       className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
                     />
@@ -1674,9 +1674,9 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                       type="number"
                       min="1"
                       max="100"
-                      value={formData.subsequent_fetch_limit || 20}
+                      value={formData.subsequent_fetch_limit || 5}
                       onChange={(e) =>
-                        setFormData({ ...formData, subsequent_fetch_limit: parseInt(e.target.value) || 20 })
+                        setFormData({ ...formData, subsequent_fetch_limit: parseInt(e.target.value) || 5 })
                       }
                       className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
                     />
