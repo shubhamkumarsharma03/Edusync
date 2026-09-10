@@ -1,14 +1,18 @@
 import logging
+import re
 from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+import httpx
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from db.session import get_db
 from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
+from models.chunk import Chunk
+from models.document import Document
 from models.source import IngestionSource
 
 logger = logging.getLogger(__name__)
@@ -64,6 +68,42 @@ class ReorderItem(BaseModel):
 
 class ReorderRequest(BaseModel):
     items: list[ReorderItem]
+
+
+class IngestedDocumentResponse(BaseModel):
+    id: UUID
+    source_url: str
+    source_type: str
+    department: str | None = None
+    title: str
+    notice_sno: str | None = None
+    notice_date: str | None = None
+    content_hash: str
+    status: str
+    chunk_count: int
+    ingested_at: datetime
+    last_checked_at: datetime
+    preview: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SourceDocumentsListResponse(BaseModel):
+    total: int
+    page: int
+    limit: int
+    source_id: UUID
+    source_name: str
+    documents: list[IngestedDocumentResponse]
+
+
+class DocumentChunkDetail(BaseModel):
+    id: UUID
+    token_count: int
+    last_verified: datetime
+    content: str
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 @router.get("", response_model=list[SourceResponse])
@@ -364,3 +404,184 @@ async def seed_default_sources(
 
     await session.commit()
     return await list_sources(session)
+
+
+def _extract_notice_meta(
+    chunks: list[Chunk], source_url: str
+) -> tuple[str, str | None, str | None, str | None]:
+    """Extract human-readable notice title, S.No, and date from chunk content."""
+    title, sno, date, preview = None, None, None, None
+    for c in chunks:
+        if not preview and c.content:
+            preview = c.content[:300].strip()
+        if not title:
+            m = re.search(r"^#\s+([^#\n\r]+)$", c.content, re.MULTILINE)
+            if m:
+                candidate = m.group(1).strip()
+                if not candidate.lower().startswith("table"):
+                    title = candidate
+        if not sno:
+            m = re.search(r"\*\*Notice S\.No:\*\*\s*([^\n\r]+)", c.content)
+            if m:
+                sno = m.group(1).strip()
+        if not date:
+            m = re.search(r"\*\*Date:\*\*\s*([^\n\r]+)", c.content)
+            if m:
+                date = m.group(1).strip()
+        if title and sno and date and preview:
+            break
+
+    if not title:
+        fname = source_url.split("/")[-1]
+        title = fname or source_url
+
+    return title, sno, date, preview
+
+
+@router.get("/{source_id}/documents", response_model=SourceDocumentsListResponse)
+async def list_source_documents(
+    source_id: UUID,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search: str | None = Query(None),
+    session: AsyncSession = Depends(get_db),
+) -> SourceDocumentsListResponse:
+    """Retrieve documents stored in PostgreSQL DB that were ingested for this source."""
+    stmt = select(IngestionSource).where(IngestionSource.id == source_id)
+    res = await session.execute(stmt)
+    source = res.scalar_one_or_none()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    conds = []
+    if source.department:
+        conds.append(Document.department.ilike(f"%{source.department}%"))
+        if "computer" in source.department.lower():
+            conds.append(Document.department.ilike("%cse%"))
+    if source.url:
+        conds.append(Document.source_url.ilike(f"%{source.url}%"))
+
+    base_filter = or_(*conds) if conds else (Document.source_url != "")
+
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        matching_subq = (
+            select(Document.id)
+            .outerjoin(Chunk, Chunk.document_id == Document.id)
+            .where(
+                base_filter,
+                or_(
+                    Document.source_url.ilike(term),
+                    Document.department.ilike(term),
+                    Chunk.content.ilike(term),
+                ),
+            )
+            .distinct()
+        )
+        base_query = select(Document).where(Document.id.in_(matching_subq))
+    else:
+        base_query = select(Document).where(base_filter)
+
+    count_stmt = select(func.count()).select_from(base_query.subquery())
+    total = (await session.execute(count_stmt)).scalar() or 0
+
+    offset = (page - 1) * limit
+    paginated_stmt = (
+        base_query.order_by(Document.ingested_at.desc(), Document.last_checked_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    docs = (await session.execute(paginated_stmt)).scalars().all()
+
+    doc_items: list[IngestedDocumentResponse] = []
+    for d in docs:
+        chunk_stmt = (
+            select(Chunk)
+            .where(Chunk.document_id == d.id)
+            .order_by(Chunk.id.asc())
+        )
+        chunks = (await session.execute(chunk_stmt)).scalars().all()
+        title, sno, date, preview = _extract_notice_meta(chunks, d.source_url)
+        doc_items.append(
+            IngestedDocumentResponse(
+                id=d.id,
+                source_url=d.source_url,
+                source_type=d.source_type,
+                department=d.department,
+                title=title,
+                notice_sno=sno,
+                notice_date=date,
+                content_hash=d.content_hash,
+                status=d.status,
+                chunk_count=len(chunks),
+                ingested_at=d.ingested_at,
+                last_checked_at=d.last_checked_at,
+                preview=preview,
+            )
+        )
+
+    return SourceDocumentsListResponse(
+        total=total,
+        page=page,
+        limit=limit,
+        source_id=source.id,
+        source_name=source.name,
+        documents=doc_items,
+    )
+
+
+@router.get("/{source_id}/documents/{document_id}/chunks", response_model=list[DocumentChunkDetail])
+async def get_document_chunks(
+    source_id: UUID,
+    document_id: UUID,
+    session: AsyncSession = Depends(get_db),
+) -> list[DocumentChunkDetail]:
+    """Retrieve full text chunks and embeddings metadata for a specific ingested document."""
+    doc_stmt = select(Document).where(Document.id == document_id)
+    doc = (await session.execute(doc_stmt)).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    chunks_stmt = select(Chunk).where(Chunk.document_id == document_id).order_by(Chunk.id.asc())
+    chunks = (await session.execute(chunks_stmt)).scalars().all()
+    return [
+        DocumentChunkDetail(
+            id=c.id,
+            token_count=c.token_count,
+            last_verified=c.last_verified,
+            content=c.content,
+        )
+        for c in chunks
+    ]
+
+
+@router.get("/{source_id}/live-feed")
+async def get_source_live_feed(
+    source_id: UUID,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    search: str = Query(""),
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Safely proxy live notices from ECA portal on the backend without browser CORS blocks."""
+    stmt = select(IngestionSource).where(IngestionSource.id == source_id)
+    source = (await session.execute(stmt)).scalar_one_or_none()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    slug = source.slug or "cs-it"
+    category_id = 2 if source.category == "timetable" else 1
+    remote_url = (
+        f"https://ecajmer.ac.in/api/circulars/public/{slug}"
+        f"?page={page}&limit={limit}&mainCategoryId={category_id}&search={search}"
+    )
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+            resp = await client.get(remote_url)
+            if resp.status_code == 200:
+                return resp.json()
+    except Exception as e:
+        logger.warning(f"Could not fetch live feed from {remote_url}: {e}")
+
+    return {"success": False, "data": [], "pagination": {"totalItems": 0}}
