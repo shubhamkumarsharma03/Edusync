@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     RERANKER_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     CONFIDENCE_THRESHOLD: float = 0.55
 
+    # Local GOT-OCR 2.0 Settings (No cloud APIs or credentials required)
+    GOT_OCR_MODEL_ID: str = "stepfun-ai/GOT-OCR-2.0-hf"
+    GOT_OCR_DEVICE: str = "auto"
+    GOT_OCR_MAX_TOKENS: int = 1024
+    GOT_OCR_DPI: int = 150
+    OCR_MIN_TEXT_THRESHOLD: int = 40
+    GOT_OCR_FORMAT: bool = True
+
     # LLM API Keys
     ANTHROPIC_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None

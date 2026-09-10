@@ -4,13 +4,14 @@ from typing import Any
 import pymupdf as fitz
 
 from ingestion.fetchers.base import BaseFetcher
+from ingestion.ocr import ocr_service
 from ingestion.schemas import ExtractedTable, FetchedDocument, SourceType
 
 logger = logging.getLogger(__name__)
 
 
 class PDFFetcher(BaseFetcher):
-    """Fetcher for PDF documents using PyMuPDF (fitz)."""
+    """Fetcher for PDF documents using PyMuPDF (fitz) with local GOT-OCR 2.0 fallback."""
 
     source_type: SourceType = "pdf"
 
@@ -31,8 +32,27 @@ class PDFFetcher(BaseFetcher):
             for page_num in range(len(doc)):
                 page = doc[page_num]
                 text = page.get_text("text").strip()
-                if text:
+                if len(text) >= ocr_service.min_text_threshold:
                     page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+                else:
+                    try:
+                        pix = page.get_pixmap(dpi=ocr_service.dpi)
+                        img_bytes = pix.tobytes("png")
+                        ocr_text = await ocr_service.extract_text_from_image(
+                            img_bytes,
+                            page_number=page_num + 1,
+                            doc_name=source.split("/")[-1].split("\\")[-1],
+                        )
+                        if ocr_text:
+                            page_texts.append(f"--- Page {page_num + 1} (GOT-OCR) ---\n{ocr_text}")
+                        elif text:
+                            page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+                    except Exception as ocr_err:
+                        logger.warning(
+                            f"Local GOT-OCR error on page {page_num + 1} of {source}: {ocr_err}"
+                        )
+                        if text:
+                            page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
 
                 # Extract structured tables using PyMuPDF table finder
                 try:
