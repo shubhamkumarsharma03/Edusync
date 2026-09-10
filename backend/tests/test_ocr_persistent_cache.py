@@ -2,7 +2,7 @@ import hashlib
 import io
 import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from PIL import Image
@@ -98,41 +98,37 @@ async def test_ecajmer_fetcher_fast_path_existing_hash():
 
 
 @pytest.mark.asyncio
-async def test_ecajmer_fetcher_max_ocr_pages_limit():
-    """Test that ECAjmerFetcher respects max_ocr_pages ceiling on multi-page scanned PDFs."""
+async def test_ecajmer_fetcher_all_source_documents_fast_path():
+    """Test that fetch_all_source_documents skips OCR when existing_hashes matches."""
     fetcher = ECAjmerFetcher()
     fake_pdf = b"%PDF-1.4 Mock Multi-page PDF"
+    fake_hash = hashlib.sha256(fake_pdf).hexdigest()
 
-    # Mock fitz doc with 5 scanned pages (text length < 40)
-    mock_pages = []
-    for _ in range(5):
-        page = MagicMock()
-        page.get_text.return_value = ""
-        pix = MagicMock()
-        pix.tobytes.return_value = b"fake_png"
-        page.get_pixmap.return_value = pix
-        page.find_tables.return_value = []
-        mock_pages.append(page)
+    mock_entries = [
+        {
+            "id": 1,
+            "sno": "WEB01",
+            "title": "Notice 1",
+            "content": "/uploads/circulars/notice1.pdf",
+            "date": "2026-09-01",
+        }
+    ]
 
-    mock_doc = MagicMock()
-    mock_doc.__len__.return_value = len(mock_pages)
-    mock_doc.__getitem__.side_effect = lambda idx: mock_pages[idx]
-    mock_doc.__enter__.return_value = mock_doc
-    mock_doc.__exit__.return_value = None
+    with patch.object(fetcher, "fetch_circular_entries", new_callable=AsyncMock) as mock_entries_call:
+        mock_entries_call.return_value = mock_entries
+        with patch.object(fetcher, "fetch_pdf_content", new_callable=AsyncMock) as mock_pdf_call:
+            mock_pdf_call.return_value = (fake_pdf, "", [], 0)
 
-    with patch("httpx.AsyncClient.get") as mock_get:
-        mock_resp = AsyncMock()
-        mock_resp.status_code = 200
-        mock_resp.content = fake_pdf
-        mock_get.return_value = mock_resp
+            existing_hashes = {"https://ecajmer.ac.in/uploads/circulars/notice1.pdf": fake_hash}
+            docs = await fetcher.fetch_all_source_documents(
+                "https://www.ecajmer.ac.in/departments/cs-it/circulars",
+                existing_hashes=existing_hashes,
+            )
 
-        with patch("ingestion.fetchers.ecajmer_fetcher.fitz.open", return_value=mock_doc):
-            with patch("ingestion.fetchers.ecajmer_fetcher.ocr_service.extract_text_from_image", new_callable=AsyncMock) as mock_ocr:
-                mock_ocr.return_value = "Extracted OCR text"
-                # Limit to 2 OCR pages max
-                raw_bytes, text, tables, p_count = await fetcher.fetch_pdf_content(
-                    "https://ecajmer.ac.in/notice.pdf", max_ocr_pages=2
-                )
-                assert p_count == 5
-                # ocr should only be called twice, not 5 times
-                assert mock_ocr.call_count == 2
+            assert len(docs) == 1
+            assert docs[0].raw_content == fake_pdf
+            # Verify existing_hash was passed to fetch_pdf_content
+            mock_pdf_call.assert_called_once_with(
+                "https://ecajmer.ac.in/uploads/circulars/notice1.pdf",
+                existing_hash=fake_hash,
+            )

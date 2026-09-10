@@ -31,7 +31,6 @@ class DocumentOCR:
         self.dpi: int = getattr(self.settings, "GOT_OCR_DPI", 150)
         self.min_text_threshold: int = getattr(self.settings, "OCR_MIN_TEXT_THRESHOLD", 40)
         self.format_output: bool = getattr(self.settings, "GOT_OCR_FORMAT", True)
-        self.max_pages_per_doc: int = getattr(self.settings, "GOT_OCR_MAX_PAGES_PER_DOC", 5)
 
         raw_cache_dir = getattr(self.settings, "GOT_OCR_CACHE_DIR", "models_cache/ocr_cache")
         cache_path = Path(raw_cache_dir)

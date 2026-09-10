@@ -29,8 +29,6 @@ class Settings(BaseSettings):
     OCR_MIN_TEXT_THRESHOLD: int = 40
     GOT_OCR_FORMAT: bool = True
     GOT_OCR_CACHE_DIR: str = "models_cache/ocr_cache"
-    GOT_OCR_MAX_PAGES_PER_DOC: int = 3
-    FILTER_NON_ACADEMIC_NOTICES: bool = True
 
     # LLM API Keys
     ANTHROPIC_API_KEY: str | None = None
