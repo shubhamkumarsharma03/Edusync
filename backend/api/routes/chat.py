@@ -50,7 +50,7 @@ def get_http_client() -> httpx.AsyncClient:
     global _http_client
     if _http_client is None or _http_client.is_closed:
         _http_client = httpx.AsyncClient(
-            timeout=12.0,
+            timeout=25.0,
             limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
         )
     return _http_client
@@ -78,6 +78,7 @@ Answer the student's question clearly, concisely, and helpfully based ONLY on th
 Formatting Guidelines:
 - Structure the response with clear headings (e.g. ## Notice Title or Overview) and bullet points.
 - Highlight important details like dates, fees, links, and notice numbers in **bold**.
+- If the notice contains timetable tables or OCR LaTeX markup (e.g. \\begin{{tabular}}, \\multirow, etc.), ALWAYS convert them into a clean, human-readable markdown table or day-by-day schedule. NEVER output raw LaTeX syntax.
 - Do NOT output raw metadata tags like "[Document Notice]" or internal database markers.
 - If multiple notices apply, organize them clearly.
 - Maintain a polite, professional, and student-friendly tone.
@@ -90,12 +91,16 @@ STUDENT QUESTION:
 
 ANSWER:"""
         client = get_http_client()
-        for model in ["gemini-3.6-flash", "gemini-flash-latest"]:
+        for model in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash"]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
                 payload = {
                     "contents": [{"parts": [{"text": prompt}]}],
-                    "generationConfig": {"temperature": 0.2, "maxOutputTokens": 800},
+                    "generationConfig": {
+                        "temperature": 0.2,
+                        "maxOutputTokens": 3000,
+                        "thinkingConfig": {"thinkingBudget": 0},
+                    },
                 }
                 resp = await client.post(url, json=payload)
                 if resp.status_code == 200:
@@ -103,8 +108,13 @@ ANSWER:"""
                     candidates = data.get("candidates", [])
                     if candidates and "content" in candidates[0]:
                         parts = candidates[0]["content"].get("parts", [])
-                        if parts and "text" in parts[0]:
-                            return parts[0]["text"].strip()
+                        full_text = "".join(
+                            p.get("text", "") for p in parts if "text" in p
+                        ).strip()
+                        if full_text:
+                            return full_text
+                elif resp.status_code == 429:
+                    logger.warning(f"Gemini model {model} rate limited (429), trying next...")
             except Exception as e:
                 logger.warning(f"Fast Gemini generation ({model}) fallback: {e}")
 
