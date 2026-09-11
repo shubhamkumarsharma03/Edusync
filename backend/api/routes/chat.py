@@ -9,6 +9,7 @@ from api.config import get_settings
 from db.session import get_db
 from retrieval.confidence_gate import ConfidenceGate
 from retrieval.hybrid_search import HybridSearcher
+from retrieval.query_normalizer import query_normalizer
 from retrieval.reranker import CrossEncoderReranker
 
 logger = logging.getLogger(__name__)
@@ -160,8 +161,11 @@ async def chat_endpoint(
     # 2. Cross-Encoder Reranking (executed in threadpool to avoid blocking event loop)
     import asyncio
 
+    norm = query_normalizer.normalize(query)
+    rerank_query = norm.expanded_vector or query
+
     reranked_chunks = await asyncio.to_thread(
-        reranker.rerank, query=query, chunks=raw_chunks, top_k=4
+        reranker.rerank, query=rerank_query, chunks=raw_chunks, top_k=4
     )
 
     # 3. Confidence Gating (Trust Layer)
