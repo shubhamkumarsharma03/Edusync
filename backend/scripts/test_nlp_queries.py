@@ -1,5 +1,7 @@
 import asyncio
+
 import httpx
+
 
 async def test_short_queries():
     queries = [
@@ -7,7 +9,7 @@ async def test_short_queries():
         "mtech timetable",
         "cyber 5th sem",
         "oops lab room",
-        "ce ca timetable"
+        "ce ca timetable",
     ]
     async with httpx.AsyncClient(timeout=60.0) as client:
         for q in queries:
@@ -25,6 +27,7 @@ async def test_short_queries():
                 print(f"  Answer: {ans}...\n")
             except Exception as e:
                 print(f"Error on '{q}': {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(test_short_queries())
