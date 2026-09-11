@@ -114,7 +114,9 @@ async def test_ecajmer_fetcher_all_source_documents_fast_path():
         }
     ]
 
-    with patch.object(fetcher, "fetch_circular_entries", new_callable=AsyncMock) as mock_entries_call:
+    with patch.object(
+        fetcher, "fetch_circular_entries", new_callable=AsyncMock
+    ) as mock_entries_call:
         mock_entries_call.return_value = mock_entries
         with patch.object(fetcher, "fetch_pdf_content", new_callable=AsyncMock) as mock_pdf_call:
             mock_pdf_call.return_value = (fake_pdf, "", [], 0)

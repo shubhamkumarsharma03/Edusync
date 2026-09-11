@@ -78,9 +78,7 @@ async def create_department(
         )
 
     computed_slug = (
-        payload.slug.strip()
-        if payload.slug
-        else payload.name.strip().lower().replace(" ", "-")
+        payload.slug.strip() if payload.slug else payload.name.strip().lower().replace(" ", "-")
     )
 
     dept_kwargs = {

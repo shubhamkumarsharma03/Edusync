@@ -108,9 +108,7 @@ ANSWER:"""
                     candidates = data.get("candidates", [])
                     if candidates and "content" in candidates[0]:
                         parts = candidates[0]["content"].get("parts", [])
-                        full_text = "".join(
-                            p.get("text", "") for p in parts if "text" in p
-                        ).strip()
+                        full_text = "".join(p.get("text", "") for p in parts if "text" in p).strip()
                         if full_text:
                             return full_text
                 elif resp.status_code == 429:

@@ -424,11 +424,7 @@ async def list_source_documents(
 
     doc_items: list[IngestedDocumentResponse] = []
     for d in docs:
-        chunk_stmt = (
-            select(Chunk)
-            .where(Chunk.document_id == d.id)
-            .order_by(Chunk.id.asc())
-        )
+        chunk_stmt = select(Chunk).where(Chunk.document_id == d.id).order_by(Chunk.id.asc())
         chunks = (await session.execute(chunk_stmt)).scalars().all()
         title, sno, date, preview = _extract_notice_meta(chunks, d.source_url)
         doc_items.append(

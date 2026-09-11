@@ -174,7 +174,9 @@ class ECAjmerFetcher(BaseFetcher):
                                 doc_name=pdf_url.split("/")[-1],
                             )
                             if ocr_text:
-                                page_texts.append(f"--- Page {page_num + 1} (GOT-OCR) ---\n{ocr_text}")
+                                page_texts.append(
+                                    f"--- Page {page_num + 1} (GOT-OCR) ---\n{ocr_text}"
+                                )
                             elif text:
                                 page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
                         except Exception as ocr_err:
@@ -326,11 +328,7 @@ class ECAjmerFetcher(BaseFetcher):
                         clean_rel = content_rel.lstrip("/")
                         pdf_url = f"https://ecajmer.ac.in/{clean_rel}"
 
-                entry_hash = (
-                    existing_hashes.get(pdf_url)
-                    if (existing_hashes and pdf_url)
-                    else None
-                )
+                entry_hash = existing_hashes.get(pdf_url) if (existing_hashes and pdf_url) else None
 
                 doc = await self.fetch_single_notice(
                     entry=entry,

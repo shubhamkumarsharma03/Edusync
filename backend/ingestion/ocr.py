@@ -23,9 +23,7 @@ class DocumentOCR:
 
     def __init__(self) -> None:
         self.settings = get_settings()
-        self.model_id: str = getattr(
-            self.settings, "GOT_OCR_MODEL_ID", "stepfun-ai/GOT-OCR-2.0-hf"
-        )
+        self.model_id: str = getattr(self.settings, "GOT_OCR_MODEL_ID", "stepfun-ai/GOT-OCR-2.0-hf")
         self.configured_device: str = getattr(self.settings, "GOT_OCR_DEVICE", "auto")
         self.max_tokens: int = getattr(self.settings, "GOT_OCR_MAX_TOKENS", 2048)
         self.dpi: int = getattr(self.settings, "GOT_OCR_DPI", 150)
