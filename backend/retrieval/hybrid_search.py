@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ingestion.embedder import DocumentEmbedder
 from retrieval.keyword_search import KeywordSearcher
+from retrieval.query_normalizer import query_normalizer
 from retrieval.schemas import RetrievedChunk
 from retrieval.vector_search import VectorSearcher
 
@@ -114,21 +115,24 @@ class HybridSearcher:
         candidate_k: int = 20,
         allowed_statuses: list[str] | None = None,
     ) -> list[RetrievedChunk]:
-        """Execute parallel hybrid search (vector ANN + keyword FTS) and return fused, deduplicated results."""
+        """Execute parallel hybrid search with domain NLP normalization."""
         if not query.strip():
             return []
 
-        # Run vector and keyword searches on the session sequentially
-        # Note: SQLAlchemy AsyncSession does not permit concurrent operations on the same session instance
+        norm = query_normalizer.normalize(query)
+        v_query = norm.expanded_vector or query
+        k_query = norm.expanded_keyword or query
+
+        # Run vector with dense expanded query and keyword with salient terms
         vector_results = await self.vector_searcher.search(
             session=session,
-            query=query,
+            query=v_query,
             top_k=candidate_k,
             allowed_statuses=allowed_statuses,
         )
         keyword_results = await self.keyword_searcher.search(
             session=session,
-            query=query,
+            query=k_query,
             top_k=candidate_k,
             allowed_statuses=allowed_statuses,
         )

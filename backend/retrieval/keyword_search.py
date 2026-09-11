@@ -63,8 +63,38 @@ class KeywordSearcher:
             .limit(top_k)
         )
 
-        result = await session.execute(stmt)
-        rows = result.all()
+        results = (await session.execute(stmt)).all()
+
+        # Resilient FTS Fallback: If strict AND query yields 0 results, fall back to OR disjunction
+        if not results and len(cleaned_query.split()) > 1:
+            words = [w for w in cleaned_query.split() if len(w) > 1]
+            if words:
+                or_query_str = " OR ".join(words)
+                fallback_tsquery = func.websearch_to_tsquery("english", or_query_str)
+                fallback_rank = func.ts_rank_cd(tsvector, fallback_tsquery).label("rank_score")
+                fallback_stmt = (
+                    select(
+                        Chunk.id,
+                        Chunk.document_id,
+                        Chunk.content,
+                        Chunk.token_count,
+                        Chunk.last_verified,
+                        Document.source_url,
+                        Document.department,
+                        Document.owner,
+                        fallback_rank,
+                    )
+                    .join(Document, Chunk.document_id == Document.id)
+                    .where(
+                        Document.status.in_(allowed),
+                        tsvector.op("@@")(fallback_tsquery),
+                    )
+                    .order_by(fallback_rank.desc())
+                    .limit(top_k)
+                )
+                results = (await session.execute(fallback_stmt)).all()
+
+        rows = results
 
         retrieved_chunks: list[RetrievedChunk] = []
         for rank, row in enumerate(rows, start=1):
