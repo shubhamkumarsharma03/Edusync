@@ -135,14 +135,27 @@ async def ingest_source(
     owner: str | None = None,
     force: bool = False,
     embedder: DocumentEmbedder | None = None,
+    source_id: str | None = None,
 ) -> SourceIngestionSummary:
     """Ingest institutional sources like department circulars or timetables.
 
     Extracts up to `limit` individual notices and attached PDFs, running change-detection,
-    semantic chunking, and embedding on each item.
+    semantic chunking, and embedding on each item. Emits real-time progress updates.
     """
     logger.info(f"Starting source batch ingestion for {source_url} (limit={limit})")
     from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
+    from ingestion.progress import progress_tracker
+
+    progress_tracker.update_step(
+        phase="portal_fetch",
+        step_index=1,
+        current_action=f"Connecting to college portal API: {source_url.split('/')[-2] or 'circulars'}",
+        next_action=f"Fetch up to {limit} recent notices and inspect attached PDF documents",
+        source_id=source_id,
+        log_message=f"Querying portal endpoints for department '{department or 'All'}' (limit={limit})",
+        log_level="fetch",
+        log_tag="PORTAL",
+    )
 
     fetcher = ECAjmerFetcher()
 
@@ -160,10 +173,15 @@ async def ingest_source(
         limit=limit,
         department=department,
         existing_hashes=existing_hashes if not force else None,
+        source_id=source_id,
     )
 
     if not docs:
-        # Fallback to single document ingestion if not a multi-notice portal
+        progress_tracker.log(
+            "Portal returned 0 structured entries. Falling back to single-document fetch.",
+            level="warn",
+            source_id=source_id,
+        )
         single_summary = await ingest_document(
             session=session,
             source=source_url,
@@ -184,14 +202,53 @@ async def ingest_source(
             details=[single_summary],
         )
 
+    progress_tracker.update_step(
+        phase="pdf_download",
+        step_index=2,
+        current_action=f"Discovered {len(docs)} notices from portal. Commencing content hashing & verification.",
+        next_action="Perform SHA-256 hash comparison against existing PostgreSQL records",
+        source_id=source_id,
+        log_message=f"Found {len(docs)} notices to process from {source_url}",
+        log_level="info",
+        log_tag="INDEX",
+        stats_update={"total": len(docs)},
+    )
+
     summary = SourceIngestionSummary(
         source_url=source_url,
         total_checked=len(docs),
     )
 
-    for fetched in docs:
+    ocr_processed_count = 0
+
+    for idx, fetched in enumerate(docs, start=1):
+        fname = fetched.source_url.split("/")[-1] or f"document_{idx}.pdf"
+        doc_title = fetched.metadata.get("title") or fname
+        size_kb = round(len(fetched.raw_content) / 1024, 1) if fetched.raw_content else 0.0
+
         try:
             doc_dept = department or fetched.metadata.get("department")
+
+            # Step 2: Hash Check
+            progress_tracker.update_step(
+                phase="hash_check",
+                step_index=2,
+                current_action=f"[{idx}/{len(docs)}] Hashing {fname} ({size_kb} KB)",
+                next_action="Compare content hash vs PostgreSQL to avoid re-embedding",
+                source_id=source_id,
+                active_document={
+                    "title": doc_title,
+                    "filename": fname,
+                    "url": fetched.source_url,
+                    "size_kb": size_kb,
+                    "source_type": fetched.source_type,
+                },
+                log_message=f"[{idx}/{len(docs)}] Verifying SHA-256 hash for {fname}",
+                log_level="fetch",
+                log_tag="HASH",
+                stats_update={"checked": idx},
+            )
+
             detection = await ChangeDetector.check_document(
                 session, fetched, department=doc_dept, owner=owner
             )
@@ -213,9 +270,68 @@ async def ingest_source(
                         metadata=fetched.metadata,
                     )
                 )
+                progress_tracker.update_step(
+                    phase="hash_check",
+                    step_index=2,
+                    current_action=f"[{idx}/{len(docs)}] {fname} is UNCHANGED (0 re-embed cost)",
+                    next_action=(
+                        f"Next notice in queue ({idx+1}/{len(docs)})"
+                        if idx < len(docs)
+                        else "Finalize ingestion"
+                    ),
+                    source_id=source_id,
+                    log_message=f"[{idx}/{len(docs)}] Content hash matched for {fname} -> Bypassing OCR & Re-embedding (Zero Cost)",
+                    log_level="bypass",
+                    log_tag="BYPASS",
+                    stats_update={"bypassed_count": summary.unchanged_count},
+                )
                 continue
 
+            # Step 3: OCR / Text extraction
+            ocr_processed_count += 1
+            progress_tracker.update_step(
+                phase="ocr_inference",
+                step_index=3,
+                current_action=f"[{idx}/{len(docs)}] Layout parsing & OCR text extraction for {fname}",
+                next_action="Perform semantic section chunking and Markdown table isolation",
+                source_id=source_id,
+                log_message=f"[{idx}/{len(docs)}] Parsing text layout and tables for {fname} ({size_kb} KB)",
+                log_level="ocr",
+                log_tag="OCR",
+                stats_update={"ocr_count": ocr_processed_count},
+            )
+
+            # Step 4: Semantic Chunking
             chunks = chunk_document(fetched, department=doc_dept, owner=owner)
+            table_chunks_count = sum(1 for c in chunks if c.metadata.get("is_table"))
+
+            progress_tracker.update_step(
+                phase="chunking",
+                step_index=4,
+                current_action=f"[{idx}/{len(docs)}] Generated {len(chunks)} chunks ({table_chunks_count} isolated tables) for {fname}",
+                next_action="Generate 384-dimensional dense embeddings using all-MiniLM-L6-v2",
+                source_id=source_id,
+                log_message=f"[{idx}/{len(docs)}] Segmented into {len(chunks)} chunks ({table_chunks_count} tables isolated with row statements)",
+                log_level="chunk",
+                log_tag="CHUNK",
+            )
+
+            # Step 5: Embedding & Storage in pgvector
+            progress_tracker.update_step(
+                phase="embedding",
+                step_index=5,
+                current_action=f"[{idx}/{len(docs)}] Computing vector embeddings & upserting into pgvector",
+                next_action=(
+                    f"Proceed to next item ({idx+1}/{len(docs)})"
+                    if idx < len(docs)
+                    else "Finalize ingestion summary"
+                ),
+                source_id=source_id,
+                log_message=f"[{idx}/{len(docs)}] Embedding {len(chunks)} chunks and storing in PostgreSQL",
+                log_level="embed",
+                log_tag="EMBED",
+            )
+
             doc, chunk_records = await upsert_document_and_chunks(
                 session=session,
                 fetched=fetched,
@@ -247,8 +363,34 @@ async def ingest_source(
                     metadata=fetched.metadata,
                 )
             )
+            progress_tracker.update_step(
+                phase="embedding",
+                step_index=5,
+                current_action=f"[{idx}/{len(docs)}] Finished: {action_status} {fname}",
+                next_action=(
+                    f"Process next item ({idx+1}/{len(docs)})"
+                    if idx < len(docs)
+                    else "Finalize ingestion summary"
+                ),
+                source_id=source_id,
+                log_message=f"[{idx}/{len(docs)}] Finished: {action_status} {fname} ({len(chunk_records)} vector chunks stored)",
+                log_level="success",
+                log_tag="STORED",
+                stats_update={
+                    "chunks_count": summary.total_chunks,
+                    "created_count": summary.created_count,
+                    "updated_count": summary.updated_count,
+                    "checked": idx,
+                },
+            )
         except Exception as e:
             logger.error(f"Error ingesting item {fetched.source_url}: {e}")
+            progress_tracker.log(
+                f"[{idx}/{len(docs)}] Error on {fname}: {e}",
+                level="error",
+                tag="ERROR",
+                source_id=source_id,
+            )
 
     summary.message = (
         f"Ingestion complete: {summary.total_checked} checked, "

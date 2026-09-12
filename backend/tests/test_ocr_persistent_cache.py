@@ -23,6 +23,7 @@ async def test_ocr_disk_cache_roundtrip(temp_cache_dir):
     """Test that OCR text is saved to disk and loaded from disk on subsequent requests."""
     ocr = DocumentOCR()
     ocr.cache_dir = temp_cache_dir
+    ocr.provider = "got_ocr"
 
     test_img = Image.new("RGB", (60, 60), color=(200, 200, 200))
     buf = io.BytesIO()
@@ -44,6 +45,7 @@ async def test_ocr_disk_cache_roundtrip(temp_cache_dir):
     # 2. Simulate fresh server instance (empty memory cache) with same disk cache
     new_ocr = DocumentOCR()
     new_ocr.cache_dir = temp_cache_dir
+    new_ocr.provider = "got_ocr"
     assert cache_key not in new_ocr._cache
 
     with patch.object(new_ocr, "_ocr_image_sync") as mock_sync:
@@ -114,7 +116,9 @@ async def test_ecajmer_fetcher_all_source_documents_fast_path():
         }
     ]
 
-    with patch.object(fetcher, "fetch_circular_entries", new_callable=AsyncMock) as mock_entries_call:
+    with patch.object(
+        fetcher, "fetch_circular_entries", new_callable=AsyncMock
+    ) as mock_entries_call:
         mock_entries_call.return_value = mock_entries
         with patch.object(fetcher, "fetch_pdf_content", new_callable=AsyncMock) as mock_pdf_call:
             mock_pdf_call.return_value = (fake_pdf, "", [], 0)

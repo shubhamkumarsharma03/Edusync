@@ -24,7 +24,10 @@ import {
   Eye,
   Globe,
   FileCode,
+  Activity,
 } from 'lucide-react'
+
+import { LivePipelineModal } from './LivePipelineModal'
 
 import {
   IngestionSource,
@@ -149,6 +152,15 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     category: 'Engineering',
   })
 
+  // Live Pipeline Inspector Modal State
+  const [isLiveInspectorOpen, setIsLiveInspectorOpen] = useState(false)
+  const [liveInspectorSource, setLiveInspectorSource] = useState<{ id?: string; name?: string } | null>(null)
+
+  const handleOpenLiveInspector = (id?: string, name?: string) => {
+    setLiveInspectorSource({ id, name })
+    setIsLiveInspectorOpen(true)
+  }
+
   const [formData, setFormData] = useState<SourceCreatePayload>({
     name: '',
     url: '',
@@ -204,13 +216,13 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     loadDepartments()
   }, [])
 
-  // Auto-poll every 2.5 seconds when any source is actively in "fetching" state
+  // Auto-poll every 5 seconds when any source is actively in "fetching" state
   useEffect(() => {
     const hasActiveFetching = sources.some((s) => s.status === 'fetching')
     if (hasActiveFetching) {
       const interval = setInterval(() => {
         loadSources(false)
-      }, 2500)
+      }, 5000)
       return () => clearInterval(interval)
     }
   }, [sources])
@@ -329,8 +341,9 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const handleFetchSingle = async (id: string, name: string) => {
     try {
       setActionLoading(id)
+      handleOpenLiveInspector(id, name)
       await triggerFetchSource(id)
-      showNotice(`Triggered ingestion for "${name}" (50 on initial / 20 on recur)`)
+      showNotice(`Triggered ingestion for "${name}"`)
       setTimeout(loadSources, 2000)
     } catch (err: any) {
       showNotice(err.message || 'Fetch trigger failed', 'error')
@@ -342,9 +355,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const handleFetchAll = async () => {
     try {
       setActionLoading('all')
+      handleOpenLiveInspector(undefined, 'All Active Sources')
       await triggerFetchAll()
       showNotice('Queued prioritized batch ingestion across all active sources!')
-      setTimeout(loadSources, 3000)
+      setTimeout(loadSources, 2500)
     } catch (err: any) {
       showNotice(err.message || 'Batch fetch trigger failed', 'error')
     } finally {
@@ -594,7 +608,14 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
           {/* Live Active Synchronization Status Banner */}
           {sources.some((s) => s.status === 'fetching') && (
-            <div className="bg-indigo-50/90 border border-indigo-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-indigo-950 shadow-sm animate-pulse">
+            <div
+              onClick={() => {
+                const activeSrc = sources.find((s) => s.status === 'fetching')
+                handleOpenLiveInspector(activeSrc?.id, activeSrc?.name)
+              }}
+              className="bg-indigo-50/90 hover:bg-indigo-100/90 border border-indigo-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-indigo-950 shadow-sm animate-pulse cursor-pointer transition"
+              title="Click to open Live Ingestion Pipeline Inspector"
+            >
               <div className="flex items-center gap-2.5">
                 <span className="relative flex h-2.5 w-2.5">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
@@ -608,8 +629,12 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                 </span>
               </div>
               <div className="flex items-center gap-2">
+                <span className="text-[11px] font-semibold bg-indigo-600 text-white px-2.5 py-1 rounded-lg shadow-xs flex items-center gap-1.5 hover:bg-indigo-700 transition">
+                  <Activity className="w-3.5 h-3.5 animate-pulse" />
+                  View Live Progress
+                </span>
                 <span className="text-[11px] font-semibold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md border border-indigo-200">
-                  Auto-Syncing (2.5s)
+                  Auto-Syncing (5s)
                 </span>
               </div>
             </div>
@@ -882,31 +907,44 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                           <span className="text-indigo-600 font-semibold">{src.subsequent_fetch_limit}</span> Recur
                         </td>
 
-                        {/* Status Badge */}
+                        {/* Status Badge - Clickable to open live pipeline inspector */}
                         <td className="py-3.5 px-3 text-center">
                           {src.status === 'fetching' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[11px] font-medium animate-pulse">
+                            <button
+                              onClick={() => handleOpenLiveInspector(src.id, src.name)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[11px] font-medium animate-pulse cursor-pointer shadow-xs transition hover:scale-105 active:scale-95"
+                              title="Click to view live backend working & step-by-step progress"
+                            >
                               <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />
-                              Fetching...
-                            </span>
+                              <span>Fetching...</span>
+                            </button>
                           ) : src.status === 'completed' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-medium">
+                            <button
+                              onClick={() => handleOpenLiveInspector(src.id, src.name)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-medium cursor-pointer transition hover:scale-105"
+                              title="Click to inspect pipeline run logs"
+                            >
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              Fresh
-                            </span>
+                              <span>Fresh</span>
+                            </button>
                           ) : src.status === 'error' ? (
-                            <span
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[11px] font-medium"
-                              title={src.error_message || 'Fetch error'}
+                            <button
+                              onClick={() => handleOpenLiveInspector(src.id, src.name)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-full text-[11px] font-medium cursor-pointer transition hover:scale-105"
+                              title={src.error_message || 'Fetch error - click to inspect error logs'}
                             >
                               <AlertCircle className="w-3 h-3 text-rose-600" />
-                              Error
-                            </span>
+                              <span>Error</span>
+                            </button>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-neutral-100 text-neutral-500 rounded-full text-[11px]">
+                            <button
+                              onClick={() => handleOpenLiveInspector(src.id, src.name)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-full text-[11px] cursor-pointer transition"
+                              title="Click to view pipeline status"
+                            >
                               <Clock className="w-3 h-3" />
-                              Idle
-                            </span>
+                              <span>Idle</span>
+                            </button>
                           )}
                         </td>
 
@@ -1841,6 +1879,14 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
           </div>
         </div>
       )}
+
+      {/* Live Ingestion Pipeline Inspector Modal */}
+      <LivePipelineModal
+        isOpen={isLiveInspectorOpen}
+        onClose={() => setIsLiveInspectorOpen(false)}
+        sourceId={liveInspectorSource?.id}
+        sourceName={liveInspectorSource?.name}
+      />
     </div>
   )
 }

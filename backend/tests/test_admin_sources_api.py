@@ -155,3 +155,41 @@ async def test_admin_sources_seed_defaults(mock_db_session):
             assert "academic-section" in slugs
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.mark.asyncio
+async def test_live_progress_endpoints():
+    """Verify live progress endpoints return valid state and logs."""
+    from ingestion.progress import progress_tracker
+
+    test_sid = str(uuid.uuid4())
+    progress_tracker.start_source(test_sid, "Live Test Source", total_items=5)
+    progress_tracker.update_step(
+        phase="ocr_inference",
+        step_index=3,
+        current_action="Running Baidu PaddleOCR-VL layout analysis",
+        next_action="Isolate tables and generate vector embeddings",
+        source_id=test_sid,
+        log_message="Extracting markdown layout for notice_2026.pdf",
+        log_level="ocr",
+        log_tag="OCR",
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        # Global live progress
+        res_global = await ac.get("/admin/sources/live-progress")
+        assert res_global.status_code == 200
+        global_data = res_global.json()
+        assert global_data["source_name"] == "Live Test Source"
+        assert global_data["phase"] == "ocr_inference"
+        assert global_data["step_index"] == 3
+        assert "Baidu PaddleOCR" in global_data["current_action"]
+        assert len(global_data["logs"]) >= 2
+
+        # Source specific live progress
+        res_src = await ac.get(f"/admin/sources/{test_sid}/live-progress")
+        assert res_src.status_code == 200
+        src_data = res_src.json()
+        assert src_data["source_id"] == test_sid
+        assert src_data["phase"] == "ocr_inference"
+

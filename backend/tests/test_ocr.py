@@ -12,6 +12,7 @@ from ingestion.ocr import DocumentOCR
 def ocr_instance(tmp_path):
     ocr = DocumentOCR()
     ocr.cache_dir = tmp_path
+    ocr.provider = "got_ocr"
     return ocr
 
 
@@ -53,6 +54,7 @@ async def test_ocr_cache_hit(ocr_instance):
     img_bytes = buf.getvalue()
 
     import hashlib
+
     h = hashlib.sha256(img_bytes).hexdigest()
     ocr_instance._cache[h] = "CACHED CIRCULAR CONTENT"
 
@@ -71,8 +73,12 @@ async def test_ocr_extracts_and_populates_cache(ocr_instance):
     test_img.save(buf, format="PNG")
     img_bytes = buf.getvalue()
 
-    with patch.object(ocr_instance, "_ocr_image_sync", return_value="ENGINEERING COLLEGE AJMER NOTICE") as mock_sync:
-        result = await ocr_instance.extract_text_from_image(img_bytes, page_number=1, doc_name="notice.png")
+    with patch.object(
+        ocr_instance, "_ocr_image_sync", return_value="ENGINEERING COLLEGE AJMER NOTICE"
+    ) as mock_sync:
+        result = await ocr_instance.extract_text_from_image(
+            img_bytes, page_number=1, doc_name="notice.png"
+        )
         assert result == "ENGINEERING COLLEGE AJMER NOTICE"
         mock_sync.assert_called_once()
 
@@ -86,6 +92,7 @@ async def test_ocr_extracts_and_populates_cache(ocr_instance):
 def test_zero_cloud_ocr_imports():
     """Verify that no cloud OCR libraries (Google Vision, AWS Textract, Azure OCR) are imported."""
     import sys
+
     for mod_name in sys.modules:
         assert "google.cloud.vision" not in mod_name
         assert "textract" not in mod_name

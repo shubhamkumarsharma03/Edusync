@@ -14,17 +14,26 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Application lifespan context manager for startup and shutdown hooks."""
-    import asyncio
+    """Application lifespan context manager for startup and shutdown hooks.
 
-    from api.routes.chat import warm_llm_client
-    from ingestion.embedder import DocumentEmbedder
-    from retrieval.reranker import CrossEncoderReranker
-
+    Lightweight startup: heavy ML models (embeddings, reranker, OCR, LLMs)
+    are strictly lazy-loaded on-demand when first requested rather than at boot.
+    """
+    # Clean up any orphaned 'fetching' statuses from previous server restarts
     try:
-        await asyncio.to_thread(DocumentEmbedder.get_model)
-        await asyncio.to_thread(CrossEncoderReranker.get_model)
-        await warm_llm_client()
+        from sqlalchemy import update
+
+        from db.session import async_session_maker
+        from models.source import IngestionSource
+
+        async with async_session_maker() as session:
+            stmt = (
+                update(IngestionSource)
+                .where(IngestionSource.status == "fetching")
+                .values(status="idle")
+            )
+            await session.execute(stmt)
+            await session.commit()
     except Exception:
         pass
 

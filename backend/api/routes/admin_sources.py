@@ -162,6 +162,15 @@ async def create_source(
     return new_source
 
 
+@router.get("/live-progress")
+async def get_global_live_progress() -> dict:
+    """Retrieve real-time pipeline execution progress across all sources."""
+    from ingestion.progress import progress_tracker
+
+    state = progress_tracker.get_state()
+    return state.model_dump()
+
+
 @router.get("/{source_id}", response_model=SourceResponse)
 async def get_source(
     source_id: UUID,
@@ -424,11 +433,7 @@ async def list_source_documents(
 
     doc_items: list[IngestedDocumentResponse] = []
     for d in docs:
-        chunk_stmt = (
-            select(Chunk)
-            .where(Chunk.document_id == d.id)
-            .order_by(Chunk.id.asc())
-        )
+        chunk_stmt = select(Chunk).where(Chunk.document_id == d.id).order_by(Chunk.id.asc())
         chunks = (await session.execute(chunk_stmt)).scalars().all()
         title, sno, date, preview = _extract_notice_meta(chunks, d.source_url)
         doc_items.append(
@@ -514,3 +519,12 @@ async def get_source_live_feed(
         logger.warning(f"Could not fetch live feed from {remote_url}: {e}")
 
     return {"success": False, "data": [], "pagination": {"totalItems": 0}}
+
+
+@router.get("/{source_id}/live-progress")
+async def get_source_live_progress(source_id: UUID) -> dict:
+    """Retrieve real-time pipeline execution progress specifically for a source."""
+    from ingestion.progress import progress_tracker
+
+    state = progress_tracker.get_state(source_id)
+    return state.model_dump()

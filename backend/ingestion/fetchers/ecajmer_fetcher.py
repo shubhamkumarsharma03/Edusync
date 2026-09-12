@@ -123,6 +123,8 @@ class ECAjmerFetcher(BaseFetcher):
         self,
         pdf_url: str,
         existing_hash: str | None = None,
+        source_id: str | None = None,
+        doc_name: str | None = None,
     ) -> tuple[bytes, str, list[ExtractedTable], int]:
         """Download a PDF file and extract plain text and tables using PyMuPDF.
 
@@ -149,6 +151,15 @@ class ECAjmerFetcher(BaseFetcher):
                 logger.info(
                     f"PDF binary hash matches existing record for {pdf_url.split('/')[-1]} - skipping OCR and extraction"
                 )
+                from ingestion.progress import progress_tracker
+
+                fname = doc_name or pdf_url.split("/")[-1]
+                progress_tracker.log(
+                    f"Binary hash matched existing record for {fname}. Skipped OCR (zero overhead).",
+                    level="bypass",
+                    tag="HASH",
+                    source_id=source_id,
+                )
                 return raw_bytes, "", [], 0
 
         page_texts: list[str] = []
@@ -158,31 +169,73 @@ class ECAjmerFetcher(BaseFetcher):
         try:
             with fitz.open(stream=raw_bytes, filetype="pdf") as doc:
                 page_count = len(doc)
-                for page_num in range(page_count):
-                    page = doc[page_num]
-                    text = page.get_text("text").strip()
-                    if len(text) >= ocr_service.min_text_threshold:
-                        page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
-                    else:
-                        # Scanned image page -> Convert page to image and run local GOT-OCR 2.0
-                        try:
-                            pix = page.get_pixmap(dpi=ocr_service.dpi)
-                            img_bytes = pix.tobytes("png")
-                            ocr_text = await ocr_service.extract_text_from_image(
-                                img_bytes,
-                                page_number=page_num + 1,
-                                doc_name=pdf_url.split("/")[-1],
-                            )
-                            if ocr_text:
-                                page_texts.append(f"--- Page {page_num + 1} (GOT-OCR) ---\n{ocr_text}")
-                            elif text:
-                                page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
-                        except Exception as ocr_err:
-                            logger.warning(
-                                f"Local GOT-OCR error on page {page_num + 1} of {pdf_url}: {ocr_err}"
-                            )
-                            if text:
-                                page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+                digital_pages = sum(
+                    1
+                    for page_num in range(page_count)
+                    if len(doc[page_num].get_text("text").strip()) >= ocr_service.min_text_threshold
+                )
+                is_scanned_doc = digital_pages == 0 and page_count > 0
+
+                # Fast batch document OCR via Baidu PaddleOCR if active
+                if is_scanned_doc and ocr_service.is_baidu_active:
+                    from ingestion.progress import progress_tracker
+
+                    fname = doc_name or pdf_url.split("/")[-1]
+                    progress_tracker.update_step(
+                        phase="ocr_inference",
+                        step_index=3,
+                        current_action=f"Running Baidu PaddleOCR-VL on scanned PDF: {fname}",
+                        next_action="Parse layout, extract tables & markdown",
+                        source_id=source_id,
+                        log_message=f"Executing Baidu PaddleOCR-VL on {fname} ({page_count} pages)",
+                        log_level="ocr",
+                        log_tag="OCR",
+                    )
+                    logger.info(
+                        f"Detected scanned circular PDF ({page_count} pages): {pdf_url}. Running full document OCR..."
+                    )
+                    batch_text, batch_tables = await ocr_service.extract_document(
+                        file_input=raw_bytes,
+                        source_url=pdf_url,
+                        is_pdf=True,
+                    )
+                    if batch_text:
+                        page_texts.append(batch_text)
+                        tables.extend(batch_tables)
+                        progress_tracker.log(
+                            f"PaddleOCR-VL completed for {fname}: extracted {len(batch_tables)} tables",
+                            level="ocr",
+                            tag="OCR",
+                            source_id=source_id,
+                        )
+
+                if not page_texts:
+                    for page_num in range(page_count):
+                        page = doc[page_num]
+                        text = page.get_text("text").strip()
+                        if len(text) >= ocr_service.min_text_threshold:
+                            page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+                        else:
+                            try:
+                                pix = page.get_pixmap(dpi=ocr_service.dpi)
+                                img_bytes = pix.tobytes("png")
+                                ocr_text = await ocr_service.extract_text_from_image(
+                                    img_bytes,
+                                    page_number=page_num + 1,
+                                    doc_name=pdf_url.split("/")[-1],
+                                )
+                                if ocr_text:
+                                    page_texts.append(
+                                        f"--- Page {page_num + 1} (OCR) ---\n{ocr_text}"
+                                    )
+                                elif text:
+                                    page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+                            except Exception as ocr_err:
+                                logger.warning(
+                                    f"OCR error on page {page_num + 1} of {pdf_url}: {ocr_err}"
+                                )
+                                if text:
+                                    page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
 
                     try:
                         tabs = page.find_tables()
@@ -223,6 +276,9 @@ class ECAjmerFetcher(BaseFetcher):
         department_name: str,
         category_name: str = "Circular",
         existing_hash: str | None = None,
+        source_id: str | None = None,
+        item_index: int | None = None,
+        total_items: int | None = None,
     ) -> FetchedDocument:
         """Construct a full FetchedDocument from an individual circular entry and its attached PDF."""
         title = entry.get("title", "").strip()
@@ -245,9 +301,13 @@ class ECAjmerFetcher(BaseFetcher):
         page_count = 0
 
         if pdf_url and pdf_url.lower().endswith(".pdf"):
+            pdf_kwargs: dict[str, Any] = {"existing_hash": existing_hash}
+            if source_id is not None:
+                pdf_kwargs["source_id"] = source_id
+                pdf_kwargs["doc_name"] = title or pdf_url.split("/")[-1]
             raw_bytes, pdf_text, tables, page_count = await self.fetch_pdf_content(
                 pdf_url,
-                existing_hash=existing_hash,
+                **pdf_kwargs,
             )
 
         # Fallback raw_bytes if empty
@@ -298,11 +358,25 @@ class ECAjmerFetcher(BaseFetcher):
         limit: int = 50,
         department: str | None = None,
         existing_hashes: dict[str, str] | None = None,
+        source_id: str | None = None,
     ) -> list[FetchedDocument]:
         """Fetch all circulars / timetable documents for a given source link up to the specified limit (e.g. 50 or 20)."""
         slug, category_id, detected_dept = self.parse_url(source_url)
         dept_name = department or detected_dept
         category_name = "Time Table" if category_id == 2 else "Circular"
+
+        from ingestion.progress import progress_tracker
+
+        progress_tracker.update_step(
+            phase="portal_fetch",
+            step_index=1,
+            current_action=f"Connecting to portal API: {slug} ({category_name})",
+            next_action=f"Retrieve up to {limit} circular entries",
+            source_id=source_id,
+            log_message=f"Querying portal API endpoint for '{slug}' (limit={limit})",
+            log_level="fetch",
+            log_tag="PORTAL",
+        )
 
         entries = await self.fetch_circular_entries(
             slug=slug,
@@ -311,13 +385,30 @@ class ECAjmerFetcher(BaseFetcher):
             page=1,
         )
 
-        logger.info(f"Retrieved {len(entries)} notice entries for {source_url} (limit={limit})")
+        total_entries = len(entries)
+        logger.info(f"Retrieved {total_entries} notice entries for {source_url} (limit={limit})")
+
+        progress_tracker.update_step(
+            phase="portal_fetch",
+            step_index=1,
+            current_action=f"Discovered {total_entries} notices from portal. Inspecting attachments...",
+            next_action="Download notices and verify SHA-256 content hashes",
+            source_id=source_id,
+            log_message=f"Retrieved {total_entries} structured notice entries from portal",
+            log_level="info",
+            log_tag="PORTAL",
+            stats_update={"total": total_entries},
+        )
 
         documents: list[FetchedDocument] = []
-        for entry in entries:
+        bypassed_count = 0
+
+        for idx, entry in enumerate(entries, start=1):
             try:
                 # Pre-determine PDF URL to check against existing_hashes
                 content_rel = entry.get("content", "").strip()
+                title = entry.get("title", "").strip()
+                sno = entry.get("sno", "").strip()
                 pdf_url = ""
                 if content_rel:
                     if content_rel.startswith("http://") or content_rel.startswith("https://"):
@@ -326,10 +417,26 @@ class ECAjmerFetcher(BaseFetcher):
                         clean_rel = content_rel.lstrip("/")
                         pdf_url = f"https://ecajmer.ac.in/{clean_rel}"
 
-                entry_hash = (
-                    existing_hashes.get(pdf_url)
-                    if (existing_hashes and pdf_url)
-                    else None
+                entry_hash = existing_hashes.get(pdf_url) if (existing_hashes and pdf_url) else None
+                fname = (
+                    pdf_url.split("/")[-1]
+                    if pdf_url
+                    else (f"notice_{sno}.html" if sno else f"notice_{idx}.html")
+                )
+
+                progress_tracker.update_step(
+                    phase="pdf_download",
+                    step_index=2,
+                    current_action=f"[{idx}/{total_entries}] Inspecting notice: {title[:60] or fname}",
+                    next_action="Verify SHA-256 hash against existing records",
+                    source_id=source_id,
+                    active_document={
+                        "title": title or fname,
+                        "filename": fname,
+                        "url": pdf_url,
+                        "source_type": "pdf" if pdf_url.lower().endswith(".pdf") else "html",
+                    },
+                    stats_update={"checked": idx - 1},
                 )
 
                 doc = await self.fetch_single_notice(
@@ -337,10 +444,39 @@ class ECAjmerFetcher(BaseFetcher):
                     department_name=dept_name,
                     category_name=category_name,
                     existing_hash=entry_hash,
+                    source_id=source_id,
+                    item_index=idx,
+                    total_items=total_entries,
                 )
+
+                if entry_hash and doc.extracted_text == "":
+                    bypassed_count += 1
+
+                progress_tracker.update_step(
+                    phase="hash_check",
+                    step_index=2,
+                    current_action=f"[{idx}/{total_entries}] Verified {fname}",
+                    next_action=(
+                        f"Inspect next notice in queue ({idx+1}/{total_entries})"
+                        if idx < total_entries
+                        else "Commence semantic chunking & vector embedding"
+                    ),
+                    source_id=source_id,
+                    stats_update={
+                        "checked": idx,
+                        "bypassed_count": bypassed_count,
+                    },
+                )
+
                 documents.append(doc)
             except Exception as item_err:
                 logger.warning(f"Error fetching notice {entry.get('sno')}: {item_err}")
+                progress_tracker.log(
+                    f"Warning: Failed to fetch notice {entry.get('sno')}: {item_err}",
+                    level="warn",
+                    tag="WARN",
+                    source_id=source_id,
+                )
 
         return documents
 
@@ -351,6 +487,7 @@ class ECAjmerFetcher(BaseFetcher):
             limit=kwargs.get("limit", 1),
             department=kwargs.get("department"),
             existing_hashes=kwargs.get("existing_hashes"),
+            source_id=kwargs.get("source_id"),
         )
         if docs:
             return docs[0]

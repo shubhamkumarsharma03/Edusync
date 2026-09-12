@@ -32,6 +32,8 @@ async def _run_fetch_source(source_id: UUID | str, limit: int | None = None) -> 
         source.error_message = None
         await session.commit()
 
+        from ingestion.progress import progress_tracker
+
         try:
             fetch_limit = limit
             if fetch_limit is None:
@@ -41,17 +43,32 @@ async def _run_fetch_source(source_id: UUID | str, limit: int | None = None) -> 
                     else source.subsequent_fetch_limit
                 )
 
+            progress_tracker.start_source(source.id, source.name, total_items=fetch_limit)
+
             summary = await ingest_source(
                 session=session,
                 source_url=source.url,
                 limit=fetch_limit,
                 department=source.department,
+                source_id=str(source.id),
             )
 
             source.status = "completed"
             source.last_fetched_at = datetime.now(UTC)
             source.error_message = None
             await session.commit()
+
+            progress_tracker.finish_source(
+                summary.message,
+                source_id=str(source.id),
+                stats={
+                    "checked": summary.total_checked,
+                    "created_count": summary.created_count,
+                    "updated_count": summary.updated_count,
+                    "unchanged_count": summary.unchanged_count,
+                    "chunks_count": summary.total_chunks,
+                },
+            )
 
             logger.info(f"Successfully finished ingestion for {source.name}: {summary.message}")
             return summary.model_dump()
@@ -60,6 +77,7 @@ async def _run_fetch_source(source_id: UUID | str, limit: int | None = None) -> 
             source.status = "error"
             source.error_message = str(e)
             await session.commit()
+            progress_tracker.fail_source(str(e), source_id=str(source.id))
             return {"error": str(e)}
 
 
