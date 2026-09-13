@@ -173,6 +173,38 @@ Format: lightweight ADR (Architecture Decision Record). Newest decisions at the 
 
 ---
 
+## ADR-013: Baidu PaddleOCR-VL with Persistent SHA-256 Markdown Cache for Document Parsing
+
+**Status:** Accepted (supersedes ADR-007 default)
+
+**Context:** Standard text extraction fails on scanned circulars, while naive OCR produces unstructured plain text that strips Markdown table syntax and heading semantics. Furthermore, re-running deep-learning OCR repeatedly during development or sync runs is computationally redundant.
+
+**Decision:**
+1. **Baidu PaddleOCR-VL:** Adopt Baidu PaddleOCR-VL as the primary OCR engine. It converts PDF pages into structured Markdown with native Markdown tables (`| ... |`), preserved column alignment, and hierarchical headings (`#`, `##`, `###`).
+2. **Persistent SHA-256 Markdown Cache:** Hash raw PDF contents using SHA-256 and cache the resulting Markdown in `.cache/ocr_markdown/{hash}.md`. If a document was previously parsed, OCR is skipped completely (sub-millisecond cache hits).
+3. **PyMuPDF Native Text Bypass:** If a PDF already contains high-density native text layers and no raster images, extract native text directly before invoking OCR.
+
+**Consequences:** High-fidelity document structure preservation, native table support, and zero redundant compute during ingestion.
+
+---
+
+## ADR-014: BAAI/bge-m3 1024-Dimension Local Embeddings, Structure-Aware Breadcrumb Chunking, and Intent-Routed Hybrid Search
+
+**Status:** Accepted
+
+**Context:** Institutional engineering documents contain complex multi-level hierarchies (e.g. `Engineering College Ajmer > Academic Section > III Semester Rules`) and tables. The previous 384-dimensional model (`all-MiniLM-L6-v2`) had a restrictive 256-token context window and struggled with Hindi/English bilingual notices and long Markdown tables.
+
+**Decision:**
+1. **BAAI/bge-m3 Embedding Upgrade:** Adopt `BAAI/bge-m3` offering 1024 embedding dimensions, native bilingual (Hindi+English) retrieval, and an 8,192 token window.
+2. **100% Offline Local Model Storage:** Cache model weights directly in `backend/models_cache/bge-m3` (`model.safetensors`, tokenizer, configs), eliminating Hugging Face Hub downloads and external API dependencies during runtime. Safely purge obsolete local models (`all-MiniLM-L6-v2`, `GOT-OCR-2.0-hf`).
+3. **PostgreSQL pgvector Schema Migration:** Alter `chunks.embedding` from `vector(384)` to `vector(1024)` with an HNSW cosine index (`m=16, ef_construction=64`).
+4. **Structure-Aware Markdown Chunking:** Implement heading stack traversal in `SemanticChunker` (`# > ## > ### > ####`). Prepend `[Context: Breadcrumbs]\n\n` to all child chunks so both dense vector embeddings and PostgreSQL full-text search tsvectors retain section context. Extract entities (`semester`, `notice_sno`, `academic_year`) into chunk metadata.
+5. **Intent-Routed Hybrid Search:** Normalize student queries using `CollegeQueryNormalizer`. If a specific department intent is identified (e.g. "CSE", "Proctor Section"), pre-filter vector and keyword queries by department. If filtered search returns 0 results, gracefully fall back to unrestricted search to guarantee campus-wide notices are never missed.
+
+**Consequences:** Substantially higher retrieval accuracy on shorthand student queries, atomic table preservation, zero hallucination via calibrated confidence gating (0.55), and completely offline model execution.
+
+---
+
 ## Open / not yet decided
 
 - Final decision on whether the ablation study (RAG variants × OCR engines) is scoped into the core capstone deliverable or treated as a stretch goal for the paper.
