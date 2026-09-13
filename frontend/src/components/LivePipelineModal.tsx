@@ -14,11 +14,12 @@ import {
   FileSpreadsheet,
   FileText,
   Layers,
+  Pause,
   RefreshCw,
   Terminal,
   X,
 } from 'lucide-react'
-import { getLiveProgress, PipelineProgressState } from '../api/sources'
+import { getLiveProgress, pauseFetchSource, PipelineProgressState } from '../api/sources'
 
 interface LivePipelineModalProps {
   isOpen: boolean
@@ -175,6 +176,23 @@ export const LivePipelineModal: React.FC<LivePipelineModalProps> = ({
               <Clock className="w-3.5 h-3.5 text-neutral-400" />
               <span>Auto-polling (5s)</span>
             </div>
+            {isFetching && sourceId && (
+              <button
+                onClick={async () => {
+                  try {
+                    await pauseFetchSource(sourceId)
+                    fetchState(true)
+                  } catch (e) {
+                    console.error('Failed to pause source', e)
+                  }
+                }}
+                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200 transition"
+                title="Pause ingestion"
+              >
+                <Pause className="w-3.5 h-3.5 fill-current" />
+                <span>Pause</span>
+              </button>
+            )}
             <button
               onClick={() => fetchState(true)}
               className="p-1.5 text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 rounded-lg transition border border-transparent hover:border-neutral-200"

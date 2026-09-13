@@ -113,6 +113,16 @@ export async function triggerFetchSource(id: string): Promise<{ status: string; 
   return res.json()
 }
 
+export async function pauseFetchSource(id: string): Promise<{ status: string; source_id: string; task_cancelled: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/admin/sources/${id}/pause`, {
+    method: 'POST',
+  })
+  if (!res.ok) {
+    throw new Error(`Failed to pause fetch: ${res.status}`)
+  }
+  return res.json()
+}
+
 export async function triggerFetchAll(): Promise<{ status: string; message: string }> {
   const res = await fetch(`${API_BASE_URL}/admin/sources/fetch-all`, {
     method: 'POST',

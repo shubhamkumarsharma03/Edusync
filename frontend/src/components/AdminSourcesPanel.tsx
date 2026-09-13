@@ -13,6 +13,7 @@ import {
   Layers,
   Database,
   Play,
+  Pause,
   X,
   Sparkles,
   Bot,
@@ -40,6 +41,7 @@ import {
   deleteSource,
   reorderSources,
   triggerFetchSource,
+  pauseFetchSource,
   triggerFetchAll,
   seedDefaultSources,
   getSourceDocuments,
@@ -347,6 +349,23 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
       setTimeout(loadSources, 2000)
     } catch (err: any) {
       showNotice(err.message || 'Fetch trigger failed', 'error')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handlePauseSingle = async (id: string, name: string) => {
+    try {
+      setActionLoading(id)
+      setSources((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status: 'idle' } : s))
+      )
+      await pauseFetchSource(id)
+      showNotice(`Paused ingestion for "${name}"`)
+      setTimeout(loadSources, 500)
+    } catch (err: any) {
+      showNotice(err.message || 'Failed to pause fetching', 'error')
+      loadSources()
     } finally {
       setActionLoading(null)
     }
@@ -963,14 +982,25 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                         {/* Actions */}
                         <td className="py-3.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleFetchSingle(src.id, src.name)}
-                              disabled={actionLoading === src.id}
-                              className="p-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg border border-indigo-200 transition disabled:opacity-40"
-                              title="Fetch & Embed now"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                            </button>
+                            {src.status === 'fetching' ? (
+                              <button
+                                onClick={() => handlePauseSingle(src.id, src.name)}
+                                disabled={actionLoading === src.id}
+                                className="p-1.5 bg-amber-50 hover:bg-amber-600 text-amber-600 hover:text-white rounded-lg border border-amber-200 transition disabled:opacity-40 animate-pulse"
+                                title="Pause / Stop fetching"
+                              >
+                                <Pause className="w-3.5 h-3.5 fill-current" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleFetchSingle(src.id, src.name)}
+                                disabled={actionLoading === src.id}
+                                className="p-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg border border-indigo-200 transition disabled:opacity-40"
+                                title="Fetch & Embed now"
+                              >
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                              </button>
+                            )}
                             <button
                               onClick={() => handleOpenEdit(src)}
                               className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition border border-neutral-200"

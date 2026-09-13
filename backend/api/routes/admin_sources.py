@@ -268,6 +268,29 @@ async def trigger_source_fetch(
     }
 
 
+@router.post("/{source_id}/pause")
+async def pause_source_fetch(
+    source_id: UUID,
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Pause / cancel an in-progress ingestion task for a source."""
+    from ingestion.tasks import cancel_fetch_source
+
+    stmt = select(IngestionSource).where(IngestionSource.id == source_id)
+    res = await session.execute(stmt)
+    source = res.scalar_one_or_none()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    cancelled = await cancel_fetch_source(source_id)
+    return {
+        "status": "paused",
+        "source_id": str(source_id),
+        "source_name": source.name,
+        "task_cancelled": cancelled,
+    }
+
+
 @router.post("/fetch-all")
 async def trigger_fetch_all() -> dict:
     """Trigger prioritized ingestion across all active sources."""
