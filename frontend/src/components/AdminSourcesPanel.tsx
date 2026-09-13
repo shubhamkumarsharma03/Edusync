@@ -343,12 +343,16 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const handleFetchSingle = async (id: string, name: string) => {
     try {
       setActionLoading(id)
-      handleOpenLiveInspector(id, name)
+      // Optimistically flip status to fetching so Pause button and Fetching pill appear immediately
+      setSources((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status: 'fetching' } : s))
+      )
       await triggerFetchSource(id)
       showNotice(`Triggered ingestion for "${name}"`)
       setTimeout(loadSources, 2000)
     } catch (err: any) {
       showNotice(err.message || 'Fetch trigger failed', 'error')
+      loadSources()
     } finally {
       setActionLoading(null)
     }
@@ -374,12 +378,15 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const handleFetchAll = async () => {
     try {
       setActionLoading('all')
-      handleOpenLiveInspector(undefined, 'All Active Sources')
+      setSources((prev) =>
+        prev.map((s) => (s.is_active ? { ...s, status: 'fetching' } : s))
+      )
       await triggerFetchAll()
       showNotice('Queued prioritized batch ingestion across all active sources!')
       setTimeout(loadSources, 2500)
     } catch (err: any) {
       showNotice(err.message || 'Batch fetch trigger failed', 'error')
+      loadSources()
     } finally {
       setActionLoading(null)
     }
