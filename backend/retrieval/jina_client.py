@@ -141,6 +141,7 @@ class JinaEmbedder:
                 "dimensions": self.dimensions,
                 "late_chunking": False,
                 "embedding_type": "float",
+                "truncate": True,
                 "input": batch,
             }
 
