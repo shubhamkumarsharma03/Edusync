@@ -205,6 +205,25 @@ Format: lightweight ADR (Architecture Decision Record). Newest decisions at the 
 
 ---
 
+## ADR-015: Jina AI Search Foundation Integration (Embeddings v3, Reranker v2, Reader API, and Token Quota Tracker)
+
+**Status:** Accepted
+
+**Context:** While local CPU models (`bge-m3` and `ms-marco-MiniLM-L-6-v2`) provide complete offline reliability, high-concurrency cloud production and faster ingestion benefit from high-throughput API endpoints. Jina AI offers state-of-the-art search foundation models (`jina-embeddings-v3` and `jina-reranker-v2-base-multilingual`) with an identical 1024-dimension vector space, task-specific embedding adapters, multilingual cross-encoder reranking, and a generous 10,000,000 token free tier across all search foundation products on a single API key.
+
+**Decision:**
+1. **Zero-Migration Dimension Parity:** Use `jina-embeddings-v3` with `dimensions=1024`. Because EduSync's PostgreSQL schema is already standardized on `vector(1024)` (ADR-014), no schema change or database migration is required.
+2. **Asymmetric Task Adapters:** Ingested document chunks are embedded using `task="retrieval.passage"`. Student query vectors are embedded using `task="retrieval.query"`, optimizing the asymmetric vector matching surface.
+3. **Batching & Resilience:** Batch document chunk embedding calls in chunks of 32 using asynchronous `httpx.AsyncClient`. Retry automatically with exponential backoff on HTTP 429 and 5xx status codes.
+4. **Multilingual Cross-Encoder Reranker:** Ingest hybrid search results into `jina-reranker-v2-base-multilingual`. Fetch top 20 candidate chunks via RRF, rerank down to top 5 items, and feed scores into `ConfidenceGate(threshold=0.55)`.
+5. **Token Quota Awareness:** Implement `JinaTokenTracker` as a thread-safe singleton tracking cumulative embeddings and reranking tokens against Jina's 10,000,000 free-tier limit. Expose metrics via `GET /admin/jina-usage`.
+6. **Seamless Fallback & Shared Key:** One API key (`JINA_API_KEY`) authenticates both embeddings and reranking. If `JINA_API_KEY` is not set or `EMBEDDING_PROVIDER="local"` / `RERANKER_PROVIDER="local"` is selected, the system transparently falls back to local CPU models with zero pipeline disruption.
+7. **Jina Reader Support:** Provide `JinaReader` helper utilizing `https://r.jina.ai/` for direct URL-to-markdown conversion of college portals and documents without browser dependencies.
+
+**Consequences:** Near-instantaneous query reranking latency, high-throughput non-blocking document ingestion, live token monitoring, zero hallucination via preserved confidence gating, and zero lock-in due to seamless local model fallbacks.
+
+---
+
 ## Open / not yet decided
 
 - Final decision on whether the ablation study (RAG variants × OCR engines) is scoped into the core capstone deliverable or treated as a stretch goal for the paper.
