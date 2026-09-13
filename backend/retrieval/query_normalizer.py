@@ -193,6 +193,11 @@ class CollegeQueryNormalizer:
         "Examination Section": ["exam", "examination"],
         "Registrar Section": ["registrar", "order", "admin"],
         "Academic Section": ["academic", "admission", "scholarship"],
+        "Proctor Section": ["proctor", "discipline", "id card", "anti-ragging"],
+        "Mechanical Engineering": ["me", "mech", "mechanical"],
+        "Electrical Engineering": ["ee", "electrical"],
+        "Civil Engineering": ["ce", "civil"],
+        "Electronics & Communication Engineering": ["ece", "electronics"],
     }
 
     @classmethod

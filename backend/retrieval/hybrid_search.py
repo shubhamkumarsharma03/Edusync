@@ -114,8 +114,9 @@ class HybridSearcher:
         top_k: int = 20,
         candidate_k: int = 20,
         allowed_statuses: list[str] | None = None,
+        departments: list[str] | None = None,
     ) -> list[RetrievedChunk]:
-        """Execute parallel hybrid search with domain NLP normalization."""
+        """Execute parallel hybrid search with domain NLP normalization and entity routing."""
         if not query.strip():
             return []
 
@@ -123,19 +124,48 @@ class HybridSearcher:
         v_query = norm.expanded_vector or query
         k_query = norm.expanded_keyword or query
 
-        # Run vector with dense expanded query and keyword with salient terms
-        vector_results = await self.vector_searcher.search(
-            session=session,
-            query=v_query,
-            top_k=candidate_k,
-            allowed_statuses=allowed_statuses,
+        # Target departments: explicit override or NLP-detected departments
+        target_depts = (
+            departments if departments is not None else (norm.detected_departments or None)
         )
-        keyword_results = await self.keyword_searcher.search(
-            session=session,
-            query=k_query,
-            top_k=candidate_k,
-            allowed_statuses=allowed_statuses,
-        )
+
+        vector_results: list[RetrievedChunk] = []
+        keyword_results: list[RetrievedChunk] = []
+
+        # 1. First attempt: If department intent is recognized, filter by department
+        if target_depts:
+            vector_results = await self.vector_searcher.search(
+                session=session,
+                query=v_query,
+                top_k=candidate_k,
+                allowed_statuses=allowed_statuses,
+                departments=target_depts,
+            )
+            keyword_results = await self.keyword_searcher.search(
+                session=session,
+                query=k_query,
+                top_k=candidate_k,
+                allowed_statuses=allowed_statuses,
+                departments=target_depts,
+            )
+
+        # 2. Resilient fallback: If no department intent OR filtered search returned 0 results,
+        # perform unconstrained search so campus-wide notices are never missed
+        if not vector_results and not keyword_results:
+            vector_results = await self.vector_searcher.search(
+                session=session,
+                query=v_query,
+                top_k=candidate_k,
+                allowed_statuses=allowed_statuses,
+                departments=None,
+            )
+            keyword_results = await self.keyword_searcher.search(
+                session=session,
+                query=k_query,
+                top_k=candidate_k,
+                allowed_statuses=allowed_statuses,
+                departments=None,
+            )
 
         return self.reciprocal_rank_fusion(
             vector_results=vector_results,

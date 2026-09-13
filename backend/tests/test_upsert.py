@@ -13,19 +13,23 @@ from models.document import Document
 
 
 def test_embedder_output_dimensions() -> None:
-    """Test that DocumentEmbedder produces 384-dimensional dense vector embeddings."""
+    """Test that DocumentEmbedder produces 1024-dimensional dense vector embeddings for BGE-M3."""
     embedder = DocumentEmbedder()
     mock_model = MagicMock()
     mock_emb = MagicMock()
-    mock_emb.tolist.return_value = [0.1] * 384
+    mock_emb.tolist.return_value = [0.1] * 1024
     mock_model.encode.return_value = [mock_emb]
 
-    embedder._model = mock_model
-    results = embedder.embed_texts(["Engineering College Ajmer Circular"])
+    original_model = DocumentEmbedder._model
+    try:
+        DocumentEmbedder._model = mock_model
+        results = embedder.embed_texts(["Engineering College Ajmer Circular"])
 
-    assert len(results) == 1
-    assert len(results[0]) == 384
-    assert isinstance(results[0][0], float)
+        assert len(results) == 1
+        assert len(results[0]) == 1024
+        assert isinstance(results[0][0], float)
+    finally:
+        DocumentEmbedder._model = original_model
 
 
 @pytest.mark.asyncio

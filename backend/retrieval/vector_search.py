@@ -24,10 +24,12 @@ class VectorSearcher:
         top_k: int = 20,
         query_embedding: list[float] | None = None,
         allowed_statuses: list[str] | None = None,
+        departments: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         """Search top-k most similar chunks using cosine similarity in pgvector.
 
         Strictly enforces conflict and stale document exclusion by filtering on document status.
+        Supports optional filtering by department.
         """
         if not query and not query_embedding:
             return []
@@ -43,6 +45,13 @@ class VectorSearcher:
         # Compute cosine distance using pgvector operator
         distance_expr = Chunk.embedding.cosine_distance(query_embedding).label("distance")
 
+        conditions = [
+            Document.status.in_(allowed),
+            Chunk.embedding.is_not(None),
+        ]
+        if departments:
+            conditions.append(Document.department.in_(departments))
+
         stmt = (
             select(
                 Chunk.id,
@@ -56,10 +65,7 @@ class VectorSearcher:
                 distance_expr,
             )
             .join(Document, Chunk.document_id == Document.id)
-            .where(
-                Document.status.in_(allowed),
-                Chunk.embedding.is_not(None),
-            )
+            .where(*conditions)
             .order_by(distance_expr.asc())
             .limit(top_k)
         )

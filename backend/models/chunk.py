@@ -18,7 +18,7 @@ class Chunk(Base, UUIDMixin):
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    embedding: Mapped[Vector] = mapped_column(Vector(384), nullable=True)
+    embedding: Mapped[Vector] = mapped_column(Vector(1024), nullable=True)
 
     last_verified: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
@@ -30,8 +30,8 @@ class Chunk(Base, UUIDMixin):
         Index(
             "chunks_embedding_idx",
             "embedding",
-            postgresql_using="ivfflat",
-            postgresql_with={"lists": 100},
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
             postgresql_ops={"embedding": "vector_cosine_ops"},
         ),
     )

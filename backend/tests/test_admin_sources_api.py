@@ -192,4 +192,3 @@ async def test_live_progress_endpoints():
         src_data = res_src.json()
         assert src_data["source_id"] == test_sid
         assert src_data["phase"] == "ocr_inference"
-

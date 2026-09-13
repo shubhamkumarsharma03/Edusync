@@ -27,10 +27,12 @@ class KeywordSearcher:
         query: str,
         top_k: int = 20,
         allowed_statuses: list[str] | None = None,
+        departments: list[str] | None = None,
     ) -> list[RetrievedChunk]:
         """Execute database-backed full text keyword search against chunks.
 
         Strictly enforces conflict and stale document exclusion by filtering on document status.
+        Supports optional filtering by department.
         """
         cleaned_query = query.strip()
         if not cleaned_query:
@@ -41,6 +43,13 @@ class KeywordSearcher:
         tsquery = func.plainto_tsquery("english", cleaned_query)
         tsvector = func.to_tsvector("english", Chunk.content)
         rank_expr = func.ts_rank_cd(tsvector, tsquery).label("rank_score")
+
+        base_conditions = [
+            Document.status.in_(allowed),
+            tsvector.op("@@")(tsquery),
+        ]
+        if departments:
+            base_conditions.append(Document.department.in_(departments))
 
         stmt = (
             select(
@@ -55,10 +64,7 @@ class KeywordSearcher:
                 rank_expr,
             )
             .join(Document, Chunk.document_id == Document.id)
-            .where(
-                Document.status.in_(allowed),
-                tsvector.op("@@")(tsquery),
-            )
+            .where(*base_conditions)
             .order_by(rank_expr.desc())
             .limit(top_k)
         )
@@ -72,6 +78,13 @@ class KeywordSearcher:
                 or_query_str = " OR ".join(words)
                 fallback_tsquery = func.websearch_to_tsquery("english", or_query_str)
                 fallback_rank = func.ts_rank_cd(tsvector, fallback_tsquery).label("rank_score")
+                fallback_conditions = [
+                    Document.status.in_(allowed),
+                    tsvector.op("@@")(fallback_tsquery),
+                ]
+                if departments:
+                    fallback_conditions.append(Document.department.in_(departments))
+
                 fallback_stmt = (
                     select(
                         Chunk.id,
@@ -85,10 +98,7 @@ class KeywordSearcher:
                         fallback_rank,
                     )
                     .join(Document, Chunk.document_id == Document.id)
-                    .where(
-                        Document.status.in_(allowed),
-                        tsvector.op("@@")(fallback_tsquery),
-                    )
+                    .where(*fallback_conditions)
                     .order_by(fallback_rank.desc())
                     .limit(top_k)
                 )
