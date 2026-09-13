@@ -12,6 +12,28 @@ from api.routes.departments import router as departments_router
 settings = get_settings()
 
 
+def run_auto_migrations() -> None:
+    """Run alembic upgrade head programmatically on startup to ensure DB schema is synchronized."""
+    import logging
+    import os
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    logger = logging.getLogger("uvicorn.error")
+    try:
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ini_path = os.path.join(backend_dir, "alembic.ini")
+        if os.path.exists(ini_path):
+            alembic_cfg = Config(ini_path)
+            alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Auto DB migrations applied successfully to latest head.")
+    except Exception as e:
+        logger.warning(f"Auto DB migration skipped or failed: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan context manager for startup and shutdown hooks."""
@@ -22,6 +44,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from retrieval.reranker import CrossEncoderReranker
 
     try:
+        await asyncio.to_thread(run_auto_migrations)
         await asyncio.to_thread(DocumentEmbedder.get_model)
         await asyncio.to_thread(CrossEncoderReranker.get_model)
         await warm_llm_client()
