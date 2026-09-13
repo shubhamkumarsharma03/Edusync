@@ -10,17 +10,40 @@ logger = logging.getLogger(__name__)
 
 
 class CrossEncoderReranker:
-    """CPU-based Cross-Encoder reranker to rescore and order candidate chunks."""
+    """Hybrid Cross-Encoder reranker supporting Jina Reranker v2 API and local CPU CrossEncoder fallback."""
 
     _model: Any = None
     DEFAULT_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
-    def __init__(self, model_name: str | None = None, model: Any = None) -> None:
+    def __init__(
+        self,
+        model_name: str | None = None,
+        model: Any = None,
+        provider: str | None = None,
+    ) -> None:
         settings = get_settings()
+        self._model = model
+        self.provider = provider or getattr(settings, "RERANKER_PROVIDER", "auto")
         self.model_name = model_name or getattr(
             settings, "RERANKER_MODEL_NAME", self.DEFAULT_MODEL_NAME
         )
-        self._model = model
+        self.jina_reranker = None
+
+        # Only use Jina API if an explicit model was not injected
+        if self._model is None and self.provider in ("auto", "jina"):
+            from retrieval.jina_client import JinaReranker
+
+            candidate_jina = JinaReranker()
+            if candidate_jina.is_available():
+                self.jina_reranker = candidate_jina
+                logger.info("CrossEncoderReranker initialized with Jina Reranker v2 API provider.")
+            elif self.provider == "jina":
+                logger.warning(
+                    "Jina AI reranker provider requested but JINA_API_KEY is not configured. Falling back to local model."
+                )
+
+        if not self.jina_reranker:
+            logger.info(f"CrossEncoderReranker using local model: {self.model_name}")
 
     def get_rerank_model(self) -> Any:
         """Return instance model if provided, otherwise retrieve singleton model."""
@@ -54,6 +77,26 @@ class CrossEncoderReranker:
         clamped = max(-50.0, min(50.0, float(logit)))
         return 1.0 / (1.0 + math.exp(-clamped))
 
+    async def arerank(
+        self,
+        query: str,
+        chunks: Sequence[RetrievedChunk],
+        top_k: int = 5,
+    ) -> list[RetrievedChunk]:
+        """Asynchronously rerank candidate chunks.
+
+        Uses Jina Reranker v2 API when available, otherwise runs local CPU model in threadpool.
+        """
+        if not chunks or not query.strip():
+            return list(chunks[:top_k])
+
+        if self.jina_reranker:
+            return await self.jina_reranker.arerank(query=query, chunks=chunks, top_n=top_k)
+
+        import asyncio
+
+        return await asyncio.to_thread(self.rerank, query=query, chunks=chunks, top_k=top_k)
+
     def rerank(
         self,
         query: str,
@@ -66,6 +109,9 @@ class CrossEncoderReranker:
         """
         if not chunks or not query.strip():
             return list(chunks[:top_k])
+
+        if self.jina_reranker:
+            return self.jina_reranker.rerank(query=query, chunks=chunks, top_n=top_k)
 
         model = self.get_rerank_model()
         pairs = [(query, chunk.content) for chunk in chunks]

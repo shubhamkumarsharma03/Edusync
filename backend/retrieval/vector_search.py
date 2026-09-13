@@ -35,7 +35,17 @@ class VectorSearcher:
             return []
 
         if query_embedding is None:
-            embeddings = self.embedder.embed_texts([query])
+            import inspect
+
+            aembed = getattr(self.embedder, "aembed_texts", None)
+            if callable(aembed) and inspect.iscoroutinefunction(aembed):
+                embeddings = await aembed([query], task="retrieval.query")
+            elif callable(aembed) and inspect.iscoroutine(
+                res := aembed([query], task="retrieval.query")
+            ):
+                embeddings = await res
+            else:
+                embeddings = self.embedder.embed_texts([query])
             if not embeddings:
                 return []
             query_embedding = embeddings[0]

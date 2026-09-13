@@ -82,3 +82,11 @@ async def health_check() -> dict[str, str]:
         "service": "EduSync API",
         "version": settings.APP_VERSION,
     }
+
+
+@app.get("/admin/jina-usage", tags=["Admin"])
+async def jina_usage_check() -> dict:
+    """Retrieve token usage statistics for Jina AI API and remaining free-tier capacity."""
+    from retrieval.jina_client import jina_token_tracker
+
+    return jina_token_tracker.get_summary()

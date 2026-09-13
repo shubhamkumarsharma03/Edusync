@@ -141,11 +141,11 @@ async def chat_endpoint(
     reranker = CrossEncoderReranker()
     gate = ConfidenceGate()
 
-    # 1. Hybrid Search (Vector + Keyword via RRF)
+    # 1. Hybrid Search (Vector + Keyword via RRF) to fetch top candidate pool
     raw_chunks = await searcher.search(
         session=session,
         query=query,
-        top_k=10,
+        top_k=20,
     )
 
     if not raw_chunks:
@@ -158,14 +158,14 @@ async def chat_endpoint(
             query=query,
         )
 
-    # 2. Cross-Encoder Reranking (executed in threadpool to avoid blocking event loop)
-    import asyncio
-
+    # 2. Cross-Encoder / Jina Reranking to select top 5 most relevant chunks
     norm = query_normalizer.normalize(query)
     rerank_query = norm.expanded_vector or query
 
-    reranked_chunks = await asyncio.to_thread(
-        reranker.rerank, query=rerank_query, chunks=raw_chunks, top_k=4
+    reranked_chunks = await reranker.arerank(
+        query=rerank_query,
+        chunks=raw_chunks,
+        top_k=5,
     )
 
     # 3. Confidence Gating (Trust Layer)

@@ -76,7 +76,15 @@ async def upsert_document_and_chunks(
     # 2. Compute vector embeddings for all chunks
     embeddings: list[list[float]] = []
     if chunks:
-        embeddings = embedder.embed_chunks(chunks)
+        import inspect
+
+        aembed = getattr(embedder, "aembed_chunks", None)
+        if callable(aembed) and inspect.iscoroutinefunction(aembed):
+            embeddings = await aembed(chunks)
+        elif callable(aembed) and inspect.iscoroutine(res := aembed(chunks)):
+            embeddings = await res
+        else:
+            embeddings = embedder.embed_chunks(chunks)
 
     # 3. Create Chunk database records
     chunk_records: list[Chunk] = []

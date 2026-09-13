@@ -22,6 +22,20 @@ class Settings(BaseSettings):
     RERANKER_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     CONFIDENCE_THRESHOLD: float = 0.55
 
+    # Providers ("auto", "jina", "local")
+    EMBEDDING_PROVIDER: str = "auto"
+    RERANKER_PROVIDER: str = "auto"
+
+    # Jina AI Settings
+    JINA_API_KEY: str | None = None
+    JINA_EMBEDDING_MODEL: str = "jina-embeddings-v3"
+    JINA_RERANKER_MODEL: str = "jina-reranker-v2-base-multilingual"
+    JINA_EMBEDDING_TASK_PASSAGE: str = "retrieval.passage"
+    JINA_EMBEDDING_TASK_QUERY: str = "retrieval.query"
+    JINA_EMBED_BATCH_SIZE: int = 32
+    JINA_TIMEOUT: float = 30.0
+    JINA_MAX_RETRIES: int = 3
+
     # OCR Provider Settings
     OCR_PROVIDER: str = "auto"  # "auto", "baidu", "got_ocr"
 
