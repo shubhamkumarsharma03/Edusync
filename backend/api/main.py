@@ -1,3 +1,5 @@
+import logging
+import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -8,6 +10,13 @@ from api.config import get_settings
 from api.routes.admin_sources import router as admin_sources_router
 from api.routes.chat import router as chat_router
 from api.routes.departments import router as departments_router
+
+# Configure root logger for real-time terminal output across all modules
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
 
 settings = get_settings()
 

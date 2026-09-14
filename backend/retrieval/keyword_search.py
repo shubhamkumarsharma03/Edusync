@@ -5,9 +5,11 @@ from collections.abc import Sequence
 from rank_bm25 import BM25Okapi
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from models.chunk import Chunk
 from models.document import Document
+from models.department import Department
 from retrieval.schemas import RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,7 @@ class KeywordSearcher:
             tsvector.op("@@")(tsquery),
         ]
         if departments:
-            base_conditions.append(Document.department.in_(departments))
+            base_conditions.append(Department.name.in_(departments))
 
         stmt = (
             select(
@@ -59,11 +61,12 @@ class KeywordSearcher:
                 Chunk.token_count,
                 Chunk.last_verified,
                 Document.source_url,
-                Document.department,
+                Department.name.label("department"),
                 Document.owner,
                 rank_expr,
             )
             .join(Document, Chunk.document_id == Document.id)
+            .outerjoin(Department, Document.department_id == Department.id)
             .where(*base_conditions)
             .order_by(rank_expr.desc())
             .limit(top_k)
@@ -83,7 +86,7 @@ class KeywordSearcher:
                     tsvector.op("@@")(fallback_tsquery),
                 ]
                 if departments:
-                    fallback_conditions.append(Document.department.in_(departments))
+                    fallback_conditions.append(Department.name.in_(departments))
 
                 fallback_stmt = (
                     select(
@@ -93,11 +96,12 @@ class KeywordSearcher:
                         Chunk.token_count,
                         Chunk.last_verified,
                         Document.source_url,
-                        Document.department,
+                        Department.name.label("department"),
                         Document.owner,
                         fallback_rank,
                     )
                     .join(Document, Chunk.document_id == Document.id)
+                    .outerjoin(Department, Document.department_id == Department.id)
                     .where(*fallback_conditions)
                     .order_by(fallback_rank.desc())
                     .limit(top_k)

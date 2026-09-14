@@ -42,7 +42,7 @@ class ChangeDetector:
     async def check_document(
         session: AsyncSession,
         fetched: FetchedDocument,
-        department: str | None = None,
+        department_id: int | None = None,
         owner: str | None = None,
     ) -> DetectionResult:
         """Compare fetched document against stored content_hash.
@@ -63,7 +63,7 @@ class ChangeDetector:
                 status=ChangeStatus.NEW,
                 content_hash=computed_hash,
                 metadata={
-                    "department": department or fetched.metadata.get("department"),
+                    "department_id": department_id,
                     "owner": owner or fetched.metadata.get("owner"),
                 },
             )

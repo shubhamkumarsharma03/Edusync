@@ -60,34 +60,45 @@ export interface HardcodedPrefetchSource {
 
 // 4 Hardcoded Core Sources kept for fast one-click prefetching & seeding
 export const HARDCODED_PREFETCH_SOURCES: HardcodedPrefetchSource[] = [
-  {
-    name: 'CSE Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/cs-it/circulars',
-    department: 'Computer Science and Engineering',
-    category: 'circulars',
-    deptId: 1,
-  },
-  {
-    name: 'Examination Section Circulars',
-    url: 'https://www.ecajmer.ac.in/ui/cells/examination-section/circulars',
-    department: 'Examination Section',
-    category: 'circulars',
-    deptId: 2,
-  },
-  {
-    name: 'Registrar Circulars & Orders',
-    url: 'https://www.ecajmer.ac.in/ui/cells/registrar/circulars',
-    department: 'Registrar Section',
-    category: 'circulars',
-    deptId: 3,
-  },
-  {
-    name: 'Academic Section Notices',
-    url: 'https://www.ecajmer.ac.in/ui/cells/academic-section/circulars',
-    department: 'Academic Section',
-    category: 'circulars',
-    deptId: 4,
-  },
+  // Cells
+  { name: 'Registrar Circulars & Orders', url: 'https://www.ecajmer.ac.in/ui/cells/registrar/circulars', department: 'Registrar Section', category: 'circulars', deptId: 1 },
+  { name: 'Accounts Section Circulars', url: 'https://www.ecajmer.ac.in/ui/cells/accounts/circulars', department: 'Accounts Section', category: 'circulars', deptId: 2 },
+  { name: 'Examination Section Circulars', url: 'https://www.ecajmer.ac.in/ui/cells/examination-section/circulars', department: 'Examination Section', category: 'circulars', deptId: 3 },
+  { name: 'Proctor Section Circulars', url: 'https://www.ecajmer.ac.in/ui/cells/proctor/circulars', department: 'Proctor Section', category: 'circulars', deptId: 4 },
+  { name: 'First Year Circulars', url: 'https://www.ecajmer.ac.in/ui/cells/first-year/circulars', department: 'First Year', category: 'circulars', deptId: 5 },
+  { name: 'Central Library', url: 'https://www.ecajmer.ac.in/ui/cells/central-library/circulars', department: 'Central Library', category: 'circulars', deptId: 6 },
+  { name: 'Mandatory Disclosure', url: 'https://ecajmer.ac.in/mandatorydisclousure', department: 'General Admin', category: 'general_html', deptId: 7 },
+
+  // Branches
+  { name: 'CE Circulars', url: 'https://www.ecajmer.ac.in/departments/ce/circulars', department: 'Civil Engineering', category: 'circulars', deptId: 6 },
+  { name: 'CE Timetable', url: 'https://www.ecajmer.ac.in/departments/ce/timetable', department: 'Civil Engineering', category: 'timetable', deptId: 6 },
+  { name: 'Chemistry Circulars', url: 'https://www.ecajmer.ac.in/departments/chemistry/circulars', department: 'Chemistry', category: 'circulars', deptId: 7 },
+  { name: 'Chemistry Timetable', url: 'https://www.ecajmer.ac.in/departments/chemistry/timetable', department: 'Chemistry', category: 'timetable', deptId: 7 },
+  { name: 'CS-IT Circulars', url: 'https://www.ecajmer.ac.in/departments/cs-it/circulars', department: 'Computer Science and Engineering', category: 'circulars', deptId: 8 },
+  { name: 'CS-IT Timetable', url: 'https://www.ecajmer.ac.in/departments/cs-it/timetable', department: 'Computer Science and Engineering', category: 'timetable', deptId: 8 },
+  { name: 'ECE Circulars', url: 'https://www.ecajmer.ac.in/departments/ece/circulars', department: 'Electronics and Communication Engineering', category: 'circulars', deptId: 9 },
+  { name: 'ECE Timetable', url: 'https://www.ecajmer.ac.in/departments/ece/timetable', department: 'Electronics and Communication Engineering', category: 'timetable', deptId: 9 },
+  { name: 'Economy Circulars', url: 'https://www.ecajmer.ac.in/departments/economy/circulars', department: 'Humanities and Social Sciences', category: 'circulars', deptId: 10 },
+  { name: 'Economy Timetable', url: 'https://www.ecajmer.ac.in/departments/economy/timetable', department: 'Humanities and Social Sciences', category: 'timetable', deptId: 10 },
+  { name: 'EE Circulars', url: 'https://www.ecajmer.ac.in/departments/ee/circulars', department: 'Electrical Engineering', category: 'circulars', deptId: 11 },
+  { name: 'EE Timetable', url: 'https://www.ecajmer.ac.in/departments/ee/timetable', department: 'Electrical Engineering', category: 'timetable', deptId: 11 },
+  { name: 'EIC Circulars', url: 'https://www.ecajmer.ac.in/departments/eic/circulars', department: 'Electronics Instrumentation and Control Engineering', category: 'circulars', deptId: 12 },
+  { name: 'EIC Timetable', url: 'https://www.ecajmer.ac.in/departments/eic/timetable', department: 'Electronics Instrumentation and Control Engineering', category: 'timetable', deptId: 12 },
+  { name: 'English Circulars', url: 'https://www.ecajmer.ac.in/departments/english/circulars', department: 'English', category: 'circulars', deptId: 13 },
+  { name: 'English Timetable', url: 'https://www.ecajmer.ac.in/departments/english/timetable', department: 'English', category: 'timetable', deptId: 13 },
+  { name: 'Maths Circulars', url: 'https://www.ecajmer.ac.in/departments/maths/circulars', department: 'Mathematics', category: 'circulars', deptId: 14 },
+  { name: 'Maths Timetable', url: 'https://www.ecajmer.ac.in/departments/maths/timetable', department: 'Mathematics', category: 'timetable', deptId: 14 },
+  { name: 'MBA Circulars', url: 'https://www.ecajmer.ac.in/departments/mba/circulars', department: 'Management Studies', category: 'circulars', deptId: 15 },
+  { name: 'MBA Timetable', url: 'https://www.ecajmer.ac.in/departments/mba/timetable', department: 'Management Studies', category: 'timetable', deptId: 15 },
+  { name: 'MCA Circulars', url: 'https://www.ecajmer.ac.in/departments/mca/circulars', department: 'Master of Computer Applications', category: 'circulars', deptId: 16 },
+  { name: 'MCA Timetable', url: 'https://www.ecajmer.ac.in/departments/mca/timetable', department: 'Master of Computer Applications', category: 'timetable', deptId: 16 },
+  { name: 'ME Circulars', url: 'https://www.ecajmer.ac.in/departments/me/circulars', department: 'Mechanical Engineering', category: 'circulars', deptId: 17 },
+  { name: 'ME Timetable', url: 'https://www.ecajmer.ac.in/departments/me/timetable', department: 'Mechanical Engineering', category: 'timetable', deptId: 17 },
+  { name: 'Physics Circulars', url: 'https://www.ecajmer.ac.in/departments/physics/circulars', department: 'Physics', category: 'circulars', deptId: 18 },
+  { name: 'Physics Timetable', url: 'https://www.ecajmer.ac.in/departments/physics/timetable', department: 'Physics', category: 'timetable', deptId: 18 },
+  
+  // Others
+  { name: 'Training and Placement (TPO)', url: 'https://tpo.ecajmer.ac.in/all-news', department: 'TPO', category: 'circulars', deptId: 19 },
 ]
 
 
@@ -166,7 +177,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const [formData, setFormData] = useState<SourceCreatePayload>({
     name: '',
     url: '',
-    department: 'Computer Science and Engineering',
+    department_id: undefined,
     category: 'circulars',
     priority: 1,
     is_active: true,
@@ -205,7 +216,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
       const created = await createDepartment(newDeptForm)
       showNotice(`Created department #${created.id}: ${created.name}`)
       await loadDepartments()
-      setFormData((prev) => ({ ...prev, department: created.name }))
+      setFormData((prev) => ({ ...prev, department_id: created.id }))
       setNewDeptModalOpen(false)
       setNewDeptForm({ name: '', code: '', category: 'Engineering' })
     } catch (err: any) {
@@ -241,7 +252,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setFormData({
       name: '',
       url: '',
-      department: 'Computer Science and Engineering',
+      department_id: undefined,
       category: 'circulars',
       priority: nextPriority,
       is_active: true,
@@ -256,7 +267,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setFormData({
       name: src.name,
       url: src.url,
-      department: src.department || '',
+      department_id: src.department_id,
       category: src.category,
       priority: src.priority,
       is_active: src.is_active,
@@ -271,7 +282,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setFormData({
       name: preset.name,
       url: preset.url,
-      department: preset.department,
+      department_id: preset.deptId,
       category: preset.category,
       priority: nextPriority,
       is_active: true,
@@ -475,8 +486,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     const matchesSearch =
       src.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       src.url.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (src.department && src.department.toLowerCase().includes(searchQuery.toLowerCase()))
-    const matchesDept = selectedDeptFilter === 'all' || src.department === selectedDeptFilter
+      (src.department_id && departments.find(d => d.id === src.department_id)?.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    const matchesDept = selectedDeptFilter === 'all' || src.department_id?.toString() === selectedDeptFilter
     return matchesSearch && matchesDept
   })
 
@@ -631,40 +642,6 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               </button>
             </div>
           </div>
-
-          {/* Live Active Synchronization Status Banner */}
-          {sources.some((s) => s.status === 'fetching') && (
-            <div
-              onClick={() => {
-                const activeSrc = sources.find((s) => s.status === 'fetching')
-                handleOpenLiveInspector(activeSrc?.id, activeSrc?.name)
-              }}
-              className="bg-indigo-50/90 hover:bg-indigo-100/90 border border-indigo-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-indigo-950 shadow-sm animate-pulse cursor-pointer transition"
-              title="Click to open Live Ingestion Pipeline Inspector"
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
-                </span>
-                <span className="font-bold text-indigo-900">
-                  Data Synchronization Active:
-                </span>
-                <span className="text-indigo-800">
-                  Currently syncing & embedding: <strong className="underline">{sources.find((s) => s.status === 'fetching')?.name || 'next source in queue'}</strong>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold bg-indigo-600 text-white px-2.5 py-1 rounded-lg shadow-xs flex items-center gap-1.5 hover:bg-indigo-700 transition">
-                  <Activity className="w-3.5 h-3.5 animate-pulse" />
-                  View Live Progress
-                </span>
-                <span className="text-[11px] font-semibold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md border border-indigo-200">
-                  Auto-Syncing (5s)
-                </span>
-              </div>
-            </div>
-          )}
 
 
           {/* Toast Notification */}
@@ -910,7 +887,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                         {/* Department */}
                         <td className="py-3.5 px-3">
                           <span className="inline-block px-2.5 py-1 bg-neutral-100 border border-neutral-200 rounded-lg text-neutral-700 text-[11px] font-medium">
-                            {src.department || 'General'}
+                            {departments.find(d => d.id === src.department_id)?.name || 'General'}
                           </span>
                         </td>
 
@@ -1050,7 +1027,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                       {explorerSource.name}
                     </h3>
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
-                      {explorerSource.department || 'General'}
+                      {departments.find(d => d.id === explorerSource.department_id)?.name || 'General'}
                     </span>
                   </div>
                   <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-1.5 truncate max-w-xl">
@@ -1637,8 +1614,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                       </button>
                     </div>
                     <select
-                      value={formData.department || ''}
-                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                      value={formData.department_id || ''}
+                      onChange={(e) => setFormData({ ...formData, department_id: parseInt(e.target.value) || undefined })}
                       className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
                     >
                       {departmentsLoading ? (

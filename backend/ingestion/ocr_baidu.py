@@ -226,23 +226,16 @@ class BaiduPaddleOCRClient:
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             # 1. Job submission
-            if input_url and input_url.startswith("http"):
-                # URL Mode
-                headers["Content-Type"] = "application/json"
-                payload = {
-                    "fileUrl": input_url,
-                    "model": self.model,
-                    "optionalPayload": optional_payload,
-                }
-                job_resp = await client.post(self.api_url, json=payload, headers=headers)
-            else:
-                # File upload mode
+            # If raw_bytes is provided, always use file upload with proper MIME type to avoid
+            # cross-border network failures and URL character issues with college servers.
+            if raw_bytes and len(raw_bytes) > 0:
                 ext = ".pdf" if is_pdf else ".png"
+                mime_type = "application/pdf" if is_pdf else "image/png"
                 files = {
                     "file": (
                         f"document_{cache_key[:8]}{ext}",
                         raw_bytes,
-                        "application/octet-stream",
+                        mime_type,
                     )
                 }
                 data = {
@@ -250,6 +243,24 @@ class BaiduPaddleOCRClient:
                     "optionalPayload": json.dumps(optional_payload),
                 }
                 job_resp = await client.post(self.api_url, headers=headers, data=data, files=files)
+            elif input_url and input_url.startswith("http"):
+                # URL Mode (fallback if bytes not locally available)
+                import urllib.parse
+
+                parts = urllib.parse.urlsplit(input_url)
+                encoded_path = urllib.parse.quote(parts.path, safe="/%")
+                encoded_url = urllib.parse.urlunsplit(
+                    (parts.scheme, parts.netloc, encoded_path, parts.query, parts.fragment)
+                )
+                headers["Content-Type"] = "application/json"
+                payload = {
+                    "fileUrl": encoded_url,
+                    "model": self.model,
+                    "optionalPayload": optional_payload,
+                }
+                job_resp = await client.post(self.api_url, json=payload, headers=headers)
+            else:
+                raise ValueError("Neither raw bytes nor valid URL provided for Baidu OCR")
 
             if job_resp.status_code != 200:
                 logger.error(
@@ -275,6 +286,8 @@ class BaiduPaddleOCRClient:
             start_time = asyncio.get_event_loop().time()
             jsonl_url: str = ""
 
+            from ingestion.progress import progress_tracker
+
             while True:
                 elapsed = asyncio.get_event_loop().time() - start_time
                 if elapsed > self.timeout:
@@ -290,6 +303,14 @@ class BaiduPaddleOCRClient:
                 status_data = status_json.get("data", {})
                 state = status_data.get("state")
 
+                # Emit visible progress so terminal and UI track the active job
+                progress_tracker.log(
+                    f"Baidu OCR job {job_id[:8]}... state={state} (elapsed: {int(elapsed)}s)",
+                    level="ocr",
+                    tag="OCR",
+                )
+                logger.info(f"Baidu OCR job {job_id} state={state} (elapsed: {int(elapsed)}s)")
+
                 if state == "done":
                     result_url_obj = status_data.get("resultUrl", {})
                     jsonl_url = result_url_obj.get("jsonUrl", "")
@@ -298,15 +319,6 @@ class BaiduPaddleOCRClient:
                 elif state == "failed":
                     err_msg = status_data.get("errorMsg", "Unknown failure")
                     raise RuntimeError(f"Baidu OCR job {job_id} failed: {err_msg}")
-                elif state in ("pending", "running"):
-                    progress = status_data.get("extractProgress", {})
-                    extracted = progress.get("extractedPages", 0)
-                    total = progress.get("totalPages", 0)
-                    logger.debug(
-                        f"Baidu OCR job {job_id} state={state} ({extracted}/{total} pages)"
-                    )
-                else:
-                    logger.debug(f"Baidu OCR job {job_id} state={state}")
 
                 await asyncio.sleep(self.poll_interval)
 

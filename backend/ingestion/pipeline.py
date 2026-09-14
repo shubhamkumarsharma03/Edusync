@@ -12,6 +12,7 @@ from ingestion.embedder import DocumentEmbedder
 from ingestion.fetchers.factory import fetch_document
 from ingestion.schemas import SourceType
 from ingestion.upsert import upsert_document_and_chunks
+from models.department import Department
 from models.document import Document
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ async def ingest_document(
     session: AsyncSession,
     source: str,
     source_type: SourceType | None = None,
-    department: str | None = None,
+    department_id: int | None = None,
     owner: str | None = None,
     force: bool = False,
     embedder: DocumentEmbedder | None = None,
@@ -76,7 +77,7 @@ async def ingest_document(
 
         # 2. Check for changes against stored content hash
         detection = await ChangeDetector.check_document(
-            session, fetched, department=department, owner=owner
+            session, fetched, department_id=department_id, owner=owner
         )
 
         # 3. Handle unchanged document (Zero re-embedding invariant)
@@ -94,14 +95,14 @@ async def ingest_document(
             )
 
         # 4. Chunk document along semantic boundaries
-        chunks = chunk_document(fetched, department=department, owner=owner)
+        chunks = chunk_document(fetched, department=None, owner=owner)
 
         # 5. Embed and upsert into database + vector index
         doc, chunk_records = await upsert_document_and_chunks(
             session=session,
             fetched=fetched,
             chunks=chunks,
-            department=department,
+            department_id=department_id,
             owner=owner,
             embedder=embedder,
         )
@@ -131,7 +132,7 @@ async def ingest_source(
     session: AsyncSession,
     source_url: str,
     limit: int = 50,
-    department: str | None = None,
+    department_id: int | None = None,
     owner: str | None = None,
     force: bool = False,
     embedder: DocumentEmbedder | None = None,
@@ -146,13 +147,20 @@ async def ingest_source(
     from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
     from ingestion.progress import progress_tracker
 
+    department_name = None
+    if department_id:
+        stmt = select(Department).where(Department.id == department_id)
+        dept = (await session.execute(stmt)).scalar_one_or_none()
+        if dept:
+            department_name = dept.name
+
     progress_tracker.update_step(
         phase="portal_fetch",
         step_index=1,
         current_action=f"Connecting to college portal API: {source_url.split('/')[-2] or 'circulars'}",
         next_action=f"Fetch up to {limit} recent notices and inspect attached PDF documents",
         source_id=source_id,
-        log_message=f"Querying portal endpoints for department '{department or 'All'}' (limit={limit})",
+        log_message=f"Querying portal endpoints for department '{department_name or 'All'}' (limit={limit})",
         log_level="fetch",
         log_tag="PORTAL",
     )
@@ -163,15 +171,15 @@ async def ingest_source(
     existing_hashes: dict[str, str] = {}
     if not force:
         stmt = select(Document.source_url, Document.content_hash)
-        if department:
-            stmt = stmt.where(Document.department == department)
+        if department_id:
+            stmt = stmt.where(Document.department_id == department_id)
         rows = (await session.execute(stmt)).all()
         existing_hashes = {r[0]: r[1] for r in rows if r[0] and r[1]}
 
     docs = await fetcher.fetch_all_source_documents(
         source_url=source_url,
         limit=limit,
-        department=department,
+        department=department_name,
         existing_hashes=existing_hashes if not force else None,
         source_id=source_id,
     )
@@ -185,7 +193,7 @@ async def ingest_source(
         single_summary = await ingest_document(
             session=session,
             source=source_url,
-            department=department,
+            department_id=department_id,
             owner=owner,
             force=force,
             embedder=embedder,
@@ -227,7 +235,7 @@ async def ingest_source(
         size_kb = round(len(fetched.raw_content) / 1024, 1) if fetched.raw_content else 0.0
 
         try:
-            doc_dept = department or fetched.metadata.get("department")
+            doc_dept_id = department_id
 
             # Step 2: Hash Check
             progress_tracker.update_step(
@@ -302,7 +310,7 @@ async def ingest_source(
             )
 
             # Step 4: Semantic Chunking
-            chunks = chunk_document(fetched, department=doc_dept, owner=owner)
+            chunks = chunk_document(fetched, department=None, owner=owner)
             table_chunks_count = sum(1 for c in chunks if c.metadata.get("is_table"))
 
             progress_tracker.update_step(
@@ -336,7 +344,7 @@ async def ingest_source(
                 session=session,
                 fetched=fetched,
                 chunks=chunks,
-                department=doc_dept,
+                department_id=doc_dept_id,
                 owner=owner,
                 embedder=embedder,
             )

@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     BAIDU_OCR_USE_CHART_RECOGNITION: bool = False
     BAIDU_OCR_VISUALIZE: bool = False
     BAIDU_OCR_POLL_INTERVAL: float = 3.0
-    BAIDU_OCR_TIMEOUT: float = 120.0
+    BAIDU_OCR_TIMEOUT: float = 30.0
 
     # Local GOT-OCR 2.0 Settings (Offline fallback)
     GOT_OCR_MODEL_ID: str = "stepfun-ai/GOT-OCR-2.0-hf"

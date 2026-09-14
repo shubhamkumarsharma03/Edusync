@@ -6,7 +6,7 @@ export interface IngestionSource {
   id: string
   name: string
   url: string
-  department?: string | null
+  department_id?: number | null
   category: string
   slug?: string | null
   priority: number
@@ -23,7 +23,7 @@ export interface IngestionSource {
 export interface SourceCreatePayload {
   name: string
   url: string
-  department?: string
+  department_id?: number
   category?: string
   slug?: string
   priority?: number

@@ -85,7 +85,7 @@ async def _run_fetch_source(source_id: UUID | str, limit: int | None = None) -> 
                 session=session,
                 source_url=source.url,
                 limit=fetch_limit,
-                department=source.department,
+                department_id=source.department_id,
                 source_id=str(source.id),
             )
 

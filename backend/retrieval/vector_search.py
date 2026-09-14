@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ingestion.embedder import DocumentEmbedder
 from models.chunk import Chunk
 from models.document import Document
+from models.department import Department
 from retrieval.schemas import RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -60,7 +61,7 @@ class VectorSearcher:
             Chunk.embedding.is_not(None),
         ]
         if departments:
-            conditions.append(Document.department.in_(departments))
+            conditions.append(Department.name.in_(departments))
 
         stmt = (
             select(
@@ -70,11 +71,12 @@ class VectorSearcher:
                 Chunk.token_count,
                 Chunk.last_verified,
                 Document.source_url,
-                Document.department,
+                Department.name.label("department"),
                 Document.owner,
                 distance_expr,
             )
             .join(Document, Chunk.document_id == Document.id)
+            .outerjoin(Department, Document.department_id == Department.id)
             .where(*conditions)
             .order_by(distance_expr.asc())
             .limit(top_k)

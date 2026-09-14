@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from sqlalchemy import CheckConstraint, Text, func
+from sqlalchemy import CheckConstraint, Text, func, ForeignKey
 from sqlalchemy.dialects.postgresql import TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base, UUIDMixin
 
@@ -12,7 +12,8 @@ class Document(Base, UUIDMixin):
 
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
     source_type: Mapped[str] = mapped_column(Text, nullable=False)
-    department: Mapped[str | None] = mapped_column(Text, nullable=True)
+    department_id: Mapped[int | None] = mapped_column(ForeignKey("departments.id"), nullable=True)
+    department_rel: Mapped["Department"] = relationship()
     owner: Mapped[str | None] = mapped_column(Text, nullable=True)
     content_hash: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="fresh")

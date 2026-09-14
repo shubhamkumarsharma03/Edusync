@@ -17,7 +17,7 @@ async def upsert_document_and_chunks(
     session: AsyncSession,
     fetched: FetchedDocument,
     chunks: list[ChunkData],
-    department: str | None = None,
+    department_id: int | None = None,
     owner: str | None = None,
     embedder: DocumentEmbedder | None = None,
 ) -> tuple[Document, list[Chunk]]:
@@ -32,7 +32,7 @@ async def upsert_document_and_chunks(
         embedder = DocumentEmbedder()
 
     computed_hash = compute_document_hash(fetched)
-    dept = department or fetched.metadata.get("department")
+    dept_id = department_id
     doc_owner = owner or fetched.metadata.get("owner")
     now = datetime.now(UTC)
 
@@ -46,7 +46,7 @@ async def upsert_document_and_chunks(
         document = Document(
             source_url=fetched.source_url,
             source_type=fetched.source_type,
-            department=dept,
+            department_id=dept_id,
             owner=doc_owner,
             content_hash=computed_hash,
             status="fresh",
@@ -63,8 +63,8 @@ async def upsert_document_and_chunks(
         # Update existing document metadata and hash
         document.content_hash = computed_hash
         document.status = "fresh"
-        if dept:
-            document.department = dept
+        if dept_id is not None:
+            document.department_id = dept_id
         if doc_owner:
             document.owner = doc_owner
         document.last_checked_at = now

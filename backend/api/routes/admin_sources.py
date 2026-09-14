@@ -14,6 +14,7 @@ from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
 from models.chunk import Chunk
 from models.document import Document
 from models.source import IngestionSource
+from models.department import Department
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,7 @@ router = APIRouter(prefix="/admin/sources", tags=["Admin Sources"])
 class SourceBase(BaseModel):
     name: str = Field(..., description="Display name for the source")
     url: str = Field(..., description="Source URL on ecajmer.ac.in or institutional portal")
-    department: str | None = Field(None, description="Associated department name")
+    department_id: int | None = Field(None, description="Associated department ID")
     category: str = Field("circulars", description="Notice category: circulars or timetable")
     slug: str | None = Field(None, description="URL slug e.g. cs-it, ce, registrar")
     priority: int | None = Field(None, description="Sequential priority rank (1, 2, 3...)")
@@ -39,7 +40,7 @@ class SourceCreate(SourceBase):
 class SourceUpdate(BaseModel):
     name: str | None = None
     url: str | None = None
-    department: str | None = None
+    department_id: int | None = None
     category: str | None = None
     slug: str | None = None
     priority: int | None = None
@@ -133,20 +134,32 @@ async def create_source(
 
     # Auto-extract slug and department if missing
     slug_val = payload.slug
-    dept_val = payload.department
+    dept_id = payload.department_id
     cat_val = payload.category
 
-    if not slug_val or not dept_val:
+    if not slug_val or not dept_id:
         extracted_slug, cat_id, extracted_dept = ECAjmerFetcher.parse_url(payload.url)
         slug_val = slug_val or extracted_slug
-        dept_val = dept_val or extracted_dept
+        if not dept_id and extracted_dept:
+            dept_stmt = select(Department).where(Department.name == extracted_dept)
+            dept_record = (await session.execute(dept_stmt)).scalar_one_or_none()
+            if not dept_record:
+                dept_record = Department(
+                    name=extracted_dept,
+                    slug=extracted_slug,
+                    category="department"
+                )
+                session.add(dept_record)
+                await session.flush()
+            dept_id = dept_record.id
+            
         if not payload.category:
             cat_val = "timetable" if cat_id == 2 else "circulars"
 
     new_source = IngestionSource(
         name=payload.name,
         url=payload.url,
-        department=dept_val,
+        department_id=dept_id,
         category=cat_val,
         slug=slug_val,
         priority=priority_val,
@@ -314,37 +327,60 @@ async def seed_default_sources(
     """One-click preload all official departments and sections from ecajmer.ac.in."""
     # Keep 4 core links hardcoded for instant prefetching & seeding
     default_sources = [
-        (
-            "CSE Circulars",
-            "https://www.ecajmer.ac.in/departments/cs-it/circulars",
-            "Computer Science and Engineering",
-            "circulars",
-            "cs-it",
-        ),
-        (
-            "Examination Section Circulars",
-            "https://www.ecajmer.ac.in/ui/cells/examination-section/circulars",
-            "Examination Section",
-            "circulars",
-            "examination-section",
-        ),
-        (
-            "Registrar Circulars",
-            "https://www.ecajmer.ac.in/ui/cells/registrar/circulars",
-            "Registrar Section",
-            "circulars",
-            "registrar",
-        ),
-        (
-            "Academic Section Notices",
-            "https://www.ecajmer.ac.in/ui/cells/academic-section/circulars",
-            "Academic Section",
-            "circulars",
-            "academic-section",
-        ),
+        # Cells
+        ("Registrar Circulars & Orders", "https://www.ecajmer.ac.in/ui/cells/registrar/circulars", "Registrar Section", "circulars", "registrar"),
+        ("Accounts Section Circulars", "https://www.ecajmer.ac.in/ui/cells/accounts/circulars", "Accounts Section", "circulars", "accounts"),
+        ("Examination Section Circulars", "https://www.ecajmer.ac.in/ui/cells/examination-section/circulars", "Examination Section", "circulars", "examination-section"),
+        ("Proctor Section Circulars", "https://www.ecajmer.ac.in/ui/cells/proctor/circulars", "Proctor Section", "circulars", "proctor"),
+        ("First Year Circulars", "https://www.ecajmer.ac.in/ui/cells/first-year/circulars", "First Year", "circulars", "first-year"),
+        ("Central Library", "https://www.ecajmer.ac.in/ui/cells/central-library/circulars", "Central Library", "circulars", "central-library"),
+        ("Mandatory Disclosure", "https://ecajmer.ac.in/mandatorydisclousure", "General Admin", "general_html", "mandatory-disclosure"),
+        
+        # Branches
+        ("CE Circulars", "https://www.ecajmer.ac.in/departments/ce/circulars", "Civil Engineering", "circulars", "ce"),
+        ("CE Timetable", "https://www.ecajmer.ac.in/departments/ce/timetable", "Civil Engineering", "timetable", "ce"),
+        ("Chemistry Circulars", "https://www.ecajmer.ac.in/departments/chemistry/circulars", "Chemistry", "circulars", "chemistry"),
+        ("Chemistry Timetable", "https://www.ecajmer.ac.in/departments/chemistry/timetable", "Chemistry", "timetable", "chemistry"),
+        ("CS-IT Circulars", "https://www.ecajmer.ac.in/departments/cs-it/circulars", "Computer Science and Engineering", "circulars", "cs-it"),
+        ("CS-IT Timetable", "https://www.ecajmer.ac.in/departments/cs-it/timetable", "Computer Science and Engineering", "timetable", "cs-it"),
+        ("ECE Circulars", "https://www.ecajmer.ac.in/departments/ece/circulars", "Electronics and Communication Engineering", "circulars", "ece"),
+        ("ECE Timetable", "https://www.ecajmer.ac.in/departments/ece/timetable", "Electronics and Communication Engineering", "timetable", "ece"),
+        ("Economy Circulars", "https://www.ecajmer.ac.in/departments/economy/circulars", "Humanities and Social Sciences", "circulars", "economy"),
+        ("Economy Timetable", "https://www.ecajmer.ac.in/departments/economy/timetable", "Humanities and Social Sciences", "timetable", "economy"),
+        ("EE Circulars", "https://www.ecajmer.ac.in/departments/ee/circulars", "Electrical Engineering", "circulars", "ee"),
+        ("EE Timetable", "https://www.ecajmer.ac.in/departments/ee/timetable", "Electrical Engineering", "timetable", "ee"),
+        ("EIC Circulars", "https://www.ecajmer.ac.in/departments/eic/circulars", "Electronics Instrumentation and Control Engineering", "circulars", "eic"),
+        ("EIC Timetable", "https://www.ecajmer.ac.in/departments/eic/timetable", "Electronics Instrumentation and Control Engineering", "timetable", "eic"),
+        ("English Circulars", "https://www.ecajmer.ac.in/departments/english/circulars", "English", "circulars", "english"),
+        ("English Timetable", "https://www.ecajmer.ac.in/departments/english/timetable", "English", "timetable", "english"),
+        ("Maths Circulars", "https://www.ecajmer.ac.in/departments/maths/circulars", "Mathematics", "circulars", "maths"),
+        ("Maths Timetable", "https://www.ecajmer.ac.in/departments/maths/timetable", "Mathematics", "timetable", "maths"),
+        ("MBA Circulars", "https://www.ecajmer.ac.in/departments/mba/circulars", "Management Studies", "circulars", "mba"),
+        ("MBA Timetable", "https://www.ecajmer.ac.in/departments/mba/timetable", "Management Studies", "timetable", "mba"),
+        ("MCA Circulars", "https://www.ecajmer.ac.in/departments/mca/circulars", "Master of Computer Applications", "circulars", "mca"),
+        ("MCA Timetable", "https://www.ecajmer.ac.in/departments/mca/timetable", "Master of Computer Applications", "timetable", "mca"),
+        ("ME Circulars", "https://www.ecajmer.ac.in/departments/me/circulars", "Mechanical Engineering", "circulars", "me"),
+        ("ME Timetable", "https://www.ecajmer.ac.in/departments/me/timetable", "Mechanical Engineering", "timetable", "me"),
+        ("Physics Circulars", "https://www.ecajmer.ac.in/departments/physics/circulars", "Physics", "circulars", "physics"),
+        ("Physics Timetable", "https://www.ecajmer.ac.in/departments/physics/timetable", "Physics", "timetable", "physics"),
+
+        # Others
+        ("Training and Placement (TPO)", "https://tpo.ecajmer.ac.in/all-news", "TPO", "circulars", "tpo"),
     ]
 
     for idx, (name, url, dept, cat, slug) in enumerate(default_sources, start=1):
+        # Check and get/create department
+        dept_stmt = select(Department).where(Department.name == dept)
+        dept_record = (await session.execute(dept_stmt)).scalar_one_or_none()
+        if not dept_record:
+            dept_record = Department(
+                name=dept,
+                slug=slug,
+                category="department" if "Engineering" in dept or "Physics" in dept or "Chemistry" in dept or "Mathematics" in dept else "administration"
+            )
+            session.add(dept_record)
+            await session.flush()
+            
         # Check if already exists
         check_stmt = select(IngestionSource).where(IngestionSource.url == url)
         existing = (await session.execute(check_stmt)).scalar_one_or_none()
@@ -352,7 +388,7 @@ async def seed_default_sources(
             src = IngestionSource(
                 name=name,
                 url=url,
-                department=dept,
+                department_id=dept_record.id,
                 category=cat,
                 slug=slug,
                 priority=idx,
