@@ -7,8 +7,8 @@ from httpx import ASGITransport, AsyncClient
 
 from api.main import app
 from db.session import get_db
-from models.source import IngestionSource
 from models.department import Department
+from models.source import IngestionSource
 
 
 @pytest.fixture

@@ -5,8 +5,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ingestion.embedder import DocumentEmbedder
 from models.chunk import Chunk
-from models.document import Document
 from models.department import Department
+from models.document import Document
 from retrieval.schemas import RetrievedChunk
 
 logger = logging.getLogger(__name__)

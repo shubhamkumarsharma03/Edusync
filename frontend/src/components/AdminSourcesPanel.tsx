@@ -25,7 +25,6 @@ import {
   Eye,
   Globe,
   FileCode,
-  Activity,
 } from 'lucide-react'
 
 import { LivePipelineModal } from './LivePipelineModal'
@@ -267,7 +266,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setFormData({
       name: src.name,
       url: src.url,
-      department_id: src.department_id,
+      department_id: src.department_id || undefined,
       category: src.category,
       priority: src.priority,
       is_active: src.is_active,
@@ -1771,7 +1770,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                         <span className="font-medium text-neutral-800 truncate max-w-[280px]">
                           #{idx + 1}. {s.name}
                         </span>
-                        <span className="text-neutral-400 shrink-0 text-[10px]">{s.department || s.category}</span>
+                        <span className="text-neutral-400 shrink-0 text-[10px]">{departments.find(d => d.id === s.department_id)?.name || s.category}</span>
                       </div>
                     ))}
                 </div>

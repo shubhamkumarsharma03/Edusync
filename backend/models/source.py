@@ -1,6 +1,10 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, Integer, Text, func, ForeignKey
+if TYPE_CHECKING:
+    from models.department import Department
+
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, Text, func
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 

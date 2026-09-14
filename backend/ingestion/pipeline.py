@@ -258,7 +258,7 @@ async def ingest_source(
             )
 
             detection = await ChangeDetector.check_document(
-                session, fetched, department=doc_dept, owner=owner
+                session, fetched, department_id=doc_dept_id, owner=owner
             )
 
             if detection.status == ChangeStatus.UNCHANGED and not force:

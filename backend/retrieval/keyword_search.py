@@ -5,11 +5,10 @@ from collections.abc import Sequence
 from rank_bm25 import BM25Okapi
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from models.chunk import Chunk
-from models.document import Document
 from models.department import Department
+from models.document import Document
 from retrieval.schemas import RetrievedChunk
 
 logger = logging.getLogger(__name__)

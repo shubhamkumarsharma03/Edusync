@@ -9,9 +9,10 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-from db.session import async_session_maker
-from retrieval.jina_client import jina_token_tracker
-from sqlalchemy import text
+from sqlalchemy import text  # noqa: E402
+
+from db.session import async_session_maker  # noqa: E402
+from retrieval.jina_client import jina_token_tracker  # noqa: E402
 
 
 async def purge_data():

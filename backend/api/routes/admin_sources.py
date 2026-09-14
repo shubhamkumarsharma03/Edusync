@@ -12,9 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from db.session import get_db
 from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
 from models.chunk import Chunk
+from models.department import Department
 from models.document import Document
 from models.source import IngestionSource
-from models.department import Department
 
 logger = logging.getLogger(__name__)
 
@@ -152,7 +152,7 @@ async def create_source(
                 session.add(dept_record)
                 await session.flush()
             dept_id = dept_record.id
-            
+
         if not payload.category:
             cat_val = "timetable" if cat_id == 2 else "circulars"
 
@@ -335,7 +335,7 @@ async def seed_default_sources(
         ("First Year Circulars", "https://www.ecajmer.ac.in/ui/cells/first-year/circulars", "First Year", "circulars", "first-year"),
         ("Central Library", "https://www.ecajmer.ac.in/ui/cells/central-library/circulars", "Central Library", "circulars", "central-library"),
         ("Mandatory Disclosure", "https://ecajmer.ac.in/mandatorydisclousure", "General Admin", "general_html", "mandatory-disclosure"),
-        
+
         # Branches
         ("CE Circulars", "https://www.ecajmer.ac.in/departments/ce/circulars", "Civil Engineering", "circulars", "ce"),
         ("CE Timetable", "https://www.ecajmer.ac.in/departments/ce/timetable", "Civil Engineering", "timetable", "ce"),
@@ -380,7 +380,7 @@ async def seed_default_sources(
             )
             session.add(dept_record)
             await session.flush()
-            
+
         # Check if already exists
         check_stmt = select(IngestionSource).where(IngestionSource.url == url)
         existing = (await session.execute(check_stmt)).scalar_one_or_none()

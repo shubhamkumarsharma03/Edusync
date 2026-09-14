@@ -13,10 +13,11 @@ backend_dir = Path(__file__).resolve().parent.parent
 if str(backend_dir) not in sys.path:
     sys.path.insert(0, str(backend_dir))
 
-from db.session import async_session_maker
-from ingestion.embedder import DocumentEmbedder
-from models.chunk import Chunk
-from sqlalchemy import select
+from sqlalchemy import select  # noqa: E402
+
+from db.session import async_session_maker  # noqa: E402
+from ingestion.embedder import DocumentEmbedder  # noqa: E402
+from models.chunk import Chunk  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("reembed_chunks")
