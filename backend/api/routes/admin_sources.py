@@ -6,7 +6,7 @@ from uuid import UUID
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -349,6 +349,13 @@ async def seed_default_sources(
             "examination-section",
         ),
         (
+            "Academic Section Notices",
+            "https://www.ecajmer.ac.in/ui/cells/academic-section/circulars",
+            "Academic Section",
+            "circulars",
+            "academic-section",
+        ),
+        (
             "Proctor Section Circulars",
             "https://www.ecajmer.ac.in/ui/cells/proctor/circulars",
             "Proctor Section",
@@ -399,13 +406,6 @@ async def seed_default_sources(
             "chemistry",
         ),
         (
-            "Chemistry Timetable",
-            "https://www.ecajmer.ac.in/departments/chemistry/timetable",
-            "Chemistry",
-            "timetable",
-            "chemistry",
-        ),
-        (
             "CS-IT Circulars",
             "https://www.ecajmer.ac.in/departments/cs-it/circulars",
             "Computer Science and Engineering",
@@ -422,14 +422,14 @@ async def seed_default_sources(
         (
             "ECE Circulars",
             "https://www.ecajmer.ac.in/departments/ece/circulars",
-            "Electronics and Communication Engineering",
+            "Electronics & Communication Engineering",
             "circulars",
             "ece",
         ),
         (
             "ECE Timetable",
             "https://www.ecajmer.ac.in/departments/ece/timetable",
-            "Electronics and Communication Engineering",
+            "Electronics & Communication Engineering",
             "timetable",
             "ece",
         ),
@@ -438,13 +438,6 @@ async def seed_default_sources(
             "https://www.ecajmer.ac.in/departments/economy/circulars",
             "Humanities and Social Sciences",
             "circulars",
-            "economy",
-        ),
-        (
-            "Economy Timetable",
-            "https://www.ecajmer.ac.in/departments/economy/timetable",
-            "Humanities and Social Sciences",
-            "timetable",
             "economy",
         ),
         (
@@ -464,29 +457,22 @@ async def seed_default_sources(
         (
             "EIC Circulars",
             "https://www.ecajmer.ac.in/departments/eic/circulars",
-            "Electronics Instrumentation and Control Engineering",
+            "Electronic Instrumentation & Control",
             "circulars",
             "eic",
         ),
         (
             "EIC Timetable",
             "https://www.ecajmer.ac.in/departments/eic/timetable",
-            "Electronics Instrumentation and Control Engineering",
+            "Electronic Instrumentation & Control",
             "timetable",
             "eic",
         ),
         (
             "English Circulars",
             "https://www.ecajmer.ac.in/departments/english/circulars",
-            "English",
+            "English & Humanities",
             "circulars",
-            "english",
-        ),
-        (
-            "English Timetable",
-            "https://www.ecajmer.ac.in/departments/english/timetable",
-            "English",
-            "timetable",
             "english",
         ),
         (
@@ -497,38 +483,17 @@ async def seed_default_sources(
             "maths",
         ),
         (
-            "Maths Timetable",
-            "https://www.ecajmer.ac.in/departments/maths/timetable",
-            "Mathematics",
-            "timetable",
-            "maths",
-        ),
-        (
             "MBA Circulars",
             "https://www.ecajmer.ac.in/departments/mba/circulars",
-            "Management Studies",
+            "Management Studies (MBA)",
             "circulars",
-            "mba",
-        ),
-        (
-            "MBA Timetable",
-            "https://www.ecajmer.ac.in/departments/mba/timetable",
-            "Management Studies",
-            "timetable",
             "mba",
         ),
         (
             "MCA Circulars",
             "https://www.ecajmer.ac.in/departments/mca/circulars",
-            "Master of Computer Applications",
+            "Computer Applications (MCA)",
             "circulars",
-            "mca",
-        ),
-        (
-            "MCA Timetable",
-            "https://www.ecajmer.ac.in/departments/mca/timetable",
-            "Master of Computer Applications",
-            "timetable",
             "mca",
         ),
         (
@@ -552,22 +517,17 @@ async def seed_default_sources(
             "circulars",
             "physics",
         ),
-        (
-            "Physics Timetable",
-            "https://www.ecajmer.ac.in/departments/physics/timetable",
-            "Physics",
-            "timetable",
-            "physics",
-        ),
         # Others
         (
             "Training and Placement (TPO)",
             "https://tpo.ecajmer.ac.in/all-news",
-            "TPO",
+            "Training & Placement Office",
             "circulars",
             "tpo",
         ),
     ]
+
+    valid_urls = [s[1] for s in default_sources]
 
     for idx, (name, url, dept, cat, slug) in enumerate(default_sources, start=1):
         # Check and get/create department
@@ -610,6 +570,8 @@ async def seed_default_sources(
             if existing.department_id is None:
                 existing.department_id = dept_record.id
 
+    # Prune any extraneous sources not in the official 28
+    await session.execute(delete(IngestionSource).where(~IngestionSource.url.in_(valid_urls)))
     await session.commit()
     return await list_sources(session)
 
