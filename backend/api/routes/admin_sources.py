@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from db.session import get_db
 from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
@@ -145,9 +146,7 @@ async def create_source(
             dept_record = (await session.execute(dept_stmt)).scalar_one_or_none()
             if not dept_record:
                 dept_record = Department(
-                    name=extracted_dept,
-                    slug=extracted_slug,
-                    category="department"
+                    name=extracted_dept, slug=extracted_slug, category="department"
                 )
                 session.add(dept_record)
                 await session.flush()
@@ -328,44 +327,246 @@ async def seed_default_sources(
     # Keep 4 core links hardcoded for instant prefetching & seeding
     default_sources = [
         # Cells
-        ("Registrar Circulars & Orders", "https://www.ecajmer.ac.in/ui/cells/registrar/circulars", "Registrar Section", "circulars", "registrar"),
-        ("Accounts Section Circulars", "https://www.ecajmer.ac.in/ui/cells/accounts/circulars", "Accounts Section", "circulars", "accounts"),
-        ("Examination Section Circulars", "https://www.ecajmer.ac.in/ui/cells/examination-section/circulars", "Examination Section", "circulars", "examination-section"),
-        ("Proctor Section Circulars", "https://www.ecajmer.ac.in/ui/cells/proctor/circulars", "Proctor Section", "circulars", "proctor"),
-        ("First Year Circulars", "https://www.ecajmer.ac.in/ui/cells/first-year/circulars", "First Year", "circulars", "first-year"),
-        ("Central Library", "https://www.ecajmer.ac.in/ui/cells/central-library/circulars", "Central Library", "circulars", "central-library"),
-        ("Mandatory Disclosure", "https://ecajmer.ac.in/mandatorydisclousure", "General Admin", "general_html", "mandatory-disclosure"),
-
+        (
+            "Registrar Circulars & Orders",
+            "https://www.ecajmer.ac.in/ui/cells/registrar/circulars",
+            "Registrar Section",
+            "circulars",
+            "registrar",
+        ),
+        (
+            "Accounts Section Circulars",
+            "https://www.ecajmer.ac.in/ui/cells/accounts/circulars",
+            "Accounts Section",
+            "circulars",
+            "accounts",
+        ),
+        (
+            "Examination Section Circulars",
+            "https://www.ecajmer.ac.in/ui/cells/examination-section/circulars",
+            "Examination Section",
+            "circulars",
+            "examination-section",
+        ),
+        (
+            "Proctor Section Circulars",
+            "https://www.ecajmer.ac.in/ui/cells/proctor/circulars",
+            "Proctor Section",
+            "circulars",
+            "proctor",
+        ),
+        (
+            "First Year Circulars",
+            "https://www.ecajmer.ac.in/ui/cells/first-year/circulars",
+            "First Year",
+            "circulars",
+            "first-year",
+        ),
+        (
+            "Central Library",
+            "https://www.ecajmer.ac.in/ui/cells/central-library/circulars",
+            "Central Library",
+            "circulars",
+            "central-library",
+        ),
+        (
+            "Mandatory Disclosure",
+            "https://ecajmer.ac.in/mandatorydisclousure",
+            "General Admin",
+            "general_html",
+            "mandatory-disclosure",
+        ),
         # Branches
-        ("CE Circulars", "https://www.ecajmer.ac.in/departments/ce/circulars", "Civil Engineering", "circulars", "ce"),
-        ("CE Timetable", "https://www.ecajmer.ac.in/departments/ce/timetable", "Civil Engineering", "timetable", "ce"),
-        ("Chemistry Circulars", "https://www.ecajmer.ac.in/departments/chemistry/circulars", "Chemistry", "circulars", "chemistry"),
-        ("Chemistry Timetable", "https://www.ecajmer.ac.in/departments/chemistry/timetable", "Chemistry", "timetable", "chemistry"),
-        ("CS-IT Circulars", "https://www.ecajmer.ac.in/departments/cs-it/circulars", "Computer Science and Engineering", "circulars", "cs-it"),
-        ("CS-IT Timetable", "https://www.ecajmer.ac.in/departments/cs-it/timetable", "Computer Science and Engineering", "timetable", "cs-it"),
-        ("ECE Circulars", "https://www.ecajmer.ac.in/departments/ece/circulars", "Electronics and Communication Engineering", "circulars", "ece"),
-        ("ECE Timetable", "https://www.ecajmer.ac.in/departments/ece/timetable", "Electronics and Communication Engineering", "timetable", "ece"),
-        ("Economy Circulars", "https://www.ecajmer.ac.in/departments/economy/circulars", "Humanities and Social Sciences", "circulars", "economy"),
-        ("Economy Timetable", "https://www.ecajmer.ac.in/departments/economy/timetable", "Humanities and Social Sciences", "timetable", "economy"),
-        ("EE Circulars", "https://www.ecajmer.ac.in/departments/ee/circulars", "Electrical Engineering", "circulars", "ee"),
-        ("EE Timetable", "https://www.ecajmer.ac.in/departments/ee/timetable", "Electrical Engineering", "timetable", "ee"),
-        ("EIC Circulars", "https://www.ecajmer.ac.in/departments/eic/circulars", "Electronics Instrumentation and Control Engineering", "circulars", "eic"),
-        ("EIC Timetable", "https://www.ecajmer.ac.in/departments/eic/timetable", "Electronics Instrumentation and Control Engineering", "timetable", "eic"),
-        ("English Circulars", "https://www.ecajmer.ac.in/departments/english/circulars", "English", "circulars", "english"),
-        ("English Timetable", "https://www.ecajmer.ac.in/departments/english/timetable", "English", "timetable", "english"),
-        ("Maths Circulars", "https://www.ecajmer.ac.in/departments/maths/circulars", "Mathematics", "circulars", "maths"),
-        ("Maths Timetable", "https://www.ecajmer.ac.in/departments/maths/timetable", "Mathematics", "timetable", "maths"),
-        ("MBA Circulars", "https://www.ecajmer.ac.in/departments/mba/circulars", "Management Studies", "circulars", "mba"),
-        ("MBA Timetable", "https://www.ecajmer.ac.in/departments/mba/timetable", "Management Studies", "timetable", "mba"),
-        ("MCA Circulars", "https://www.ecajmer.ac.in/departments/mca/circulars", "Master of Computer Applications", "circulars", "mca"),
-        ("MCA Timetable", "https://www.ecajmer.ac.in/departments/mca/timetable", "Master of Computer Applications", "timetable", "mca"),
-        ("ME Circulars", "https://www.ecajmer.ac.in/departments/me/circulars", "Mechanical Engineering", "circulars", "me"),
-        ("ME Timetable", "https://www.ecajmer.ac.in/departments/me/timetable", "Mechanical Engineering", "timetable", "me"),
-        ("Physics Circulars", "https://www.ecajmer.ac.in/departments/physics/circulars", "Physics", "circulars", "physics"),
-        ("Physics Timetable", "https://www.ecajmer.ac.in/departments/physics/timetable", "Physics", "timetable", "physics"),
-
+        (
+            "CE Circulars",
+            "https://www.ecajmer.ac.in/departments/ce/circulars",
+            "Civil Engineering",
+            "circulars",
+            "ce",
+        ),
+        (
+            "CE Timetable",
+            "https://www.ecajmer.ac.in/departments/ce/timetable",
+            "Civil Engineering",
+            "timetable",
+            "ce",
+        ),
+        (
+            "Chemistry Circulars",
+            "https://www.ecajmer.ac.in/departments/chemistry/circulars",
+            "Chemistry",
+            "circulars",
+            "chemistry",
+        ),
+        (
+            "Chemistry Timetable",
+            "https://www.ecajmer.ac.in/departments/chemistry/timetable",
+            "Chemistry",
+            "timetable",
+            "chemistry",
+        ),
+        (
+            "CS-IT Circulars",
+            "https://www.ecajmer.ac.in/departments/cs-it/circulars",
+            "Computer Science and Engineering",
+            "circulars",
+            "cs-it",
+        ),
+        (
+            "CS-IT Timetable",
+            "https://www.ecajmer.ac.in/departments/cs-it/timetable",
+            "Computer Science and Engineering",
+            "timetable",
+            "cs-it",
+        ),
+        (
+            "ECE Circulars",
+            "https://www.ecajmer.ac.in/departments/ece/circulars",
+            "Electronics and Communication Engineering",
+            "circulars",
+            "ece",
+        ),
+        (
+            "ECE Timetable",
+            "https://www.ecajmer.ac.in/departments/ece/timetable",
+            "Electronics and Communication Engineering",
+            "timetable",
+            "ece",
+        ),
+        (
+            "Economy Circulars",
+            "https://www.ecajmer.ac.in/departments/economy/circulars",
+            "Humanities and Social Sciences",
+            "circulars",
+            "economy",
+        ),
+        (
+            "Economy Timetable",
+            "https://www.ecajmer.ac.in/departments/economy/timetable",
+            "Humanities and Social Sciences",
+            "timetable",
+            "economy",
+        ),
+        (
+            "EE Circulars",
+            "https://www.ecajmer.ac.in/departments/ee/circulars",
+            "Electrical Engineering",
+            "circulars",
+            "ee",
+        ),
+        (
+            "EE Timetable",
+            "https://www.ecajmer.ac.in/departments/ee/timetable",
+            "Electrical Engineering",
+            "timetable",
+            "ee",
+        ),
+        (
+            "EIC Circulars",
+            "https://www.ecajmer.ac.in/departments/eic/circulars",
+            "Electronics Instrumentation and Control Engineering",
+            "circulars",
+            "eic",
+        ),
+        (
+            "EIC Timetable",
+            "https://www.ecajmer.ac.in/departments/eic/timetable",
+            "Electronics Instrumentation and Control Engineering",
+            "timetable",
+            "eic",
+        ),
+        (
+            "English Circulars",
+            "https://www.ecajmer.ac.in/departments/english/circulars",
+            "English",
+            "circulars",
+            "english",
+        ),
+        (
+            "English Timetable",
+            "https://www.ecajmer.ac.in/departments/english/timetable",
+            "English",
+            "timetable",
+            "english",
+        ),
+        (
+            "Maths Circulars",
+            "https://www.ecajmer.ac.in/departments/maths/circulars",
+            "Mathematics",
+            "circulars",
+            "maths",
+        ),
+        (
+            "Maths Timetable",
+            "https://www.ecajmer.ac.in/departments/maths/timetable",
+            "Mathematics",
+            "timetable",
+            "maths",
+        ),
+        (
+            "MBA Circulars",
+            "https://www.ecajmer.ac.in/departments/mba/circulars",
+            "Management Studies",
+            "circulars",
+            "mba",
+        ),
+        (
+            "MBA Timetable",
+            "https://www.ecajmer.ac.in/departments/mba/timetable",
+            "Management Studies",
+            "timetable",
+            "mba",
+        ),
+        (
+            "MCA Circulars",
+            "https://www.ecajmer.ac.in/departments/mca/circulars",
+            "Master of Computer Applications",
+            "circulars",
+            "mca",
+        ),
+        (
+            "MCA Timetable",
+            "https://www.ecajmer.ac.in/departments/mca/timetable",
+            "Master of Computer Applications",
+            "timetable",
+            "mca",
+        ),
+        (
+            "ME Circulars",
+            "https://www.ecajmer.ac.in/departments/me/circulars",
+            "Mechanical Engineering",
+            "circulars",
+            "me",
+        ),
+        (
+            "ME Timetable",
+            "https://www.ecajmer.ac.in/departments/me/timetable",
+            "Mechanical Engineering",
+            "timetable",
+            "me",
+        ),
+        (
+            "Physics Circulars",
+            "https://www.ecajmer.ac.in/departments/physics/circulars",
+            "Physics",
+            "circulars",
+            "physics",
+        ),
+        (
+            "Physics Timetable",
+            "https://www.ecajmer.ac.in/departments/physics/timetable",
+            "Physics",
+            "timetable",
+            "physics",
+        ),
         # Others
-        ("Training and Placement (TPO)", "https://tpo.ecajmer.ac.in/all-news", "TPO", "circulars", "tpo"),
+        (
+            "Training and Placement (TPO)",
+            "https://tpo.ecajmer.ac.in/all-news",
+            "TPO",
+            "circulars",
+            "tpo",
+        ),
     ]
 
     for idx, (name, url, dept, cat, slug) in enumerate(default_sources, start=1):
@@ -376,7 +577,14 @@ async def seed_default_sources(
             dept_record = Department(
                 name=dept,
                 slug=slug,
-                category="department" if "Engineering" in dept or "Physics" in dept or "Chemistry" in dept or "Mathematics" in dept else "administration"
+                category=(
+                    "department"
+                    if "Engineering" in dept
+                    or "Physics" in dept
+                    or "Chemistry" in dept
+                    or "Mathematics" in dept
+                    else "administration"
+                ),
             )
             session.add(dept_record)
             await session.flush()
@@ -398,6 +606,9 @@ async def seed_default_sources(
                 is_active=True,
             )
             session.add(src)
+        else:
+            if existing.department_id is None:
+                existing.department_id = dept_record.id
 
     await session.commit()
     return await list_sources(session)
@@ -444,17 +655,19 @@ async def list_source_documents(
     session: AsyncSession = Depends(get_db),
 ) -> SourceDocumentsListResponse:
     """Retrieve documents stored in PostgreSQL DB that were ingested for this source."""
-    stmt = select(IngestionSource).where(IngestionSource.id == source_id)
+    stmt = (
+        select(IngestionSource)
+        .options(selectinload(IngestionSource.department_rel))
+        .where(IngestionSource.id == source_id)
+    )
     res = await session.execute(stmt)
     source = res.scalar_one_or_none()
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
 
     conds = []
-    if source.department:
-        conds.append(Document.department.ilike(f"%{source.department}%"))
-        if "computer" in source.department.lower():
-            conds.append(Document.department.ilike("%cse%"))
+    if source.department_id is not None:
+        conds.append(Document.department_id == source.department_id)
     if source.url:
         conds.append(Document.source_url.ilike(f"%{source.url}%"))
 
@@ -469,15 +682,20 @@ async def list_source_documents(
                 base_filter,
                 or_(
                     Document.source_url.ilike(term),
-                    Document.department.ilike(term),
                     Chunk.content.ilike(term),
                 ),
             )
             .distinct()
         )
-        base_query = select(Document).where(Document.id.in_(matching_subq))
+        base_query = (
+            select(Document)
+            .options(selectinload(Document.department_rel))
+            .where(Document.id.in_(matching_subq))
+        )
     else:
-        base_query = select(Document).where(base_filter)
+        base_query = (
+            select(Document).options(selectinload(Document.department_rel)).where(base_filter)
+        )
 
     count_stmt = select(func.count()).select_from(base_query.subquery())
     total = (await session.execute(count_stmt)).scalar() or 0
@@ -495,12 +713,17 @@ async def list_source_documents(
         chunk_stmt = select(Chunk).where(Chunk.document_id == d.id).order_by(Chunk.id.asc())
         chunks = (await session.execute(chunk_stmt)).scalars().all()
         title, sno, date, preview = _extract_notice_meta(chunks, d.source_url)
+        dept_name = (
+            d.department_rel.name
+            if d.department_rel
+            else (source.department_rel.name if source.department_rel else None)
+        )
         doc_items.append(
             IngestedDocumentResponse(
                 id=d.id,
                 source_url=d.source_url,
                 source_type=d.source_type,
-                department=d.department,
+                department=dept_name,
                 title=title,
                 notice_sno=sno,
                 notice_date=date,

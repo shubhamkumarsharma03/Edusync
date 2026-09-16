@@ -463,6 +463,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setLiveSearchQuery('')
     setExplorerOpen(true)
     loadDbDocuments(src, 1, 10, '')
+    fetchLiveEcaCirculars(src, 1, 10, '')
   }
 
   const handleOpenChunks = async (doc: IngestedDocumentItem) => {
