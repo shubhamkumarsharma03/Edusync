@@ -1,7 +1,7 @@
 import re
 from typing import Any
 
-from ingestion.schemas import ChunkData, ExtractedTable, FetchedDocument
+from ingestion.schemas import ChunkData, ExtractedTable, FetchedDocument, NoticeMemoryData
 from ingestion.table_extractor import parse_markdown_tables
 
 
@@ -146,6 +146,7 @@ class SemanticChunker:
         fetched: FetchedDocument,
         department: str | None = None,
         owner: str | None = None,
+        memory_data: NoticeMemoryData | None = None,
     ) -> list[ChunkData]:
         """Split a FetchedDocument into a list of contextual ChunkData instances."""
         chunks: list[ChunkData] = []
@@ -174,6 +175,23 @@ class SemanticChunker:
         doc_sno = fetched.metadata.get("sno") or extract_notice_sno(raw_text)
         doc_year = fetched.metadata.get("academic_year") or extract_academic_year(raw_text)
 
+        # Override/enrich with Gemini-extracted structured metadata if available
+        if memory_data:
+            if memory_data.notice_type and memory_data.notice_type != "other":
+                doc_type = memory_data.notice_type
+            if memory_data.department:
+                dept = memory_data.department
+            if memory_data.effective_date:
+                doc_date = str(memory_data.effective_date)
+            if memory_data.target_semester:
+                doc_semester = ", ".join(memory_data.target_semester)
+            if memory_data.notice_serial:
+                doc_sno = memory_data.notice_serial
+            if memory_data.academic_session:
+                doc_year = memory_data.academic_session
+            if memory_data.title_summary:
+                title = memory_data.title_summary
+
         base_meta = {
             "source_url": fetched.source_url,
             "source_type": fetched.source_type,
@@ -185,6 +203,8 @@ class SemanticChunker:
             "semester": doc_semester,
             "notice_sno": doc_sno,
             "academic_year": doc_year,
+            "content_fingerprint": memory_data.content_fingerprint if memory_data else None,
+            "target_branch": memory_data.target_branch if memory_data else None,
         }
 
         # 1. Gather all tables (both pre-extracted and markdown tables from OCR text)
@@ -240,7 +260,7 @@ class SemanticChunker:
 
         # 3. Process text content along semantic boundaries (headings & sections)
         if not raw_text:
-            return chunks
+            return self._apply_memory_header(chunks, memory_data, dept)
 
         # Remove table markdown blocks already handled as separate chunks
         clean_text = re.sub(
@@ -252,12 +272,12 @@ class SemanticChunker:
         clean_text = clean_text.strip()
 
         if not clean_text:
-            return chunks
+            return self._apply_memory_header(chunks, memory_data, dept)
 
         # Split text into sections along Markdown headings (#, ##, ###) while tracking breadcrumb hierarchy
         sections_with_breadcrumbs = self._split_markdown_sections_with_breadcrumbs(clean_text)
         if not sections_with_breadcrumbs:
-            return chunks
+            return self._apply_memory_header(chunks, memory_data, dept)
 
         current_paragraphs: list[str] = []
         current_token_count = 0
@@ -349,6 +369,29 @@ class SemanticChunker:
                 )
             )
 
+        return self._apply_memory_header(chunks, memory_data, dept)
+
+    @classmethod
+    def _apply_memory_header(
+        cls,
+        chunks: list[ChunkData],
+        memory_data: NoticeMemoryData | None,
+        dept: str | None,
+    ) -> list[ChunkData]:
+        """Prepend structured notice memory header to chunks for enriched embeddings."""
+        if not memory_data:
+            return chunks
+        sem_str = ", ".join(memory_data.target_semester) if memory_data.target_semester else "All"
+        branch_str = ", ".join(memory_data.target_branch) if memory_data.target_branch else "All"
+        dept_str = memory_data.department or dept or "General"
+        session_str = memory_data.academic_session or "Current"
+        memory_header = (
+            f"[Notice: {memory_data.title_summary} | Type: {memory_data.notice_type} | "
+            f"Dept: {dept_str} | Branch: {branch_str} | Sem: {sem_str} | Session: {session_str}]\n\n"
+        )
+        for chk in chunks:
+            chk.content = memory_header + chk.content
+            chk.token_count = count_tokens(chk.content)
         return chunks
 
     def _split_markdown_sections_with_breadcrumbs(self, text: str) -> list[tuple[str, str]]:
@@ -474,8 +517,11 @@ def chunk_document(
     fetched: FetchedDocument,
     department: str | None = None,
     owner: str | None = None,
+    memory_data: NoticeMemoryData | None = None,
     **kwargs: Any,
 ) -> list[ChunkData]:
     """Convenience helper to chunk a FetchedDocument."""
     chunker = SemanticChunker(**kwargs)
-    return chunker.chunk_document(fetched, department=department, owner=owner)
+    return chunker.chunk_document(
+        fetched, department=department, owner=owner, memory_data=memory_data
+    )

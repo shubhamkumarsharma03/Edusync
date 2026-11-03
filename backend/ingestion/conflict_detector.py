@@ -88,13 +88,13 @@ Reply with ONLY the word "YES" or "NO".
         Check if the newly ingested document conflicts with existing fresh documents.
         Returns True if a conflict was detected and recorded.
         """
-        if not new_doc.department:
+        if not new_doc.department_id:
             return False
 
         # Only check against 'fresh' documents with the same department (excluding itself)
         stmt = select(Document).where(
             Document.status == "fresh",
-            Document.department == new_doc.department,
+            Document.department_id == new_doc.department_id,
             Document.id != new_doc.id,
         )
         result = await session.execute(stmt)

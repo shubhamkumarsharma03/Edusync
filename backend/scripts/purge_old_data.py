@@ -27,7 +27,9 @@ async def purge_data():
             )
         )
         await session.commit()
-        print("Successfully purged chunks, documents, conflicts, queries_log, and reset ingestion_sources.")
+        print(
+            "Successfully purged chunks, documents, conflicts, queries_log, and reset ingestion_sources."
+        )
 
     jina_token_tracker.reset()
     print("Reset Jina token tracker.")

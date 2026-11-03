@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     # LLM API Keys
     ANTHROPIC_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
+    GEMINI_ANALYSIS_MODEL: str = "gemini-2.5-flash"
     OPENAI_API_KEY: str | None = None
 
     # Celery & Queue

@@ -10,7 +10,9 @@ from ingestion.chunker import chunk_document
 from ingestion.conflict_detector import ConflictDetector
 from ingestion.embedder import DocumentEmbedder
 from ingestion.fetchers.factory import fetch_document
+from ingestion.notice_analyzer import NoticeAnalyzer
 from ingestion.schemas import SourceType
+from ingestion.supersession_resolver import SupersessionResolver
 from ingestion.upsert import upsert_document_and_chunks
 from models.department import Department
 from models.document import Document
@@ -48,6 +50,7 @@ async def ingest_document(
     session: AsyncSession,
     source: str,
     source_type: SourceType | None = None,
+    department: str | None = None,
     department_id: int | None = None,
     owner: str | None = None,
     force: bool = False,
@@ -64,6 +67,15 @@ async def ingest_document(
     logger.info(f"Starting ingestion for single document: {source}")
 
     try:
+        # Resolve department_id from string department name if not provided
+        if department_id is None and department is not None:
+            dept_res = await session.execute(
+                select(Department.id).where(
+                    (Department.name.ilike(department)) | (Department.slug.ilike(department))
+                )
+            )
+            department_id = dept_res.scalar_one_or_none()
+
         # Pre-check existing document hash from DB for fast-path check
         if not force and "existing_hash" not in fetch_kwargs:
             stmt = select(Document.content_hash).where(Document.source_url == source)
@@ -94,10 +106,13 @@ async def ingest_document(
                 message="Document content is unchanged. Skipped re-embedding.",
             )
 
-        # 4. Chunk document along semantic boundaries
-        chunks = chunk_document(fetched, department=None, owner=owner)
+        # 4. Analyze notice metadata via single Gemini API call
+        memory_data = await NoticeAnalyzer.analyze(fetched)
 
-        # 5. Embed and upsert into database + vector index
+        # 5. Chunk document along semantic boundaries enriched with notice memory
+        chunks = chunk_document(fetched, department=None, owner=owner, memory_data=memory_data)
+
+        # 6. Embed and upsert into database + vector index
         doc, chunk_records = await upsert_document_and_chunks(
             session=session,
             fetched=fetched,
@@ -107,8 +122,12 @@ async def ingest_document(
             embedder=embedder,
         )
 
-        # 6. Check for conflicts
+        # 7. Resolve supersession and record notice memory
+        await SupersessionResolver.resolve(session, memory_data, doc.id)
+
+        # 8. Check for conflicts
         is_conflicted = await ConflictDetector.check_conflicts(session, doc)
+        await session.commit()
 
         action_status = "created" if detection.status == ChangeStatus.NEW else "updated"
         if is_conflicted:
@@ -124,6 +143,7 @@ async def ingest_document(
             metadata={"source_type": fetched.source_type, "tables_count": len(fetched.tables)},
         )
     except Exception as e:
+        await session.rollback()
         logger.error(f"Ingestion failed for {source}: {e}", exc_info=True)
         raise
 
@@ -132,6 +152,7 @@ async def ingest_source(
     session: AsyncSession,
     source_url: str,
     limit: int = 50,
+    department: str | None = None,
     department_id: int | None = None,
     owner: str | None = None,
     force: bool = False,
@@ -309,15 +330,18 @@ async def ingest_source(
                 stats_update={"ocr_count": ocr_processed_count},
             )
 
-            # Step 4: Semantic Chunking
-            chunks = chunk_document(fetched, department=None, owner=owner)
+            # Step 3b: Analyze notice metadata via single Gemini API call
+            memory_data = await NoticeAnalyzer.analyze(fetched)
+
+            # Step 4: Semantic Chunking enriched with notice memory
+            chunks = chunk_document(fetched, department=None, owner=owner, memory_data=memory_data)
             table_chunks_count = sum(1 for c in chunks if c.metadata.get("is_table"))
 
             progress_tracker.update_step(
                 phase="chunking",
                 step_index=4,
                 current_action=f"[{idx}/{len(docs)}] Generated {len(chunks)} chunks ({table_chunks_count} isolated tables) for {fname}",
-                next_action="Generate 384-dimensional dense embeddings using all-MiniLM-L6-v2",
+                next_action="Generate vector dense embeddings",
                 source_id=source_id,
                 log_message=f"[{idx}/{len(docs)}] Segmented into {len(chunks)} chunks ({table_chunks_count} tables isolated with row statements)",
                 log_level="chunk",
@@ -349,7 +373,12 @@ async def ingest_source(
                 embedder=embedder,
             )
 
+            # Step 5b: Resolve supersession and record notice memory
+            await SupersessionResolver.resolve(session, memory_data, doc.id)
+
             is_conflicted = await ConflictDetector.check_conflicts(session, doc)
+            await session.commit()
+
             action_status = "created" if detection.status == ChangeStatus.NEW else "updated"
             if is_conflicted:
                 action_status = "conflicted"
@@ -392,6 +421,7 @@ async def ingest_source(
                 },
             )
         except Exception as e:
+            await session.rollback()
             logger.error(f"Error ingesting item {fetched.source_url}: {e}")
             progress_tracker.log(
                 f"[{idx}/{len(docs)}] Error on {fname}: {e}",

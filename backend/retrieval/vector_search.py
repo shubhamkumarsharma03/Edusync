@@ -7,6 +7,7 @@ from ingestion.embedder import DocumentEmbedder
 from models.chunk import Chunk
 from models.department import Department
 from models.document import Document
+from models.notice_memory import NoticeMemory
 from retrieval.schemas import RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ class VectorSearcher:
         query_embedding: list[float] | None = None,
         allowed_statuses: list[str] | None = None,
         departments: list[str] | None = None,
+        include_superseded: bool = False,
     ) -> list[RetrievedChunk]:
         """Search top-k most similar chunks using cosine similarity in pgvector.
 
@@ -60,6 +62,10 @@ class VectorSearcher:
             Document.status.in_(allowed),
             Chunk.embedding.is_not(None),
         ]
+        if not include_superseded:
+            conditions.append(
+                (NoticeMemory.id.is_(None)) | (NoticeMemory.is_latest == True)  # noqa: E712
+            )
         if departments:
             conditions.append(Department.name.in_(departments))
 
@@ -77,6 +83,7 @@ class VectorSearcher:
             )
             .join(Document, Chunk.document_id == Document.id)
             .outerjoin(Department, Document.department_id == Department.id)
+            .outerjoin(NoticeMemory, Chunk.document_id == NoticeMemory.document_id)
             .where(*conditions)
             .order_by(distance_expr.asc())
             .limit(top_k)

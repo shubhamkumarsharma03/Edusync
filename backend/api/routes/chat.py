@@ -8,11 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.config import get_settings
 from db.session import get_db
 from retrieval.confidence_gate import ConfidenceGate
+from retrieval.fact_lookup import FactLookup
 from retrieval.hybrid_search import HybridSearcher
 from retrieval.query_normalizer import query_normalizer
 from retrieval.reranker import CrossEncoderReranker
 
 logger = logging.getLogger(__name__)
+
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -141,6 +143,31 @@ async def chat_endpoint(
     reranker = CrossEncoderReranker()
     gate = ConfidenceGate()
 
+    # 0. Fast-path Fact Lookup from active notice memory
+    matched_facts = await FactLookup.search(session=session, query=query, limit=5)
+    if matched_facts and matched_facts[0].confidence >= 0.9:
+        logger.info(f"Fast-path fact match found (confidence={matched_facts[0].confidence:.2f})")
+        facts_context = FactLookup.format_facts_context(matched_facts)
+        fast_answer = await generate_llm_answer_async(query, facts_context)
+        fact_sources = [
+            SourceCitation(
+                title=f.notice_title,
+                url=f.source_url,
+                department=None,
+                last_verified="Verified Fresh",
+                confidence_score=f.confidence,
+            )
+            for f in matched_facts[:2]
+        ]
+        return ChatResponse(
+            answer=fast_answer,
+            sources=fact_sources,
+            confidence="high",
+            confidence_score=matched_facts[0].confidence,
+            is_fallback=False,
+            query=query,
+        )
+
     # 1. Hybrid Search (Vector + Keyword via RRF) to fetch top candidate pool
     raw_chunks = await searcher.search(
         session=session,
@@ -184,6 +211,9 @@ async def chat_endpoint(
 
     # 4. Format verified context
     context_blocks = []
+    if matched_facts:
+        context_blocks.append(FactLookup.format_facts_context(matched_facts))
+
     citations: list[SourceCitation] = []
     seen_urls: set[str] = set()
 

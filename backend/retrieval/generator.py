@@ -70,9 +70,17 @@ class LLMGenerator:
 
         return citations
 
-    def build_prompt(self, query: str, chunks: Sequence[RetrievedChunk]) -> tuple[str, str]:
-        """Construct system and user prompts with structured context blocks."""
+    def build_prompt(
+        self,
+        query: str,
+        chunks: Sequence[RetrievedChunk],
+        facts_context: str | None = None,
+    ) -> tuple[str, str]:
+        """Construct system and user prompts with structured context blocks and verified facts."""
         context_blocks: list[str] = []
+
+        if facts_context:
+            context_blocks.append(f"{facts_context}\n")
 
         for idx, chunk in enumerate(chunks, start=1):
             dept_str = f"Department: {chunk.department}" if chunk.department else "General"
@@ -145,6 +153,7 @@ class LLMGenerator:
         query: str,
         chunks: Sequence[RetrievedChunk],
         confidence: float = 0.0,
+        facts_context: str | None = None,
     ) -> GenerationResult:
         """Generate a grounded response using available LLM providers with citation metadata.
 
@@ -152,6 +161,7 @@ class LLMGenerator:
             query: The user's question.
             chunks: Qualifying retrieved document chunks passing confidence gate.
             confidence: Normalized confidence score from reranker.
+            facts_context: Optional formatted key facts extracted from notice memory.
 
         Returns:
             GenerationResult containing answer text, source citations list, and confidence.
@@ -168,7 +178,8 @@ class LLMGenerator:
             )
 
         citations = self.extract_sources(chunks)
-        system_prompt, user_prompt = self.build_prompt(query, chunks)
+        system_prompt, user_prompt = self.build_prompt(query, chunks, facts_context=facts_context)
+
         answer_text: str | None = None
 
         # 1. Try Primary Provider (Anthropic Claude)

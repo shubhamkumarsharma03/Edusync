@@ -57,7 +57,9 @@ async def reembed_chunks(only_missing: bool = True) -> int:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(description="Backfill or refresh embeddings for chunks in EduSync.")
+    parser = argparse.ArgumentParser(
+        description="Backfill or refresh embeddings for chunks in EduSync."
+    )
     parser.add_argument(
         "--all",
         action="store_true",

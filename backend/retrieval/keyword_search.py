@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models.chunk import Chunk
 from models.department import Department
 from models.document import Document
+from models.notice_memory import NoticeMemory
 from retrieval.schemas import RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -29,12 +30,14 @@ class KeywordSearcher:
         top_k: int = 20,
         allowed_statuses: list[str] | None = None,
         departments: list[str] | None = None,
+        include_superseded: bool = False,
     ) -> list[RetrievedChunk]:
         """Execute database-backed full text keyword search against chunks.
 
         Strictly enforces conflict and stale document exclusion by filtering on document status.
         Supports optional filtering by department.
         """
+
         cleaned_query = query.strip()
         if not cleaned_query:
             return []
@@ -49,6 +52,10 @@ class KeywordSearcher:
             Document.status.in_(allowed),
             tsvector.op("@@")(tsquery),
         ]
+        if not include_superseded:
+            base_conditions.append(
+                (NoticeMemory.id.is_(None)) | (NoticeMemory.is_latest == True)  # noqa: E712
+            )
         if departments:
             base_conditions.append(Department.name.in_(departments))
 
@@ -66,6 +73,7 @@ class KeywordSearcher:
             )
             .join(Document, Chunk.document_id == Document.id)
             .outerjoin(Department, Document.department_id == Department.id)
+            .outerjoin(NoticeMemory, Chunk.document_id == NoticeMemory.document_id)
             .where(*base_conditions)
             .order_by(rank_expr.desc())
             .limit(top_k)
@@ -84,6 +92,10 @@ class KeywordSearcher:
                     Document.status.in_(allowed),
                     tsvector.op("@@")(fallback_tsquery),
                 ]
+                if not include_superseded:
+                    fallback_conditions.append(
+                        (NoticeMemory.id.is_(None)) | (NoticeMemory.is_latest == True)  # noqa: E712
+                    )
                 if departments:
                     fallback_conditions.append(Department.name.in_(departments))
 
@@ -101,6 +113,7 @@ class KeywordSearcher:
                     )
                     .join(Document, Chunk.document_id == Document.id)
                     .outerjoin(Department, Document.department_id == Department.id)
+                    .outerjoin(NoticeMemory, Chunk.document_id == NoticeMemory.document_id)
                     .where(*fallback_conditions)
                     .order_by(fallback_rank.desc())
                     .limit(top_k)

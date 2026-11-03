@@ -178,7 +178,7 @@ async def _run_reingest_single(source_url: str):
             result = await session.execute(stmt)
             doc = result.scalar_one_or_none()
 
-            department = doc.department if doc else None
+            department_id = doc.department_id if doc else None
             owner = doc.owner if doc else None
 
             from ingestion.schemas import SourceType
@@ -194,7 +194,7 @@ async def _run_reingest_single(source_url: str):
                 session=session,
                 source=source_url,
                 source_type=source_type_enum,
-                department=department,
+                department_id=department_id,
                 owner=owner,
                 force=True,
             )
