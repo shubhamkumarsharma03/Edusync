@@ -185,12 +185,9 @@ async def chat_endpoint(
             query=query,
         )
 
-    # 2. Cross-Encoder / Jina Reranking to select top 5 most relevant chunks
-    norm = query_normalizer.normalize(query)
-    rerank_query = norm.expanded_vector or query
-
+    # 2. Cross-Encoder / Jina Reranking to select top 5 most relevant chunks (natural query for cross-attention)
     reranked_chunks = await reranker.arerank(
-        query=rerank_query,
+        query=query,
         chunks=raw_chunks,
         top_k=5,
     )
@@ -239,6 +236,8 @@ async def chat_endpoint(
 
     # 5. Generate Grounded Answer asynchronously with persistent connection & timeout
     answer_text = await generate_llm_answer_async(query, combined_context)
+    if gate_result.caveat:
+        answer_text = f"{answer_text}\n\n> ⚠️ *{gate_result.caveat}*"
 
     return ChatResponse(
         answer=answer_text,

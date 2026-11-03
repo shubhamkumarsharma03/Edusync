@@ -3,7 +3,7 @@ from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import ForeignKey, Index, Integer, Text, func
-from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.dialects.postgresql import TIMESTAMP, TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base, UUIDMixin
@@ -17,8 +17,10 @@ class Chunk(Base, UUIDMixin):
         ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    original_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     embedding: Mapped[Vector] = mapped_column(Vector(1024), nullable=True)
+    tsv = mapped_column(TSVECTOR, nullable=True)
 
     last_verified: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False

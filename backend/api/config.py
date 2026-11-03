@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "bge-m3"
     EMBEDDING_DIM: int = 1024
     RERANKER_MODEL_NAME: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    CONFIDENCE_THRESHOLD: float = 0.55
+    CONFIDENCE_THRESHOLD: float = 0.40
 
     # Providers ("auto", "jina", "local")
     EMBEDDING_PROVIDER: str = "auto"

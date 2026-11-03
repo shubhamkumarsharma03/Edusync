@@ -1,6 +1,6 @@
-import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock
+from uuid import uuid4
 
 import pytest
 
@@ -9,28 +9,25 @@ from retrieval.schemas import RetrievedChunk
 
 
 def create_sample_chunk(
-    chunk_id: uuid.UUID | None = None,
-    content: str = "Sample content",
-    department: str = "Computer Science and Engineering",
+    content: str, department: str | None = None, score: float = 0.5
 ) -> RetrievedChunk:
     return RetrievedChunk(
-        chunk_id=chunk_id or uuid.uuid4(),
-        document_id=uuid.uuid4(),
+        chunk_id=uuid4(),
+        document_id=uuid4(),
         content=content,
-        score=0.8,
-        vector_score=0.8,
-        keyword_score=0.8,
-        source_url="https://ecajmer.ac.in/notices/sample.pdf",
+        score=score,
+        vector_score=score,
+        keyword_score=score,
+        source_url="https://ecajmer.ac.in/notice.pdf",
         last_verified=datetime.now(UTC),
-        token_count=50,
+        token_count=20,
         department=department,
-        owner="Notice Cell",
     )
 
 
 @pytest.mark.asyncio
 async def test_entity_routed_search_with_department_intent() -> None:
-    """Test that student queries mentioning a department route with department filters."""
+    """Test that student queries mentioning a department apply a soft RRF ranking boost."""
     mock_session = AsyncMock()
     mock_vector_searcher = AsyncMock()
     mock_keyword_searcher = AsyncMock()
@@ -58,52 +55,48 @@ async def test_entity_routed_search_with_department_intent() -> None:
     assert len(results) == 1
     assert results[0].department == "Computer Science and Engineering"
 
-    # Verify vector searcher was called with detected department filter
+    # Per Phase 1b, search is unconstrained across all notices (departments=None)
+    # and department matching is applied as an RRF score boost rather than a rigid SQL WHERE
     mock_vector_searcher.search.assert_called_once()
     call_kwargs = mock_vector_searcher.search.call_args.kwargs
-    assert "Computer Science and Engineering" in call_kwargs.get("departments", [])
+    assert call_kwargs.get("departments") is None
 
 
 @pytest.mark.asyncio
-async def test_intent_routed_search_fallback_when_zero_results() -> None:
-    """Test that if filtered search returns 0 results, it falls back to unconstrained search."""
+async def test_department_intent_applies_rrf_rank_boost() -> None:
+    """Test that matching department chunk receives a soft RRF boost over equal-ranked non-matching chunk."""
     mock_session = AsyncMock()
     mock_vector_searcher = AsyncMock()
     mock_keyword_searcher = AsyncMock()
 
-    general_notice_chunk = create_sample_chunk(
-        content="All students id card mandatory rules",
-        department="Proctor Section",
+    cse_chunk = create_sample_chunk(
+        content="CSE 3rd sem timetable",
+        department="Computer Science and Engineering",
+    )
+    general_chunk = create_sample_chunk(
+        content="General circular for all branches",
+        department="Registrar Section",
     )
 
-    # First attempt (with filter) returns empty; second attempt (unfiltered fallback) returns the notice
-    mock_vector_searcher.search.side_effect = [
-        [],  # Filtered call returns 0
-        [general_notice_chunk],  # Fallback call returns notice
-    ]
-    mock_keyword_searcher.search.side_effect = [
-        [],  # Filtered call returns 0
-        [general_notice_chunk],  # Fallback call returns notice
-    ]
+    # General chunk ranked 1st in raw vector search, CSE chunk ranked 2nd
+    mock_vector_searcher.search.return_value = [general_chunk, cse_chunk]
+    mock_keyword_searcher.search.return_value = [general_chunk, cse_chunk]
 
     hybrid = HybridSearcher(
         vector_searcher=mock_vector_searcher,
         keyword_searcher=mock_keyword_searcher,
     )
 
-    results = await hybrid.search(
-        session=mock_session,
-        query="proctor section circular",
-        top_k=5,
+    # In reciprocal_rank_fusion with target_departments=["Computer Science and Engineering"],
+    # CSE chunk receives dept_boost multiplier (1.3x)
+    fused = hybrid.reciprocal_rank_fusion(
+        vector_results=[general_chunk, cse_chunk],
+        keyword_results=[general_chunk, cse_chunk],
+        target_departments=["Computer Science and Engineering"],
+        dept_boost=1.3,
     )
 
-    assert len(results) == 1
-    assert results[0].department == "Proctor Section"
-
-    # Verify both searches were called twice (1st: filtered, 2nd: fallback unfiltered)
-    assert mock_vector_searcher.search.call_count == 2
-    assert mock_keyword_searcher.search.call_count == 2
-
-    # Second call must have departments=None
-    second_call_kwargs = mock_vector_searcher.search.call_args_list[1].kwargs
-    assert second_call_kwargs.get("departments") is None
+    # Fused score for CSE chunk should be boosted by 1.3x
+    cse_fused = next(c for c in fused if c.department == "Computer Science and Engineering")
+    gen_fused = next(c for c in fused if c.department == "Registrar Section")
+    assert cse_fused.score > (2.0 / (60 + 2))  # base RRF would be ~0.0322, with boost it is ~0.0419

@@ -26,6 +26,7 @@ class ConfidenceGateResult:
     confidence_level: ConfidenceLevel
     fallback_message: str | None
     qualifying_chunks: list[RetrievedChunk]
+    caveat: str | None = None
 
     @property
     def is_fallback(self) -> bool:
@@ -34,23 +35,28 @@ class ConfidenceGateResult:
 
 
 class ConfidenceGate:
-    """Evaluates reranked search results against institutional confidence thresholds.
-
-    Enforces the 'Trust Layer' requirement (PRD FR-15 / TDD §5.3):
-    If top reranked score < CONFIDENCE_THRESHOLD (default: 0.55),
-    fail the gate and trigger a safe fallback message without calling the LLM.
+    """Evaluates reranked search results against institutional confidence thresholds
+    using a calibrated three-tier gate:
+    - Tier 1 (High >= 0.65): Full grounded answer.
+    - Tier 2 (Medium 0.40 - 0.65): Grounded answer with caveat warning.
+    - Tier 3 (Low < 0.40): Abstain safely with official fallback message.
     """
 
     HIGH_CONFIDENCE_THRESHOLD: float = 0.75
+    MEDIUM_CONFIDENCE_THRESHOLD: float = 0.40
     DEFAULT_FALLBACK_MESSAGE: str = (
         "I don't have verified information on this topic in the official college circulars or notices. "
         "Please check with the relevant department office or visit the official college website."
+    )
+    DEFAULT_CAVEAT_MESSAGE: str = (
+        "Note: This information is derived from related college notices. "
+        "Please verify specific dates or fee amounts with the relevant department office."
     )
 
     def __init__(self, threshold: float | None = None) -> None:
         settings = get_settings()
         raw_val = (
-            threshold if threshold is not None else getattr(settings, "CONFIDENCE_THRESHOLD", 0.55)
+            threshold if threshold is not None else getattr(settings, "CONFIDENCE_THRESHOLD", self.MEDIUM_CONFIDENCE_THRESHOLD)
         )
         self.threshold: float = float(raw_val)
 
@@ -76,7 +82,7 @@ class ConfidenceGate:
         chunks: Sequence[RetrievedChunk],
         threshold: float | None = None,
     ) -> ConfidenceGateResult:
-        """Evaluate a ranked sequence of retrieved chunks against the confidence threshold.
+        """Evaluate a ranked sequence of retrieved chunks against the calibrated 3-tier gate.
 
         Args:
             chunks: Sequence of candidate chunks, sorted by relevance score descending.
@@ -96,6 +102,7 @@ class ConfidenceGate:
                 confidence_level=ConfidenceLevel.LOW,
                 fallback_message=self.generate_fallback_message(),
                 qualifying_chunks=[],
+                caveat=None,
             )
 
         top_chunk = chunks[0]
@@ -104,10 +111,10 @@ class ConfidenceGate:
         )
         confidence_level = self.classify_confidence_level(top_score)
 
-        # Gate Check: Does the highest-scoring chunk meet the confidence threshold?
+        # Tier 3 Gate Check: Does the highest-scoring chunk meet the abstain threshold?
         if top_score < active_threshold:
             logger.warning(
-                f"Confidence gate FAIL: Top score ({top_score:.4f}) is below threshold ({active_threshold:.4f}). "
+                f"Confidence gate FAIL: Top score ({top_score:.4f}) is below abstain threshold ({active_threshold:.4f}). "
                 f"Triggering fallback message per PRD FR-15."
             )
             return ConfidenceGateResult(
@@ -116,6 +123,7 @@ class ConfidenceGate:
                 confidence_level=ConfidenceLevel.LOW,
                 fallback_message=self.generate_fallback_message(top_chunk.department),
                 qualifying_chunks=[],
+                caveat=None,
             )
 
         # Filter qualifying chunks: only return chunks that meet threshold
@@ -126,8 +134,11 @@ class ConfidenceGate:
             >= active_threshold
         ]
 
+        # Tier 2 Caveat
+        caveat = self.DEFAULT_CAVEAT_MESSAGE if confidence_level == ConfidenceLevel.MEDIUM else None
+
         logger.info(
-            f"Confidence gate PASS: Top score is {top_score:.4f} (level: {confidence_level.value}). "
+            f"Confidence gate PASS: Top score is {top_score:.4f} (tier: {confidence_level.value}). "
             f"{len(qualifying)} qualifying chunks passed."
         )
 
@@ -137,4 +148,5 @@ class ConfidenceGate:
             confidence_level=confidence_level,
             fallback_message=None,
             qualifying_chunks=qualifying,
+            caveat=caveat,
         )

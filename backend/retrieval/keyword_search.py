@@ -3,7 +3,7 @@ import re
 from collections.abc import Sequence
 
 from rank_bm25 import BM25Okapi
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.chunk import Chunk
@@ -15,8 +15,44 @@ from retrieval.schemas import RetrievedChunk
 logger = logging.getLogger(__name__)
 
 
+# Configurable college vocabulary and colloquial synonym mapping
+COLLEGE_GLOSSARY: dict[str, str] = {
+    r"\bsem\b": "semester",
+    r"\bfine\b": "late fee fine",
+    r"\b(bharna|bhrna|bharne)\b": "fill submit form",
+    r"\b(kb tk|kab tak)\b": "last date deadline",
+    r"\b(kitna|kitni)\b": "fee amount",
+    r"\bclb\b": "club",
+    r"\bwrkshop\b": "workshop",
+    r"\bvanue\b": "venue",
+    r"\bresheduled?\b": "reschedule rescheduled",
+    r"\bpractcal\b": "practical",
+    r"\bexamintion\b": "examination",
+    r"\btarikh\b": "date",
+    r"\btimetable\b": "schedule timetable",
+    r"\bmidterm\b": "mid term",
+}
+
+# Stop words to ignore during OR-style FTS assembly
+HINDI_ENGLISH_STOPWORDS: set[str] = {
+    "ki", "ka", "ke", "hai", "hain", "aur", "kya", "me", "mein", "h",
+    "se", "ko", "par", "tha", "the", "aaya", "aayi", "is", "the", "for",
+    "of", "in", "and", "or", "to", "what", "when", "where", "how", "who"
+}
+
+
 class KeywordSearcher:
-    """Performs keyword search using PostgreSQL Full-Text Search (FTS) with BM25 / ts_rank scoring."""
+    """Performs keyword search using PostgreSQL Full-Text Search (FTS) with stored tsvector,
+    simple dictionary matching, OR-style ranking, and pg_trgm fuzzy matching for typos.
+    """
+
+    @classmethod
+    def expand_with_glossary(cls, query: str) -> str:
+        """Expand college slang, abbreviations, and Hinglish phrases using the domain glossary."""
+        expanded = query
+        for pattern, replacement in COLLEGE_GLOSSARY.items():
+            expanded = re.sub(pattern, replacement, expanded, flags=re.IGNORECASE)
+        return expanded
 
     @staticmethod
     def tokenize(text: str) -> list[str]:
@@ -34,23 +70,36 @@ class KeywordSearcher:
     ) -> list[RetrievedChunk]:
         """Execute database-backed full text keyword search against chunks.
 
-        Strictly enforces conflict and stale document exclusion by filtering on document status.
-        Supports optional filtering by department.
+        Uses stored generated `Chunk.tsv` column (GIN indexed, simple dictionary) with OR-ranked
+        disjunction and fallback trigram fuzzy matching for unmatched typos.
         """
-
         cleaned_query = query.strip()
         if not cleaned_query:
             return []
 
         allowed = allowed_statuses if allowed_statuses is not None else ["fresh"]
 
-        tsquery = func.plainto_tsquery("english", cleaned_query)
-        tsvector = func.to_tsvector("english", Chunk.content)
-        rank_expr = func.ts_rank_cd(tsvector, tsquery).label("rank_score")
+        # 1. Expand query terms using college glossary
+        expanded = self.expand_with_glossary(cleaned_query)
+
+        # 2. Extract distinct alphanumeric tokens, filtering stopwords
+        tokens = list(dict.fromkeys(re.findall(r"[a-zA-Z0-9]+", expanded.lower())))
+        fts_terms = [t for t in tokens if len(t) > 1 and t not in HINDI_ENGLISH_STOPWORDS]
+
+        if not fts_terms:
+            fts_terms = [t for t in tokens if len(t) > 1]
+
+        if not fts_terms:
+            return []
+
+        # Construct OR-style ranked tsquery using 'simple' configuration
+        or_query_str = " | ".join(fts_terms)
+        tsquery = func.to_tsquery("simple", or_query_str)
+        rank_expr = func.ts_rank_cd(Chunk.tsv, tsquery).label("rank_score")
 
         base_conditions = [
             Document.status.in_(allowed),
-            tsvector.op("@@")(tsquery),
+            Chunk.tsv.op("@@")(tsquery),
         ]
         if not include_superseded:
             base_conditions.append(
@@ -79,27 +128,16 @@ class KeywordSearcher:
             .limit(top_k)
         )
 
-        results = (await session.execute(stmt)).all()
+        rows = (await session.execute(stmt)).all()
 
-        # Resilient FTS Fallback: If strict AND query yields 0 results, fall back to OR disjunction
-        if not results and len(cleaned_query.split()) > 1:
-            words = [w for w in cleaned_query.split() if len(w) > 1]
-            if words:
-                or_query_str = " OR ".join(words)
-                fallback_tsquery = func.websearch_to_tsquery("english", or_query_str)
-                fallback_rank = func.ts_rank_cd(tsvector, fallback_tsquery).label("rank_score")
-                fallback_conditions = [
-                    Document.status.in_(allowed),
-                    tsvector.op("@@")(fallback_tsquery),
-                ]
-                if not include_superseded:
-                    fallback_conditions.append(
-                        (NoticeMemory.id.is_(None)) | (NoticeMemory.is_latest == True)  # noqa: E712
-                    )
-                if departments:
-                    fallback_conditions.append(Department.name.in_(departments))
-
-                fallback_stmt = (
+        # 3. Trigram Fuzzy Fallback (pg_trgm): If FTS yielded fewer than 3 hits, search via word_similarity
+        if len(rows) == 0 and len(fts_terms) > 0:
+            existing_ids = {r.id for r in rows}
+            # Pick salient tokens (length >= 4) for fuzzy matching
+            salient_terms = [t for t in fts_terms if len(t) >= 4][:3]
+            for term in salient_terms:
+                sim_expr = func.word_similarity(term, Chunk.content).label("sim_score")
+                fuzzy_stmt = (
                     select(
                         Chunk.id,
                         Chunk.document_id,
@@ -109,22 +147,30 @@ class KeywordSearcher:
                         Document.source_url,
                         Department.name.label("department"),
                         Document.owner,
-                        fallback_rank,
+                        sim_expr,
                     )
                     .join(Document, Chunk.document_id == Document.id)
                     .outerjoin(Department, Document.department_id == Department.id)
                     .outerjoin(NoticeMemory, Chunk.document_id == NoticeMemory.document_id)
-                    .where(*fallback_conditions)
-                    .order_by(fallback_rank.desc())
-                    .limit(top_k)
+                    .where(
+                        Document.status.in_(allowed),
+                        Chunk.id.not_in(existing_ids) if existing_ids else True,
+                        sim_expr > 0.45,
+                    )
+                    .order_by(sim_expr.desc())
+                    .limit(top_k - len(rows))
                 )
-                results = (await session.execute(fallback_stmt)).all()
-
-        rows = results
+                fuzzy_rows = (await session.execute(fuzzy_stmt)).all()
+                for fr in fuzzy_rows:
+                    if fr.id not in existing_ids:
+                        existing_ids.add(fr.id)
+                        rows.append(fr)
+                if len(rows) >= top_k:
+                    break
 
         retrieved_chunks: list[RetrievedChunk] = []
-        for rank, row in enumerate(rows, start=1):
-            score = float(row.rank_score) if row.rank_score is not None else 0.0
+        for rank, row in enumerate(rows[:top_k], start=1):
+            score = float(getattr(row, "rank_score", getattr(row, "sim_score", 0.0)) or 0.0)
             retrieved_chunks.append(
                 RetrievedChunk(
                     chunk_id=row.id,

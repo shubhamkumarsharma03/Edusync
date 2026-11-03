@@ -51,7 +51,7 @@ class CollegeQueryNormalizer:
         (re.compile(r"\b(mba)\b", re.IGNORECASE), "MBA Management Studies"),
         # Branch & Department terms
         (
-            re.compile(r"\b(it|i\.t\.)\b", re.IGNORECASE),
+            re.compile(r"\b(i\.t\.|information\s+technology|b\.?tech\s+it|it\s+dept|it\s+branch)\b|\bIT\b"),
             "Information Technology IT",
         ),
         (
@@ -83,7 +83,7 @@ class CollegeQueryNormalizer:
             "Electronics and Communication Engineering",
         ),
         (
-            re.compile(r"\b(me|mech|mechanical)\b", re.IGNORECASE),
+            re.compile(r"\b(mech|mechanical|b\.?tech\s+me|me\s+dept|me\s+branch)\b|\bME\b"),
             "Mechanical Engineering",
         ),
         (
@@ -110,7 +110,7 @@ class CollegeQueryNormalizer:
             "OOPS Object Oriented Programming",
         ),
         (
-            re.compile(r"\bde\b", re.IGNORECASE),
+            re.compile(r"\b(digital\s+electronics)\b|\bDE\b"),
             "Digital Electronics DE",
         ),
         (
@@ -200,13 +200,13 @@ class CollegeQueryNormalizer:
 
     DEPARTMENT_DETECTION = {
         "Computer Science and Engineering": ["cse", "cs", "computer", "ca", "cb"],
-        "Information Technology": ["it", "information technology"],
+        "Information Technology": ["information technology", "info tech", "btech it", "it dept"],
         "Cyber Security": ["cyber", "cyber security"],
-        "Examination Section": ["exam", "examination"],
-        "Registrar Section": ["registrar", "order", "admin"],
+        "Examination Section": ["examination section", "exam cell", "exam branch"],
+        "Registrar Section": ["registrar", "office order", "admin"],
         "Academic Section": ["academic", "admission"],
         "Proctor Section": ["proctor", "discipline", "id card", "anti-ragging"],
-        "Mechanical Engineering": ["me", "mech", "mechanical"],
+        "Mechanical Engineering": ["mech", "mechanical", "btech me", "me dept"],
         "Electrical Engineering": ["ee", "electrical"],
         "Civil Engineering": ["ce", "civil"],
         "Electronics & Communication Engineering": ["ece", "electronics"],
@@ -248,7 +248,7 @@ class CollegeQueryNormalizer:
         kw_clean = re.sub(r"\bmtech\b", "M.Tech", kw_clean, flags=re.IGNORECASE)
         kw_clean = re.sub(r"\bbtech\b", "B.Tech", kw_clean, flags=re.IGNORECASE)
         kw_clean = re.sub(r"\btt\b", "timetable", kw_clean, flags=re.IGNORECASE)
-        kw_clean = re.sub(r"\bit\b", "Information Technology", kw_clean, flags=re.IGNORECASE)
+        kw_clean = re.sub(r"\b(i\.t\.|information technology)\b|\bIT\b", "Information Technology", kw_clean)
         kw_clean = re.sub(r"\bsem\b", "Semester", kw_clean, flags=re.IGNORECASE)
         kw_clean = re.sub(r"\bca\b", "CA", kw_clean, flags=re.IGNORECASE)
         kw_clean = re.sub(r"\bcb\b", "CB", kw_clean, flags=re.IGNORECASE)
