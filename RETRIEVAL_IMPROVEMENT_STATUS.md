@@ -200,3 +200,4 @@ uvicorn backend.api.main:app --reload --host 127.0.0.1 --port 8000
 - Chat Route: `backend/api/routes/chat.py`
 - Embedder Cache: `backend/ingestion/embedder.py`
 - Reranker: `backend/retrieval/reranker.py`
+
