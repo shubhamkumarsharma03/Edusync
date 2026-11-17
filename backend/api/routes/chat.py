@@ -65,7 +65,7 @@ async def warm_llm_client() -> None:
     if api_key and not api_key.startswith("mock"):
         try:
             client = get_http_client()
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={api_key}"
             await client.post(url, json={"contents": [{"parts": [{"text": "ping"}]}]})
         except Exception:
             pass
@@ -94,7 +94,13 @@ STUDENT QUESTION:
 
 ANSWER:"""
         client = get_http_client()
-        for model in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash"]:
+        for model in [
+            "gemini-3.5-flash-lite",
+            "gemini-3.8-flash",
+            "gemini-3.5-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-3.7-flash",
+        ]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
                 payload = {
@@ -102,7 +108,7 @@ ANSWER:"""
                     "generationConfig": {
                         "temperature": 0.2,
                         "maxOutputTokens": 3000,
-                        "thinkingConfig": {"thinkingBudget": 0},
+
                     },
                 }
                 resp = await client.post(url, json=payload)
@@ -114,8 +120,8 @@ ANSWER:"""
                         full_text = "".join(p.get("text", "") for p in parts if "text" in p).strip()
                         if full_text:
                             return full_text
-                elif resp.status_code == 429:
-                    logger.warning(f"Gemini model {model} rate limited (429), trying next...")
+                elif resp.status_code in (429, 500, 502, 503, 504):
+                    logger.warning(f"Gemini model {model} temporarily unavailable (HTTP {resp.status_code}), trying next...")
             except Exception as e:
                 logger.warning(f"Fast Gemini generation ({model}) fallback: {e}")
 
