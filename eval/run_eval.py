@@ -32,6 +32,7 @@ from ingestion.embedder import DocumentEmbedder
 from retrieval.confidence_gate import ConfidenceGate
 from retrieval.hybrid_search import HybridSearcher
 from retrieval.query_normalizer import query_normalizer
+from retrieval.query_rewriter import query_rewriter
 from retrieval.reranker import CrossEncoderReranker
 
 # Silence verbose library logging during eval
@@ -108,6 +109,7 @@ async def run_evaluation(
     total_count = len(eval_items)
 
     latencies = {
+        "rewrite": [],
         "norm": [],
         "embed": [],
         "search_vec_sql": [],
@@ -144,13 +146,25 @@ async def run_evaluation(
 
             t0 = time.perf_counter()
 
+            # 0. Conversational Query Rewriting (if conversation history present)
+            search_query = query
+            history = item.get("history")
+            t_rewrite_ms = 0.0
+            if history:
+                t_rewrite_start = time.perf_counter()
+                rewritten = await query_rewriter.rewrite(query=query, history=history)
+                if rewritten.is_rewritten:
+                    search_query = rewritten.standalone_query
+                t_rewrite_ms = (time.perf_counter() - t_rewrite_start) * 1000
+                latencies["rewrite"].append(t_rewrite_ms)
+
             # 1. Domain Query Normalization
             t_norm_start = time.perf_counter()
-            norm = query_normalizer.normalize(query)
+            norm = query_normalizer.normalize(search_query)
             t_norm_ms = (time.perf_counter() - t_norm_start) * 1000
 
-            v_query = norm.expanded_vector or query
-            k_query = norm.expanded_keyword or query
+            v_query = norm.expanded_vector or search_query
+            k_query = norm.expanded_keyword or search_query
             target_depts = norm.detected_departments or None
 
             # 2a. Query Embedding Generation (dense vector)
@@ -165,7 +179,7 @@ async def run_evaluation(
                 session=session,
                 query=v_query,
                 query_embedding=query_emb,
-                top_k=20,
+                top_k=40,
                 departments=None,
             )
             t_vec_ms = (time.perf_counter() - t_vec_start) * 1000
@@ -175,7 +189,7 @@ async def run_evaluation(
             keyword_results = await searcher.keyword_searcher.search(
                 session=session,
                 query=k_query,
-                top_k=20,
+                top_k=40,
                 departments=None,
             )
             t_fts_ms = (time.perf_counter() - t_fts_start) * 1000
@@ -185,14 +199,14 @@ async def run_evaluation(
             raw_chunks = searcher.reciprocal_rank_fusion(
                 vector_results=vector_results,
                 keyword_results=keyword_results,
-                top_k=20,
+                top_k=25,
                 target_departments=target_depts,
             )
             t_rrf_ms = (time.perf_counter() - t_rrf_start) * 1000
 
             # 3. Cross-Encoder Reranking
             t_rerank_start = time.perf_counter()
-            rerank_q = query if rerank_mode == "natural" else v_query
+            rerank_q = search_query if rerank_mode == "natural" else v_query
             reranked = await reranker.arerank(query=rerank_q, chunks=raw_chunks, top_k=10)
             t_rerank_ms = (time.perf_counter() - t_rerank_start) * 1000
 
@@ -204,23 +218,18 @@ async def run_evaluation(
             retrieved_doc_ids = [c.document_id for c in reranked]
             top_score = reranked[0].rerank_score if reranked else 0.0
 
-            # 5. Optional Gemini Evidence Verification Check
+            # 5. Production Gemini In-Prompt Evidence Verification Check
             t_gemini_ms = 0.0
             gemini_answerable = gate_res.passed
             if enable_gemini_check and gate_res.passed and reranked:
                 t_gemini_start = time.perf_counter()
-                context_excerpt = "\n".join([c.content[:400] for c in reranked[:2]])
-                # Heuristic evidence verification: if query asked for distinct specifics (like duplicate degree)
-                # not present in context, mark as unanswerable
-                is_grounded_lexical = any(
-                    any(w.lower() in context_excerpt.lower() for w in fact.split() if len(w) > 3)
-                    for fact in expected_facts
-                ) if expected_facts else False
-
-                if is_unanswerable:
-                    gemini_answerable = False
-                else:
-                    gemini_answerable = is_grounded_lexical or gate_res.passed
+                context_excerpt = "\n".join([c.content[:2000] for c in reranked[:3]])
+                try:
+                    llm_check = await generate_llm_answer_async(search_query, context_excerpt)
+                    gemini_answerable = bool(llm_check.answerable)
+                except Exception as e:
+                    logger.warning(f"Gemini evidence verification exception for '{search_query}': {e}")
+                    gemini_answerable = gate_res.passed
                 t_gemini_ms = (time.perf_counter() - t_gemini_start) * 1000
 
             total_q_ms = (time.perf_counter() - t0) * 1000
@@ -283,15 +292,25 @@ async def run_evaluation(
     total_wall_sec = time.time() - overall_start
 
     # Metrics computation
-    m_all = evaluate_split_metrics(eval_results, "ALL (55)")
-    m_tune = evaluate_split_metrics([d for d in eval_results if d["split"] == "tune"], "TUNE (37)")
-    m_holdout = evaluate_split_metrics([d for d in eval_results if d["split"] == "holdout"], "HOLDOUT (18)")
-    m_untouched = evaluate_split_metrics([d for d in eval_results if d["id"] not in DATA_EDITED_IDS], "UNTOUCHED (51)")
+    n_all = len(eval_results)
+    n_tune = sum(1 for d in eval_results if d["split"] == "tune")
+    n_holdout = sum(1 for d in eval_results if d["split"] == "holdout")
+    n_untouched = sum(1 for d in eval_results if d["id"] not in DATA_EDITED_IDS)
+
+    m_all = evaluate_split_metrics(eval_results, f"ALL ({n_all})")
+    m_tune = evaluate_split_metrics([d for d in eval_results if d["split"] == "tune"], f"TUNE ({n_tune})")
+    m_holdout = evaluate_split_metrics([d for d in eval_results if d["split"] == "holdout"], f"HOLDOUT ({n_holdout})")
+    m_untouched = evaluate_split_metrics([d for d in eval_results if d["id"] not in DATA_EDITED_IDS], f"UNTOUCHED ({n_untouched})")
+
+    h_all = f"ALL ({n_all})"
+    h_untouched = f"UNTOUCHED ({n_untouched})"
+    h_tune = f"TUNE ({n_tune})"
+    h_holdout = f"HOLDOUT ({n_holdout})"
 
     print(f"\n{'='*75}")
     print("                      EVALUATION BENCHMARK REPORT                    ")
     print(f"{'='*75}")
-    print(f"{'Metric':<28} | {'ALL (55)':<10} | {'UNTOUCHED (51)':<14} | {'TUNE (37)':<10} | {'HOLDOUT (18)':<10}")
+    print(f"{'Metric':<28} | {h_all:<10} | {h_untouched:<14} | {h_tune:<10} | {h_holdout:<10}")
     print("-" * 75)
     print(f"{'Recall@5':<28} | {m_all['recall_5']:>8.2f}% | {m_untouched['recall_5']:>12.2f}% | {m_tune['recall_5']:>8.2f}% | {m_holdout['recall_5']:>8.2f}%")
     print(f"{'Recall@10':<28} | {m_all['recall_10']:>8.2f}% | {m_untouched['recall_10']:>12.2f}% | {m_tune['recall_10']:>8.2f}% | {m_holdout['recall_10']:>8.2f}%")
@@ -308,6 +327,8 @@ async def run_evaluation(
     print(f"\n{'='*75}")
     print("                     PER-STAGE LATENCY BREAKDOWN                     ")
     print(f"{'='*75}")
+    if latencies["rewrite"]:
+        print(f"  Stage 0 : Conversational Rewriting (LLM)   : {avg_lat(latencies['rewrite']):>8.2f} ms")
     print(f"  Stage 1 : Domain Query Normalization       : {avg_lat(latencies['norm']):>8.2f} ms")
     print(f"  Stage 2a: Query Embedding Generation       : {avg_lat(latencies['embed']):>8.2f} ms")
     print(f"  Stage 2b: Vector ANN Search (pgvector SQL) : {avg_lat(latencies['search_vec_sql']):>8.2f} ms")

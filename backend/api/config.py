@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     # LLM API Keys
     ANTHROPIC_API_KEY: str | None = None
     GEMINI_API_KEY: str | None = None
-    GEMINI_ANALYSIS_MODEL: str = "gemini-2.5-flash"
+    GEMINI_ANALYSIS_MODEL: str = "gemini-3.5-flash-lite"
     OPENAI_API_KEY: str | None = None
 
     # Celery & Queue
@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     REINGEST_INTERVAL_HOURS: int = 6
 
     model_config = SettingsConfigDict(
-        env_file=(".env", "../.env"),
+        env_file=(".env", "../.env", "backend/.env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )

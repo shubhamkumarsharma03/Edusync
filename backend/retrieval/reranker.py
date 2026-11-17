@@ -96,7 +96,9 @@ class CrossEncoderReranker:
 
         if self.provider == "jina":
             if not self.jina_reranker:
-                raise RuntimeError("Reranker provider 'jina' was explicitly configured but is not available or unauthenticated.")
+                raise RuntimeError(
+                    "Reranker provider 'jina' was explicitly configured but is not available or unauthenticated."
+                )
             return await self.jina_reranker.arerank(query=query, chunks=chunks, top_n=top_k)
 
         if self.provider == "auto" and self.jina_reranker:
@@ -125,7 +127,9 @@ class CrossEncoderReranker:
 
         if self.provider == "jina":
             if not self.jina_reranker:
-                raise RuntimeError("Reranker provider 'jina' was explicitly configured but is not available.")
+                raise RuntimeError(
+                    "Reranker provider 'jina' was explicitly configured but is not available."
+                )
             return self.jina_reranker.rerank(query=query, chunks=chunks, top_n=top_k)
 
         model = self.get_rerank_model()

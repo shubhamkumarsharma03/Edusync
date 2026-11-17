@@ -130,7 +130,11 @@ export const App: React.FC = () => {
 
     setIsTyping(true)
     try {
-      const res = await sendChatMessage(query)
+      const historyPayload = messages.slice(-4).map((m) => ({
+        role: m.sender as 'user' | 'assistant',
+        content: m.text,
+      }))
+      const res = await sendChatMessage(query, undefined, historyPayload)
       const botMsg: Message = {
         id: (Date.now() + 1).toString(),
         sender: 'assistant',

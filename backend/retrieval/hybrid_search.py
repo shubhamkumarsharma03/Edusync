@@ -118,8 +118,8 @@ class HybridSearcher:
         self,
         session: AsyncSession,
         query: str,
-        top_k: int = 20,
-        candidate_k: int = 20,
+        top_k: int = 25,
+        candidate_k: int | None = None,
         allowed_statuses: list[str] | None = None,
         departments: list[str] | None = None,
         include_superseded: bool = False,
@@ -127,6 +127,8 @@ class HybridSearcher:
         """Execute parallel hybrid search with domain NLP normalization and entity routing."""
         if not query.strip():
             return []
+
+        effective_candidate_k = candidate_k if candidate_k is not None else max(40, top_k * 2)
 
         import re
 
@@ -158,7 +160,7 @@ class HybridSearcher:
         vector_results = await self.vector_searcher.search(
             session=session,
             query=v_query,
-            top_k=candidate_k,
+            top_k=effective_candidate_k,
             allowed_statuses=allowed_statuses,
             departments=None,
             include_superseded=effective_superseded,
@@ -166,7 +168,7 @@ class HybridSearcher:
         keyword_results = await self.keyword_searcher.search(
             session=session,
             query=k_query,
-            top_k=candidate_k,
+            top_k=effective_candidate_k,
             allowed_statuses=allowed_statuses,
             departments=None,
             include_superseded=effective_superseded,

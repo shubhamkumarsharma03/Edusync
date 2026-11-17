@@ -65,7 +65,6 @@ async def test_entity_routed_search_with_department_intent() -> None:
 @pytest.mark.asyncio
 async def test_department_intent_applies_rrf_rank_boost() -> None:
     """Test that matching department chunk receives a soft RRF boost over equal-ranked non-matching chunk."""
-    mock_session = AsyncMock()
     mock_vector_searcher = AsyncMock()
     mock_keyword_searcher = AsyncMock()
 
@@ -96,7 +95,8 @@ async def test_department_intent_applies_rrf_rank_boost() -> None:
         dept_boost=1.3,
     )
 
-    # Fused score for CSE chunk should be boosted by 1.3x
+    # Fused score for CSE chunk should be boosted by 1.3x over general chunk
     cse_fused = next(c for c in fused if c.department == "Computer Science and Engineering")
     gen_fused = next(c for c in fused if c.department == "Registrar Section")
     assert cse_fused.score > (2.0 / (60 + 2))  # base RRF would be ~0.0322, with boost it is ~0.0419
+    assert cse_fused.score > gen_fused.score

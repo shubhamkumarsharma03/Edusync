@@ -56,7 +56,9 @@ class ConfidenceGate:
     def __init__(self, threshold: float | None = None) -> None:
         settings = get_settings()
         raw_val = (
-            threshold if threshold is not None else getattr(settings, "CONFIDENCE_THRESHOLD", self.MEDIUM_CONFIDENCE_THRESHOLD)
+            threshold
+            if threshold is not None
+            else getattr(settings, "CONFIDENCE_THRESHOLD", self.MEDIUM_CONFIDENCE_THRESHOLD)
         )
         self.threshold: float = float(raw_val)
 

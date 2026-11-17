@@ -3,7 +3,7 @@ import re
 from collections.abc import Sequence
 
 from rank_bm25 import BM25Okapi
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.chunk import Chunk
@@ -35,9 +35,35 @@ COLLEGE_GLOSSARY: dict[str, str] = {
 
 # Stop words to ignore during OR-style FTS assembly
 HINDI_ENGLISH_STOPWORDS: set[str] = {
-    "ki", "ka", "ke", "hai", "hain", "aur", "kya", "me", "mein", "h",
-    "se", "ko", "par", "tha", "the", "aaya", "aayi", "is", "the", "for",
-    "of", "in", "and", "or", "to", "what", "when", "where", "how", "who"
+    "ki",
+    "ka",
+    "ke",
+    "hai",
+    "hain",
+    "aur",
+    "kya",
+    "me",
+    "mein",
+    "h",
+    "se",
+    "ko",
+    "par",
+    "tha",
+    "the",
+    "aaya",
+    "aayi",
+    "is",
+    "for",
+    "of",
+    "in",
+    "and",
+    "or",
+    "to",
+    "what",
+    "when",
+    "where",
+    "how",
+    "who",
 }
 
 

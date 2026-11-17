@@ -59,7 +59,7 @@ class NoticeMemory(Base, UUIDMixin):
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
     gemini_model: Mapped[str] = mapped_column(
-        Text, nullable=False, server_default="'gemini-2.5-flash'"
+        Text, nullable=False, server_default="'gemini-3.5-flash-lite'"
     )
     raw_llm_response: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 

@@ -74,7 +74,9 @@ Reply with ONLY the word "YES" or "NO".
             # Note: google-genai client methods might be synchronous, we can run them in a thread or just call it
             # The new google-genai library supports generate_content
             response = client.models.generate_content(
-                model="gemini-2.5-flash", contents=prompt, config={"max_output_tokens": 10}
+                model=getattr(settings, "GEMINI_ANALYSIS_MODEL", "gemini-3.5-flash-lite"),
+                contents=prompt,
+                config={"max_output_tokens": 10},
             )
             answer = response.text.strip().upper()
             return "YES" in answer

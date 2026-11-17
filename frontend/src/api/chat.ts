@@ -8,6 +8,11 @@ export interface SourceCitation {
   confidence_score?: number
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface ChatResponse {
   answer: string
   sources: SourceCitation[]
@@ -17,7 +22,11 @@ export interface ChatResponse {
   query: string
 }
 
-export async function sendChatMessage(query: string, department?: string): Promise<ChatResponse> {
+export async function sendChatMessage(
+  query: string,
+  department?: string,
+  history?: ChatMessage[]
+): Promise<ChatResponse> {
   const response = await fetch(`${API_BASE_URL}/chat`, {
     method: 'POST',
     headers: {
@@ -27,6 +36,7 @@ export async function sendChatMessage(query: string, department?: string): Promi
     body: JSON.stringify({
       query,
       department: department || null,
+      history: history || [],
     }),
   })
 

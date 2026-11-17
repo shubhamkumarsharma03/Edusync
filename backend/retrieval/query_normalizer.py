@@ -51,7 +51,9 @@ class CollegeQueryNormalizer:
         (re.compile(r"\b(mba)\b", re.IGNORECASE), "MBA Management Studies"),
         # Branch & Department terms
         (
-            re.compile(r"\b(i\.t\.|information\s+technology|b\.?tech\s+it|it\s+dept|it\s+branch)\b|\bIT\b"),
+            re.compile(
+                r"\b(i\.t\.|information\s+technology|b\.?tech\s+it|it\s+dept|it\s+branch)\b|\bIT\b"
+            ),
             "Information Technology IT",
         ),
         (
@@ -248,7 +250,9 @@ class CollegeQueryNormalizer:
         kw_clean = re.sub(r"\bmtech\b", "M.Tech", kw_clean, flags=re.IGNORECASE)
         kw_clean = re.sub(r"\bbtech\b", "B.Tech", kw_clean, flags=re.IGNORECASE)
         kw_clean = re.sub(r"\btt\b", "timetable", kw_clean, flags=re.IGNORECASE)
-        kw_clean = re.sub(r"\b(i\.t\.|information technology)\b|\bIT\b", "Information Technology", kw_clean)
+        kw_clean = re.sub(
+            r"\b(i\.t\.|information technology)\b|\bIT\b", "Information Technology", kw_clean
+        )
         kw_clean = re.sub(r"\bsem\b", "Semester", kw_clean, flags=re.IGNORECASE)
         kw_clean = re.sub(r"\bca\b", "CA", kw_clean, flags=re.IGNORECASE)
         kw_clean = re.sub(r"\bcb\b", "CB", kw_clean, flags=re.IGNORECASE)

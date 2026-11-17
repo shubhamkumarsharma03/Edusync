@@ -8,7 +8,6 @@ Create Date: 2026-11-03 20:41:00.000000
 
 from collections.abc import Sequence
 
-import sqlalchemy as sa
 from alembic import op
 
 # revision identifiers, used by Alembic.
@@ -41,4 +40,3 @@ def downgrade() -> None:
     op.execute("DROP INDEX IF EXISTS chunks_content_trgm_idx;")
     op.execute("DROP INDEX IF EXISTS chunks_tsv_idx;")
     op.execute("ALTER TABLE chunks DROP COLUMN IF EXISTS tsv;")
-
