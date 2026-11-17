@@ -1,0 +1,860 @@
+[
+  {
+    "id": "eval_01",
+    "category": "exact_wording",
+    "query": "VII Semester Practical Examination Reschedule notice",
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "rescheduled from 6th November 2026 to 4th November 2026",
+      "VII Sem CS, IT and Cyber"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_02",
+    "category": "paraphrase",
+    "query": "Has the 7th sem practical exam date been changed?",
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "preponed to 4th November 2026",
+      "previously scheduled on 6th November 2026"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_03",
+    "category": "short",
+    "query": "7 sem practical exam",
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "4th November 2026",
+      "CS, IT and Cyber"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_04",
+    "category": "typo",
+    "query": "resheduled 7th semster practcal examintion",
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "4th November 2026",
+      "6th November 2026"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_05",
+    "category": "hinglish",
+    "query": "7th sem practical exam kab hai?",
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "4th November 2026"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_06",
+    "category": "date",
+    "query": "What is the new date for 7th semester practical examination?",
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "4th November 2026"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_07",
+    "category": "two_part",
+    "query": "Who is the exam coordinator and when is the practical exam for 7th sem?",
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "Dr. Jyoti Gajrani",
+      "4th November 2026"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_08",
+    "category": "semester_specific",
+    "query": "Is there any practical exam reschedule notice for 7th semester CS IT students?",
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "preponed to 4th November 2026",
+      "Dr. S N Tazi"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_09",
+    "category": "exact_wording",
+    "query": "Workshop By AI/ML Club Why Cybersecurity Matters in the Age of Artificial Intelligence",
+    "expected_document_ids": [
+      "a84faf85-6e14-460a-b3fd-e95e00b089f3"
+    ],
+    "expected_facts": [
+      "26 October 2026",
+      "12:00 PM - 1:00 PM",
+      "Computer Center"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_10",
+    "category": "paraphrase",
+    "query": "Tell me about the upcoming AI and machine learning club session on cyber security",
+    "expected_document_ids": [
+      "a84faf85-6e14-460a-b3fd-e95e00b089f3"
+    ],
+    "expected_facts": [
+      "Why Cybersecurity Matters in the Age of Artificial Intelligence",
+      "26 October 2026"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_11",
+    "category": "short",
+    "query": "aiml workshop venue",
+    "expected_document_ids": [
+      "a84faf85-6e14-460a-b3fd-e95e00b089f3"
+    ],
+    "expected_facts": [
+      "Computer Center, Engineering College, Ajmer"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_12",
+    "category": "typo",
+    "query": "wrkshop by ai ml clb timing and vanue",
+    "expected_document_ids": [
+      "a84faf85-6e14-460a-b3fd-e95e00b089f3"
+    ],
+    "expected_facts": [
+      "12:00 PM - 1:00 PM",
+      "Computer Center"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_13",
+    "category": "hinglish",
+    "query": "ai ml club ki cybersecurity workshop kab aur kahan hogi?",
+    "expected_document_ids": [
+      "a84faf85-6e14-460a-b3fd-e95e00b089f3"
+    ],
+    "expected_facts": [
+      "26 October 2026",
+      "Computer Center"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_14",
+    "category": "date",
+    "query": "What is the registration deadline for the AI/ML club workshop?",
+    "expected_document_ids": [
+      "a84faf85-6e14-460a-b3fd-e95e00b089f3"
+    ],
+    "expected_facts": [
+      "25th October 2026"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_15",
+    "category": "two_part",
+    "query": "What is the date of the AI workshop and is attendance compulsory?",
+    "expected_document_ids": [
+      "a84faf85-6e14-460a-b3fd-e95e00b089f3"
+    ],
+    "expected_facts": [
+      "26 October 2026",
+      "Attendance is compulsory for registered participants"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_16",
+    "category": "follow_up",
+    "query": "Where do I register for this AI workshop?",
+    "expected_document_ids": [
+      "a84faf85-6e14-460a-b3fd-e95e00b089f3"
+    ],
+    "expected_facts": [
+      "https://forms.gle/eUtzEjNqwVUB2MkP9",
+      "Registration Link"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_17",
+    "category": "exact_wording",
+    "query": "Revised Constitution of Cyber Security club",
+    "expected_document_ids": [
+      "67d3743d-e6d2-46b8-9cae-19efbf33db06"
+    ],
+    "expected_facts": [
+      "Lavish Chouhan",
+      "session 2026-27",
+      "President"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_18",
+    "category": "paraphrase",
+    "query": "Who are the office bearers and president of the cyber security club?",
+    "expected_document_ids": [
+      "67d3743d-e6d2-46b8-9cae-19efbf33db06"
+    ],
+    "expected_facts": [
+      "President",
+      "Lavish Chouhan"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_19",
+    "category": "short",
+    "query": "cyber security club president",
+    "expected_document_ids": [
+      "67d3743d-e6d2-46b8-9cae-19efbf33db06"
+    ],
+    "expected_facts": [
+      "Lavish Chouhan"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_20",
+    "category": "hinglish",
+    "query": "cyber security club ka president kaun bana h?",
+    "expected_document_ids": [
+      "67d3743d-e6d2-46b8-9cae-19efbf33db06"
+    ],
+    "expected_facts": [
+      "Lavish Chouhan"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_21",
+    "category": "spanning_chunks",
+    "query": "What is the objective of the cyber security club and what post does Lavish Chouhan hold?",
+    "expected_document_ids": [
+      "67d3743d-e6d2-46b8-9cae-19efbf33db06"
+    ],
+    "expected_facts": [
+      "foster team spirit among students",
+      "enhance awareness and engagement in Cyber Security",
+      "President"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_22",
+    "category": "exact_wording",
+    "query": "B.Tech 3rd and 5th Sem (CS-A & CS-B), IT and Cyber 2nd Mid-Term Exam 2026 MAIN",
+    "expected_document_ids": [
+      "0f444a97-495e-4399-88d4-3ad794ea92ca"
+    ],
+    "expected_facts": [
+      "2nd Mid-Term Exam",
+      "3rd and 5th Sem",
+      "CS-A & CS-B, IT and Cyber"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_23",
+    "category": "semester_specific",
+    "query": "When is the 2nd mid term exam schedule for 3rd semester CS and IT?",
+    "expected_document_ids": [
+      "0f444a97-495e-4399-88d4-3ad794ea92ca"
+    ],
+    "expected_facts": [
+      "2nd Mid-Term Exam 2026 MAIN",
+      "3rd and 5th Sem"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_24",
+    "category": "hinglish",
+    "query": "cse 3rd sem ka second mid term timetable aaya kya?",
+    "expected_document_ids": [
+      "0f444a97-495e-4399-88d4-3ad794ea92ca"
+    ],
+    "expected_facts": [
+      "2nd Mid-Term Exam 2026 MAIN",
+      "Notice S.No: 2026WEB0838"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_25",
+    "category": "conflicting_or_superseded",
+    "query": "What is the notice about Programming and Competitive Coding PCC club?",
+    "expected_document_ids": [
+      "632e9daf-3313-4f4c-8237-b91dd62bcf45",
+      "a84faf85-6e14-460a-b3fd-e95e00b089f3"
+    ],
+    "expected_facts": [
+      "Programming and Competitive Coding (PCC) Club",
+      "2026WEB0858"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_26",
+    "category": "exact_wording",
+    "query": "Notice regarding Guidelines for black dot Mechanism of students",
+    "expected_document_ids": [
+      "e6bfa346-ee70-4e8a-900f-ef76f8739070"
+    ],
+    "expected_facts": [
+      "black dot Mechanism",
+      "Guidelines"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_27",
+    "category": "paraphrase",
+    "query": "What are the rules and guidelines for black dot punishment system for students?",
+    "expected_document_ids": [
+      "e6bfa346-ee70-4e8a-900f-ef76f8739070"
+    ],
+    "expected_facts": [
+      "Guidelines for black dot Mechanism",
+      "Discipline"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_28",
+    "category": "hinglish",
+    "query": "college me black dot system kya hota h?",
+    "expected_document_ids": [
+      "e6bfa346-ee70-4e8a-900f-ef76f8739070"
+    ],
+    "expected_facts": [
+      "black dot Mechanism"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_29",
+    "category": "exact_wording",
+    "query": "Urgent Notice for Kalpana Chawla Girl's Two-Wheeler Distribution Scheme 2025-26",
+    "expected_document_ids": [
+      "b7ae9537-6c3a-4598-97b2-c7afc0ee1e55"
+    ],
+    "expected_facts": [
+      "Kalpana Chawla Girl's Two-Wheeler Distribution Scheme",
+      "2025-26"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_30",
+    "category": "paraphrase",
+    "query": "How can female students get scooter under Kalpana Chawla scheme?",
+    "expected_document_ids": [
+      "b7ae9537-6c3a-4598-97b2-c7afc0ee1e55"
+    ],
+    "expected_facts": [
+      "Two-Wheeler Distribution Scheme",
+      "Kalpana Chawla"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_31",
+    "category": "fee",
+    "query": "Exam Form Filling for B Tech III Semester Main and Back Exam fee details",
+    "expected_document_ids": [
+      "77ebc331-ddda-4daf-bc1d-5cd0304a8cc8"
+    ],
+    "expected_facts": [
+      "Exam Form Filling",
+      "B Tech III Semester",
+      "fee"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_32",
+    "category": "hinglish",
+    "query": "3rd sem exam form ki fees kitni hai aur last date kya h?",
+    "expected_document_ids": [
+      "77ebc331-ddda-4daf-bc1d-5cd0304a8cc8"
+    ],
+    "expected_facts": [
+      "Exam Form",
+      "B Tech III Semester"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_33",
+    "category": "ocr_error",
+    "query": "Notice Regarding Withdrowal Students Befor Enrolment 2026-27",
+    "expected_document_ids": [
+      "af57f1ec-e75a-4882-8f82-877b05e9801b"
+    ],
+    "expected_facts": [
+      "Withdrawal Students Before Enrollment 2026-27"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_34",
+    "category": "exact_wording",
+    "query": "Notice Regarding Online Enrollment Forms for Newly Admitted Students Session 2026-27",
+    "expected_document_ids": [
+      "6b1928d5-db0c-4c88-b1e1-4574637f29e0"
+    ],
+    "expected_facts": [
+      "Online Enrollment Forms",
+      "Newly Admitted Students",
+      "2026-27"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_35",
+    "category": "conflicting_or_superseded",
+    "query": "What is the circular for B.Tech exam form filling for RTU and BTU?",
+    "expected_document_ids": [
+      "77ebc331-ddda-4daf-bc1d-5cd0304a8cc8",
+      "d3017228-dba2-4653-85bf-5d61db6a0f82"
+    ],
+    "expected_facts": [
+      "Exam Form",
+      "BTU",
+      "RTU"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_36",
+    "category": "unanswerable",
+    "query": "What is the fee for girls hostel room air conditioning in session 2029-30?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_37",
+    "category": "unanswerable",
+    "query": "When is the NASA astronaut visiting ECA auditorium for guest lecture?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_38",
+    "category": "unanswerable",
+    "query": "What is the syllabus for 9th semester aerospace engineering robotics?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_39",
+    "category": "unanswerable",
+    "query": "Can students pay college cafeteria bills using Bitcoin cryptocurrency?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_40",
+    "category": "unanswerable",
+    "query": "What is the bus fee from New York to Engineering College Ajmer?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_41",
+    "category": "near_miss_unanswerable",
+    "query": "What is the mid-term timetable for Mechanical Engineering 7th semester CAD lab?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_42",
+    "category": "near_miss_unanswerable",
+    "query": "When will the scholarship money of Post Matric Scheme 2026-27 be credited to bank accounts?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_43",
+    "category": "near_miss_unanswerable",
+    "query": "What is the fee for duplicate degree certificate from BTU Bikaner?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_44",
+    "category": "near_miss_unanswerable",
+    "query": "Is there any holiday declared for Diwali break 2026 for first year students?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_45",
+    "category": "near_miss_unanswerable",
+    "query": "What is the seating arrangement for Electrical Engineering back paper in Room 204?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_46",
+    "category": "near_miss_unanswerable",
+    "query": "How much is the bus transport fee from Vaishali Nagar to college for 2nd year?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_47",
+    "category": "near_miss_unanswerable",
+    "query": "What is the last date to deposit fee for M.Tech 1st semester thermal engineering?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_48",
+    "category": "near_miss_unanswerable",
+    "query": "Can 5th semester IT students apply for Google summer internship through TPO cell notice?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_49",
+    "category": "near_miss_unanswerable",
+    "query": "What are the rules for revaluation of RTU B.Tech 8th semester answer sheets?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_50",
+    "category": "near_miss_unanswerable",
+    "query": "Where can students collect identity card duplicate form from Proctor Section?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_51",
+    "category": "near_miss_unanswerable",
+    "query": "What is the registration fee for inter-college cricket tournament 2026-27?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_52",
+    "category": "near_miss_unanswerable",
+    "query": "Civil engineering 5th sem survey camp ki dates kya hain?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_53",
+    "category": "near_miss_unanswerable",
+    "query": "Gymnasium and sports complex timing for evening batch students?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_54",
+    "category": "near_miss_unanswerable",
+    "query": "What is the hostel mess rebate procedure if absent for more than 10 days?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_55",
+    "category": "near_miss_unanswerable",
+    "query": "Is laptop mandatory for AI and ML workshop registered students?",
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "tune"
+  },
+  {
+    "id": "eval_56",
+    "category": "conversational_followup",
+    "query": "What is the fee?",
+    "history": [
+      {
+        "role": "user",
+        "content": "Tell me about BTU 3rd sem main back exam form last date"
+      },
+      {
+        "role": "assistant",
+        "content": "The last date for BTU 3rd semester exam form is 10 Nov 2026."
+      }
+    ],
+    "expected_document_ids": [
+      "77ebc331-ddda-4daf-bc1d-5cd0304a8cc8"
+    ],
+    "expected_facts": [
+      "1800",
+      "Rs"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_57",
+    "category": "conversational_followup",
+    "query": "Is it extended?",
+    "history": [
+      {
+        "role": "user",
+        "content": "When is BTU 3rd semester exam form submission?"
+      },
+      {
+        "role": "assistant",
+        "content": "The exam form submission last date is November 10, 2026."
+      }
+    ],
+    "expected_document_ids": [
+      "77ebc331-ddda-4daf-bc1d-5cd0304a8cc8"
+    ],
+    "expected_facts": [
+      "BTU",
+      "exam form"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_58",
+    "category": "conversational_followup",
+    "query": "aur late fee kitna lagega after last date?",
+    "history": [
+      {
+        "role": "user",
+        "content": "What is the normal fee for BTU BTech 3rd sem exam?"
+      },
+      {
+        "role": "assistant",
+        "content": "Normal fee is Rs 1800."
+      }
+    ],
+    "expected_document_ids": [
+      "77ebc331-ddda-4daf-bc1d-5cd0304a8cc8"
+    ],
+    "expected_facts": [
+      "late fee"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_59",
+    "category": "conversational_followup",
+    "query": "which branches are eligible?",
+    "history": [
+      {
+        "role": "user",
+        "content": "What happened to 7th semester practical examination date?"
+      },
+      {
+        "role": "assistant",
+        "content": "The VII semester practical exam has been rescheduled to 4th November 2026."
+      }
+    ],
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "CS",
+      "IT",
+      "Cyber"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_60",
+    "category": "conversational_followup",
+    "query": "what was the old date earlier?",
+    "history": [
+      {
+        "role": "user",
+        "content": "Tell me about VII Sem Practical Exam Reschedule"
+      },
+      {
+        "role": "assistant",
+        "content": "It has been rescheduled to 4th November 2026."
+      }
+    ],
+    "expected_document_ids": [
+      "ba9b9ec5-01b3-4179-b725-68d6319867ce"
+    ],
+    "expected_facts": [
+      "6th November 2026",
+      "06.11.2026"
+    ],
+    "is_unanswerable": false,
+    "split": "holdout"
+  },
+  {
+    "id": "eval_61",
+    "category": "conversational_followup",
+    "query": "how can female students apply for it?",
+    "history": [
+      {
+        "role": "user",
+        "content": "Tell me about Kalpana Chawla scholarship notice"
+      },
+      {
+        "role": "assistant",
+        "content": "Kalpana Chawla scholarship scheme has been announced for eligible female students."
+      }
+    ],
+    "expected_document_ids": [
+      "b7ae9537-6c3a-4598-97b2-c7afc0ee1e55"
+    ],
+    "expected_facts": [
+      "Kalpana Chawla",
+      "scooty"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_62",
+    "category": "conversational_followup",
+    "query": "how many black dots lead to disciplinary action?",
+    "history": [
+      {
+        "role": "user",
+        "content": "What is the Proctor Section notice about student discipline and black dots?"
+      },
+      {
+        "role": "assistant",
+        "content": "Proctor section issued guidelines on student conduct and black dots."
+      }
+    ],
+    "expected_document_ids": [
+      "e6bfa346-ee70-4e8a-900f-ef76f8739070"
+    ],
+    "expected_facts": [
+      "black dot",
+      "disciplinary"
+    ],
+    "is_unanswerable": false,
+    "split": "tune"
+  },
+  {
+    "id": "eval_63",
+    "category": "conversational_unanswerable",
+    "query": "can I pay it using cryptocurrency?",
+    "history": [
+      {
+        "role": "user",
+        "content": "What is the fee for BTU 3rd sem exam form?"
+      },
+      {
+        "role": "assistant",
+        "content": "The fee is Rs 1800."
+      }
+    ],
+    "expected_document_ids": [],
+    "expected_facts": [],
+    "is_unanswerable": true,
+    "split": "holdout"
+  }
+]

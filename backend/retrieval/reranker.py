@@ -51,10 +51,12 @@ class CrossEncoderReranker:
             return self._model
         return self.get_model(self.model_name)
 
+    _loaded_models: dict[str, Any] = {}
+
     @classmethod
     def get_model(cls, model_name: str = DEFAULT_MODEL_NAME) -> Any:
-        """Lazy load CrossEncoder model as a singleton on CPU from local cache or Hub."""
-        if cls._model is None:
+        """Lazy load CrossEncoder model keyed by model_name on CPU from local cache or Hub."""
+        if model_name not in cls._loaded_models:
             from pathlib import Path
 
             from sentence_transformers import CrossEncoder
@@ -67,8 +69,8 @@ class CrossEncoderReranker:
             target = str(local_cache_path) if local_cache_path.exists() else model_name
 
             logger.info(f"Loading CrossEncoder reranker model '{target}' on CPU...")
-            cls._model = CrossEncoder(target, device="cpu")
-        return cls._model
+            cls._loaded_models[model_name] = CrossEncoder(target, device="cpu")
+        return cls._loaded_models[model_name]
 
     @staticmethod
     def sigmoid(logit: float) -> float:
@@ -85,13 +87,26 @@ class CrossEncoderReranker:
     ) -> list[RetrievedChunk]:
         """Asynchronously rerank candidate chunks.
 
-        Uses Jina Reranker v2 API when available, otherwise runs local CPU model in threadpool.
+        Strictly enforces the configured provider without silent masking:
+        - provider='jina': calls Jina AI API and fails loudly if an error occurs.
+        - provider='local': runs local CPU CrossEncoder in threadpool.
         """
         if not chunks or not query.strip():
             return list(chunks[:top_k])
 
-        if self.jina_reranker:
+        if self.provider == "jina":
+            if not self.jina_reranker:
+                raise RuntimeError(
+                    "Reranker provider 'jina' was explicitly configured but is not available or unauthenticated."
+                )
             return await self.jina_reranker.arerank(query=query, chunks=chunks, top_n=top_k)
+
+        if self.provider == "auto" and self.jina_reranker:
+            try:
+                return await self.jina_reranker.arerank(query=query, chunks=chunks, top_n=top_k)
+            except Exception as e:
+                logger.error(f"Jina reranker call failed in auto mode: {e}")
+                raise RuntimeError(f"Reranker failed loudly: {e}") from e
 
         import asyncio
 
@@ -103,14 +118,18 @@ class CrossEncoderReranker:
         chunks: Sequence[RetrievedChunk],
         top_k: int = 5,
     ) -> list[RetrievedChunk]:
-        """Rerank candidate chunks using Cross-Encoder semantic matching.
+        """Rerank candidate chunks using Cross-Encoder semantic matching on local CPU.
 
         Returns top_k chunks sorted by descending reranker score.
         """
         if not chunks or not query.strip():
             return list(chunks[:top_k])
 
-        if self.jina_reranker:
+        if self.provider == "jina":
+            if not self.jina_reranker:
+                raise RuntimeError(
+                    "Reranker provider 'jina' was explicitly configured but is not available."
+                )
             return self.jina_reranker.rerank(query=query, chunks=chunks, top_n=top_k)
 
         model = self.get_rerank_model()

@@ -105,6 +105,7 @@ class NoticeAnalyzer:
         semesters: list[str] | None,
         session: str | None,
         raw_slug: str | None = None,
+        topic: str | None = None,
     ) -> str:
         """Ensure the fingerprint is deterministic and lowercase."""
         if raw_slug and ":" in raw_slug:
@@ -121,6 +122,9 @@ class NoticeAnalyzer:
         )
         session_part = re.sub(r"[^0-9\-]", "", session) if session else "current"
         type_part = re.sub(r"[^a-z0-9]", "", notice_type.lower()) or "general"
+        topic_part = re.sub(r"[^a-z0-9]", "", (topic or "").lower())[:30]
+        if topic_part:
+            return f"{type_part}:{branch_part.lower()}:{sem_part}:{topic_part}:{session_part}"
         return f"{type_part}:{branch_part.lower()}:{sem_part}:{session_part}"
 
     @classmethod
@@ -170,7 +174,13 @@ class NoticeAnalyzer:
             title = clean_l[:120]
             break
 
-        fingerprint = cls._canonical_fingerprint(notice_type, branches, sems, None)
+        fingerprint = cls._canonical_fingerprint(
+            notice_type=notice_type,
+            branches=branches if branches else None,
+            semesters=sems if sems else None,
+            session=None,
+            topic=title,
+        )
 
         return NoticeMemoryData(
             notice_type=notice_type,

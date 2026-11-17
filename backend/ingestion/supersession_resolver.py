@@ -69,6 +69,24 @@ class SupersessionResolver:
         result = await session.execute(query)
         existing_matches = list(result.scalars().all())
 
+        # Guard: Generic fingerprints (e.g. without specific topic) must NOT supersede dissimilar notices
+        filtered_matches: list[NoticeMemory] = []
+        for match in existing_matches:
+            m_fp = memory_data.content_fingerprint
+            if ":all:all:" in m_fp or m_fp.endswith(":all:all:current"):
+                import re
+
+                old_words = set(re.findall(r"\b\w{4,}\b", match.title_summary.lower()))
+                new_words = set(re.findall(r"\b\w{4,}\b", memory_data.title_summary.lower()))
+                if not old_words.intersection(new_words):
+                    logger.info(
+                        f"Skipping false supersession between dissimilar notices with generic fingerprint: "
+                        f"'{match.title_summary}' vs '{memory_data.title_summary}'"
+                    )
+                    continue
+            filtered_matches.append(match)
+        existing_matches = filtered_matches
+
         # Check if already exists for this exact document (e.g. re-ingestion of updated doc)
         existing_doc_query = select(NoticeMemory).where(NoticeMemory.document_id == document_id)
         existing_self = (await session.execute(existing_doc_query)).scalar_one_or_none()
