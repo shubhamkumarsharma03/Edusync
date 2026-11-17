@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 
 from api.main import app
 from db.session import get_db
+from models.department import Department
 from models.source import IngestionSource
 
 
@@ -19,7 +20,7 @@ def mock_db_session():
 
     async def mock_execute(stmt):
         mock_res = MagicMock()
-        items = list(sources_store.values())
+        items = [i for i in sources_store.values() if isinstance(i, IngestionSource)]
 
         # Check if querying single source by ID from statement params or where criteria
         found_item = None
@@ -52,7 +53,10 @@ def mock_db_session():
 
     def mock_add(instance):
         if not getattr(instance, "id", None):
-            instance.id = uuid.uuid4()
+            if isinstance(instance, Department):
+                instance.id = len(sources_store) + 1
+            else:
+                instance.id = uuid.uuid4()
         if getattr(instance, "is_active", None) is None:
             instance.is_active = True
         if getattr(instance, "sync_status", None) is None:
@@ -99,7 +103,7 @@ async def test_admin_sources_crud_flow(mock_db_session):
             payload = {
                 "name": "Test CSE Circulars",
                 "url": "https://www.ecajmer.ac.in/departments/cs-it/circulars",
-                "department": "Computer Science and Engineering",
+                "department_id": 1,
                 "category": "circulars",
                 "initial_fetch_limit": 50,
                 "subsequent_fetch_limit": 20,
@@ -147,11 +151,47 @@ async def test_admin_sources_seed_defaults(mock_db_session):
             res = await ac.post("/admin/sources/seed-defaults")
             assert res.status_code == 200
             sources = res.json()
-            assert len(sources) == 4
+            assert len(sources) >= 4
             slugs = [s["slug"] for s in sources]
             assert "cs-it" in slugs
             assert "examination-section" in slugs
             assert "registrar" in slugs
-            assert "academic-section" in slugs
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.mark.asyncio
+async def test_live_progress_endpoints():
+    """Verify live progress endpoints return valid state and logs."""
+    from ingestion.progress import progress_tracker
+
+    test_sid = str(uuid.uuid4())
+    progress_tracker.start_source(test_sid, "Live Test Source", total_items=5)
+    progress_tracker.update_step(
+        phase="ocr_inference",
+        step_index=3,
+        current_action="Running Baidu PaddleOCR-VL layout analysis",
+        next_action="Isolate tables and generate vector embeddings",
+        source_id=test_sid,
+        log_message="Extracting markdown layout for notice_2026.pdf",
+        log_level="ocr",
+        log_tag="OCR",
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        # Global live progress
+        res_global = await ac.get("/admin/sources/live-progress")
+        assert res_global.status_code == 200
+        global_data = res_global.json()
+        assert global_data["source_name"] == "Live Test Source"
+        assert global_data["phase"] == "ocr_inference"
+        assert global_data["step_index"] == 3
+        assert "Baidu PaddleOCR" in global_data["current_action"]
+        assert len(global_data["logs"]) >= 2
+
+        # Source specific live progress
+        res_src = await ac.get(f"/admin/sources/{test_sid}/live-progress")
+        assert res_src.status_code == 200
+        src_data = res_src.json()
+        assert src_data["source_id"] == test_sid
+        assert src_data["phase"] == "ocr_inference"

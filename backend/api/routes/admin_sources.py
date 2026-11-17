@@ -6,12 +6,14 @@ from uuid import UUID
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from db.session import get_db
 from ingestion.fetchers.ecajmer_fetcher import ECAjmerFetcher
 from models.chunk import Chunk
+from models.department import Department
 from models.document import Document
 from models.source import IngestionSource
 
@@ -23,7 +25,7 @@ router = APIRouter(prefix="/admin/sources", tags=["Admin Sources"])
 class SourceBase(BaseModel):
     name: str = Field(..., description="Display name for the source")
     url: str = Field(..., description="Source URL on ecajmer.ac.in or institutional portal")
-    department: str | None = Field(None, description="Associated department name")
+    department_id: int | None = Field(None, description="Associated department ID")
     category: str = Field("circulars", description="Notice category: circulars or timetable")
     slug: str | None = Field(None, description="URL slug e.g. cs-it, ce, registrar")
     priority: int | None = Field(None, description="Sequential priority rank (1, 2, 3...)")
@@ -39,7 +41,7 @@ class SourceCreate(SourceBase):
 class SourceUpdate(BaseModel):
     name: str | None = None
     url: str | None = None
-    department: str | None = None
+    department_id: int | None = None
     category: str | None = None
     slug: str | None = None
     priority: int | None = None
@@ -133,20 +135,30 @@ async def create_source(
 
     # Auto-extract slug and department if missing
     slug_val = payload.slug
-    dept_val = payload.department
+    dept_id = payload.department_id
     cat_val = payload.category
 
-    if not slug_val or not dept_val:
+    if not slug_val or not dept_id:
         extracted_slug, cat_id, extracted_dept = ECAjmerFetcher.parse_url(payload.url)
         slug_val = slug_val or extracted_slug
-        dept_val = dept_val or extracted_dept
+        if not dept_id and extracted_dept:
+            dept_stmt = select(Department).where(Department.name == extracted_dept)
+            dept_record = (await session.execute(dept_stmt)).scalar_one_or_none()
+            if not dept_record:
+                dept_record = Department(
+                    name=extracted_dept, slug=extracted_slug, category="department"
+                )
+                session.add(dept_record)
+                await session.flush()
+            dept_id = dept_record.id
+
         if not payload.category:
             cat_val = "timetable" if cat_id == 2 else "circulars"
 
     new_source = IngestionSource(
         name=payload.name,
         url=payload.url,
-        department=dept_val,
+        department_id=dept_id,
         category=cat_val,
         slug=slug_val,
         priority=priority_val,
@@ -160,6 +172,15 @@ async def create_source(
     await session.commit()
     await session.refresh(new_source)
     return new_source
+
+
+@router.get("/live-progress")
+async def get_global_live_progress() -> dict:
+    """Retrieve real-time pipeline execution progress across all sources."""
+    from ingestion.progress import progress_tracker
+
+    state = progress_tracker.get_state()
+    return state.model_dump()
 
 
 @router.get("/{source_id}", response_model=SourceResponse)
@@ -259,6 +280,29 @@ async def trigger_source_fetch(
     }
 
 
+@router.post("/{source_id}/pause")
+async def pause_source_fetch(
+    source_id: UUID,
+    session: AsyncSession = Depends(get_db),
+) -> dict:
+    """Pause / cancel an in-progress ingestion task for a source."""
+    from ingestion.tasks import cancel_fetch_source
+
+    stmt = select(IngestionSource).where(IngestionSource.id == source_id)
+    res = await session.execute(stmt)
+    source = res.scalar_one_or_none()
+    if not source:
+        raise HTTPException(status_code=404, detail="Source not found")
+
+    cancelled = await cancel_fetch_source(source_id)
+    return {
+        "status": "paused",
+        "source_id": str(source_id),
+        "source_name": source.name,
+        "task_cancelled": cancelled,
+    }
+
+
 @router.post("/fetch-all")
 async def trigger_fetch_all() -> dict:
     """Trigger prioritized ingestion across all active sources."""
@@ -282,12 +326,20 @@ async def seed_default_sources(
     """One-click preload all official departments and sections from ecajmer.ac.in."""
     # Keep 4 core links hardcoded for instant prefetching & seeding
     default_sources = [
+        # Cells
         (
-            "CSE Circulars",
-            "https://www.ecajmer.ac.in/departments/cs-it/circulars",
-            "Computer Science and Engineering",
+            "Registrar Circulars & Orders",
+            "https://www.ecajmer.ac.in/ui/cells/registrar/circulars",
+            "Registrar Section",
             "circulars",
-            "cs-it",
+            "registrar",
+        ),
+        (
+            "Accounts Section Circulars",
+            "https://www.ecajmer.ac.in/ui/cells/accounts/circulars",
+            "Accounts Section",
+            "circulars",
+            "accounts",
         ),
         (
             "Examination Section Circulars",
@@ -297,22 +349,206 @@ async def seed_default_sources(
             "examination-section",
         ),
         (
-            "Registrar Circulars",
-            "https://www.ecajmer.ac.in/ui/cells/registrar/circulars",
-            "Registrar Section",
-            "circulars",
-            "registrar",
-        ),
-        (
             "Academic Section Notices",
             "https://www.ecajmer.ac.in/ui/cells/academic-section/circulars",
             "Academic Section",
             "circulars",
             "academic-section",
         ),
+        (
+            "Proctor Section Circulars",
+            "https://www.ecajmer.ac.in/ui/cells/proctor/circulars",
+            "Proctor Section",
+            "circulars",
+            "proctor",
+        ),
+        (
+            "First Year Circulars",
+            "https://www.ecajmer.ac.in/ui/cells/first-year/circulars",
+            "First Year",
+            "circulars",
+            "first-year",
+        ),
+        (
+            "Central Library",
+            "https://www.ecajmer.ac.in/ui/cells/central-library/circulars",
+            "Central Library",
+            "circulars",
+            "central-library",
+        ),
+        (
+            "Mandatory Disclosure",
+            "https://ecajmer.ac.in/mandatorydisclousure",
+            "General Admin",
+            "general_html",
+            "mandatory-disclosure",
+        ),
+        # Branches
+        (
+            "CE Circulars",
+            "https://www.ecajmer.ac.in/departments/ce/circulars",
+            "Civil Engineering",
+            "circulars",
+            "ce",
+        ),
+        (
+            "CE Timetable",
+            "https://www.ecajmer.ac.in/departments/ce/timetable",
+            "Civil Engineering",
+            "timetable",
+            "ce",
+        ),
+        (
+            "Chemistry Circulars",
+            "https://www.ecajmer.ac.in/departments/chemistry/circulars",
+            "Chemistry",
+            "circulars",
+            "chemistry",
+        ),
+        (
+            "CS-IT Circulars",
+            "https://www.ecajmer.ac.in/departments/cs-it/circulars",
+            "Computer Science and Engineering",
+            "circulars",
+            "cs-it",
+        ),
+        (
+            "CS-IT Timetable",
+            "https://www.ecajmer.ac.in/departments/cs-it/timetable",
+            "Computer Science and Engineering",
+            "timetable",
+            "cs-it",
+        ),
+        (
+            "ECE Circulars",
+            "https://www.ecajmer.ac.in/departments/ece/circulars",
+            "Electronics & Communication Engineering",
+            "circulars",
+            "ece",
+        ),
+        (
+            "ECE Timetable",
+            "https://www.ecajmer.ac.in/departments/ece/timetable",
+            "Electronics & Communication Engineering",
+            "timetable",
+            "ece",
+        ),
+        (
+            "Economy Circulars",
+            "https://www.ecajmer.ac.in/departments/economy/circulars",
+            "Humanities and Social Sciences",
+            "circulars",
+            "economy",
+        ),
+        (
+            "EE Circulars",
+            "https://www.ecajmer.ac.in/departments/ee/circulars",
+            "Electrical Engineering",
+            "circulars",
+            "ee",
+        ),
+        (
+            "EE Timetable",
+            "https://www.ecajmer.ac.in/departments/ee/timetable",
+            "Electrical Engineering",
+            "timetable",
+            "ee",
+        ),
+        (
+            "EIC Circulars",
+            "https://www.ecajmer.ac.in/departments/eic/circulars",
+            "Electronic Instrumentation & Control",
+            "circulars",
+            "eic",
+        ),
+        (
+            "EIC Timetable",
+            "https://www.ecajmer.ac.in/departments/eic/timetable",
+            "Electronic Instrumentation & Control",
+            "timetable",
+            "eic",
+        ),
+        (
+            "English Circulars",
+            "https://www.ecajmer.ac.in/departments/english/circulars",
+            "English & Humanities",
+            "circulars",
+            "english",
+        ),
+        (
+            "Maths Circulars",
+            "https://www.ecajmer.ac.in/departments/maths/circulars",
+            "Mathematics",
+            "circulars",
+            "maths",
+        ),
+        (
+            "MBA Circulars",
+            "https://www.ecajmer.ac.in/departments/mba/circulars",
+            "Management Studies (MBA)",
+            "circulars",
+            "mba",
+        ),
+        (
+            "MCA Circulars",
+            "https://www.ecajmer.ac.in/departments/mca/circulars",
+            "Computer Applications (MCA)",
+            "circulars",
+            "mca",
+        ),
+        (
+            "ME Circulars",
+            "https://www.ecajmer.ac.in/departments/me/circulars",
+            "Mechanical Engineering",
+            "circulars",
+            "me",
+        ),
+        (
+            "ME Timetable",
+            "https://www.ecajmer.ac.in/departments/me/timetable",
+            "Mechanical Engineering",
+            "timetable",
+            "me",
+        ),
+        (
+            "Physics Circulars",
+            "https://www.ecajmer.ac.in/departments/physics/circulars",
+            "Physics",
+            "circulars",
+            "physics",
+        ),
+        # Others
+        (
+            "Training and Placement (TPO)",
+            "https://tpo.ecajmer.ac.in/all-news",
+            "Training & Placement Office",
+            "circulars",
+            "tpo",
+        ),
     ]
 
+    valid_urls = [s[1] for s in default_sources]
+
     for idx, (name, url, dept, cat, slug) in enumerate(default_sources, start=1):
+        # Check and get/create department
+        dept_stmt = select(Department).where(Department.name == dept)
+        dept_record = (await session.execute(dept_stmt)).scalar_one_or_none()
+        if not dept_record:
+            dept_record = Department(
+                name=dept,
+                slug=slug,
+                category=(
+                    "department"
+                    if "Engineering" in dept
+                    or "Physics" in dept
+                    or "Chemistry" in dept
+                    or "Mathematics" in dept
+                    else "administration"
+                ),
+            )
+            session.add(dept_record)
+            await session.flush()
+
         # Check if already exists
         check_stmt = select(IngestionSource).where(IngestionSource.url == url)
         existing = (await session.execute(check_stmt)).scalar_one_or_none()
@@ -320,7 +556,7 @@ async def seed_default_sources(
             src = IngestionSource(
                 name=name,
                 url=url,
-                department=dept,
+                department_id=dept_record.id,
                 category=cat,
                 slug=slug,
                 priority=idx,
@@ -330,7 +566,12 @@ async def seed_default_sources(
                 is_active=True,
             )
             session.add(src)
+        else:
+            if existing.department_id is None:
+                existing.department_id = dept_record.id
 
+    # Prune any extraneous sources not in the official 28
+    await session.execute(delete(IngestionSource).where(~IngestionSource.url.in_(valid_urls)))
     await session.commit()
     return await list_sources(session)
 
@@ -376,17 +617,19 @@ async def list_source_documents(
     session: AsyncSession = Depends(get_db),
 ) -> SourceDocumentsListResponse:
     """Retrieve documents stored in PostgreSQL DB that were ingested for this source."""
-    stmt = select(IngestionSource).where(IngestionSource.id == source_id)
+    stmt = (
+        select(IngestionSource)
+        .options(selectinload(IngestionSource.department_rel))
+        .where(IngestionSource.id == source_id)
+    )
     res = await session.execute(stmt)
     source = res.scalar_one_or_none()
     if not source:
         raise HTTPException(status_code=404, detail="Source not found")
 
     conds = []
-    if source.department:
-        conds.append(Document.department.ilike(f"%{source.department}%"))
-        if "computer" in source.department.lower():
-            conds.append(Document.department.ilike("%cse%"))
+    if source.department_id is not None:
+        conds.append(Document.department_id == source.department_id)
     if source.url:
         conds.append(Document.source_url.ilike(f"%{source.url}%"))
 
@@ -401,15 +644,20 @@ async def list_source_documents(
                 base_filter,
                 or_(
                     Document.source_url.ilike(term),
-                    Document.department.ilike(term),
                     Chunk.content.ilike(term),
                 ),
             )
             .distinct()
         )
-        base_query = select(Document).where(Document.id.in_(matching_subq))
+        base_query = (
+            select(Document)
+            .options(selectinload(Document.department_rel))
+            .where(Document.id.in_(matching_subq))
+        )
     else:
-        base_query = select(Document).where(base_filter)
+        base_query = (
+            select(Document).options(selectinload(Document.department_rel)).where(base_filter)
+        )
 
     count_stmt = select(func.count()).select_from(base_query.subquery())
     total = (await session.execute(count_stmt)).scalar() or 0
@@ -427,12 +675,17 @@ async def list_source_documents(
         chunk_stmt = select(Chunk).where(Chunk.document_id == d.id).order_by(Chunk.id.asc())
         chunks = (await session.execute(chunk_stmt)).scalars().all()
         title, sno, date, preview = _extract_notice_meta(chunks, d.source_url)
+        dept_name = (
+            d.department_rel.name
+            if d.department_rel
+            else (source.department_rel.name if source.department_rel else None)
+        )
         doc_items.append(
             IngestedDocumentResponse(
                 id=d.id,
                 source_url=d.source_url,
                 source_type=d.source_type,
-                department=d.department,
+                department=dept_name,
                 title=title,
                 notice_sno=sno,
                 notice_date=date,
@@ -510,3 +763,12 @@ async def get_source_live_feed(
         logger.warning(f"Could not fetch live feed from {remote_url}: {e}")
 
     return {"success": False, "data": [], "pagination": {"totalItems": 0}}
+
+
+@router.get("/{source_id}/live-progress")
+async def get_source_live_progress(source_id: UUID) -> dict:
+    """Retrieve real-time pipeline execution progress specifically for a source."""
+    from ingestion.progress import progress_tracker
+
+    state = progress_tracker.get_state(source_id)
+    return state.model_dump()

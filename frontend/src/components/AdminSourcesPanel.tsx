@@ -13,6 +13,7 @@ import {
   Layers,
   Database,
   Play,
+  Pause,
   X,
   Sparkles,
   Bot,
@@ -26,6 +27,8 @@ import {
   FileCode,
 } from 'lucide-react'
 
+import { LivePipelineModal } from './LivePipelineModal'
+
 import {
   IngestionSource,
   SourceCreatePayload,
@@ -37,6 +40,7 @@ import {
   deleteSource,
   reorderSources,
   triggerFetchSource,
+  pauseFetchSource,
   triggerFetchAll,
   seedDefaultSources,
   getSourceDocuments,
@@ -55,34 +59,39 @@ export interface HardcodedPrefetchSource {
 
 // 4 Hardcoded Core Sources kept for fast one-click prefetching & seeding
 export const HARDCODED_PREFETCH_SOURCES: HardcodedPrefetchSource[] = [
-  {
-    name: 'CSE Circulars',
-    url: 'https://www.ecajmer.ac.in/departments/cs-it/circulars',
-    department: 'Computer Science and Engineering',
-    category: 'circulars',
-    deptId: 1,
-  },
-  {
-    name: 'Examination Section Circulars',
-    url: 'https://www.ecajmer.ac.in/ui/cells/examination-section/circulars',
-    department: 'Examination Section',
-    category: 'circulars',
-    deptId: 2,
-  },
-  {
-    name: 'Registrar Circulars & Orders',
-    url: 'https://www.ecajmer.ac.in/ui/cells/registrar/circulars',
-    department: 'Registrar Section',
-    category: 'circulars',
-    deptId: 3,
-  },
-  {
-    name: 'Academic Section Notices',
-    url: 'https://www.ecajmer.ac.in/ui/cells/academic-section/circulars',
-    department: 'Academic Section',
-    category: 'circulars',
-    deptId: 4,
-  },
+  // Cells
+  { name: 'Registrar Circulars & Orders', url: 'https://www.ecajmer.ac.in/ui/cells/registrar/circulars', department: 'Registrar Section', category: 'circulars', deptId: 3 },
+  { name: 'Accounts Section Circulars', url: 'https://www.ecajmer.ac.in/ui/cells/accounts/circulars', department: 'Accounts Section', category: 'circulars', deptId: 16 },
+  { name: 'Examination Section Circulars', url: 'https://www.ecajmer.ac.in/ui/cells/examination-section/circulars', department: 'Examination Section', category: 'circulars', deptId: 2 },
+  { name: 'Academic Section Notices', url: 'https://www.ecajmer.ac.in/ui/cells/academic-section/circulars', department: 'Academic Section', category: 'circulars', deptId: 4 },
+  { name: 'Proctor Section Circulars', url: 'https://www.ecajmer.ac.in/ui/cells/proctor/circulars', department: 'Proctor Section', category: 'circulars', deptId: 17 },
+  { name: 'First Year Circulars', url: 'https://www.ecajmer.ac.in/ui/cells/first-year/circulars', department: 'First Year', category: 'circulars', deptId: 21 },
+  { name: 'Central Library', url: 'https://www.ecajmer.ac.in/ui/cells/central-library/circulars', department: 'Central Library', category: 'circulars', deptId: 19 },
+  { name: 'Mandatory Disclosure', url: 'https://ecajmer.ac.in/mandatorydisclousure', department: 'General Admin', category: 'general_html', deptId: 23 },
+
+  // Branches
+  { name: 'CE Circulars', url: 'https://www.ecajmer.ac.in/departments/ce/circulars', department: 'Civil Engineering', category: 'circulars', deptId: 5 },
+  { name: 'CE Timetable', url: 'https://www.ecajmer.ac.in/departments/ce/timetable', department: 'Civil Engineering', category: 'timetable', deptId: 5 },
+  { name: 'Chemistry Circulars', url: 'https://www.ecajmer.ac.in/departments/chemistry/circulars', department: 'Chemistry', category: 'circulars', deptId: 13 },
+  { name: 'CS-IT Circulars', url: 'https://www.ecajmer.ac.in/departments/cs-it/circulars', department: 'Computer Science and Engineering', category: 'circulars', deptId: 1 },
+  { name: 'CS-IT Timetable', url: 'https://www.ecajmer.ac.in/departments/cs-it/timetable', department: 'Computer Science and Engineering', category: 'timetable', deptId: 1 },
+  { name: 'ECE Circulars', url: 'https://www.ecajmer.ac.in/departments/ece/circulars', department: 'Electronics & Communication Engineering', category: 'circulars', deptId: 7 },
+  { name: 'ECE Timetable', url: 'https://www.ecajmer.ac.in/departments/ece/timetable', department: 'Electronics & Communication Engineering', category: 'timetable', deptId: 7 },
+  { name: 'Economy Circulars', url: 'https://www.ecajmer.ac.in/departments/economy/circulars', department: 'Humanities and Social Sciences', category: 'circulars', deptId: 22 },
+  { name: 'EE Circulars', url: 'https://www.ecajmer.ac.in/departments/ee/circulars', department: 'Electrical Engineering', category: 'circulars', deptId: 6 },
+  { name: 'EE Timetable', url: 'https://www.ecajmer.ac.in/departments/ee/timetable', department: 'Electrical Engineering', category: 'timetable', deptId: 6 },
+  { name: 'EIC Circulars', url: 'https://www.ecajmer.ac.in/departments/eic/circulars', department: 'Electronic Instrumentation & Control', category: 'circulars', deptId: 9 },
+  { name: 'EIC Timetable', url: 'https://www.ecajmer.ac.in/departments/eic/timetable', department: 'Electronic Instrumentation & Control', category: 'timetable', deptId: 9 },
+  { name: 'English Circulars', url: 'https://www.ecajmer.ac.in/departments/english/circulars', department: 'English & Humanities', category: 'circulars', deptId: 15 },
+  { name: 'Maths Circulars', url: 'https://www.ecajmer.ac.in/departments/maths/circulars', department: 'Mathematics', category: 'circulars', deptId: 14 },
+  { name: 'MBA Circulars', url: 'https://www.ecajmer.ac.in/departments/mba/circulars', department: 'Management Studies (MBA)', category: 'circulars', deptId: 11 },
+  { name: 'MCA Circulars', url: 'https://www.ecajmer.ac.in/departments/mca/circulars', department: 'Computer Applications (MCA)', category: 'circulars', deptId: 10 },
+  { name: 'ME Circulars', url: 'https://www.ecajmer.ac.in/departments/me/circulars', department: 'Mechanical Engineering', category: 'circulars', deptId: 8 },
+  { name: 'ME Timetable', url: 'https://www.ecajmer.ac.in/departments/me/timetable', department: 'Mechanical Engineering', category: 'timetable', deptId: 8 },
+  { name: 'Physics Circulars', url: 'https://www.ecajmer.ac.in/departments/physics/circulars', department: 'Physics', category: 'circulars', deptId: 12 },
+
+  // Others
+  { name: 'Training and Placement (TPO)', url: 'https://tpo.ecajmer.ac.in/all-news', department: 'Training & Placement Office', category: 'circulars', deptId: 18 },
 ]
 
 
@@ -149,10 +158,19 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     category: 'Engineering',
   })
 
+  // Live Pipeline Inspector Modal State
+  const [isLiveInspectorOpen, setIsLiveInspectorOpen] = useState(false)
+  const [liveInspectorSource, setLiveInspectorSource] = useState<{ id?: string; name?: string } | null>(null)
+
+  const handleOpenLiveInspector = (id?: string, name?: string) => {
+    setLiveInspectorSource({ id, name })
+    setIsLiveInspectorOpen(true)
+  }
+
   const [formData, setFormData] = useState<SourceCreatePayload>({
     name: '',
     url: '',
-    department: 'Computer Science and Engineering',
+    department_id: undefined,
     category: 'circulars',
     priority: 1,
     is_active: true,
@@ -191,7 +209,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
       const created = await createDepartment(newDeptForm)
       showNotice(`Created department #${created.id}: ${created.name}`)
       await loadDepartments()
-      setFormData((prev) => ({ ...prev, department: created.name }))
+      setFormData((prev) => ({ ...prev, department_id: created.id }))
       setNewDeptModalOpen(false)
       setNewDeptForm({ name: '', code: '', category: 'Engineering' })
     } catch (err: any) {
@@ -204,13 +222,13 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     loadDepartments()
   }, [])
 
-  // Auto-poll every 2.5 seconds when any source is actively in "fetching" state
+  // Auto-poll every 5 seconds when any source is actively in "fetching" state
   useEffect(() => {
     const hasActiveFetching = sources.some((s) => s.status === 'fetching')
     if (hasActiveFetching) {
       const interval = setInterval(() => {
         loadSources(false)
-      }, 2500)
+      }, 5000)
       return () => clearInterval(interval)
     }
   }, [sources])
@@ -227,7 +245,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setFormData({
       name: '',
       url: '',
-      department: 'Computer Science and Engineering',
+      department_id: undefined,
       category: 'circulars',
       priority: nextPriority,
       is_active: true,
@@ -242,7 +260,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setFormData({
       name: src.name,
       url: src.url,
-      department: src.department || '',
+      department_id: src.department_id || undefined,
       category: src.category,
       priority: src.priority,
       is_active: src.is_active,
@@ -257,7 +275,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setFormData({
       name: preset.name,
       url: preset.url,
-      department: preset.department,
+      department_id: preset.deptId,
       category: preset.category,
       priority: nextPriority,
       is_active: true,
@@ -329,11 +347,33 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const handleFetchSingle = async (id: string, name: string) => {
     try {
       setActionLoading(id)
+      // Optimistically flip status to fetching so Pause button and Fetching pill appear immediately
+      setSources((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status: 'fetching' } : s))
+      )
       await triggerFetchSource(id)
-      showNotice(`Triggered ingestion for "${name}" (50 on initial / 20 on recur)`)
+      showNotice(`Triggered ingestion for "${name}"`)
       setTimeout(loadSources, 2000)
     } catch (err: any) {
       showNotice(err.message || 'Fetch trigger failed', 'error')
+      loadSources()
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handlePauseSingle = async (id: string, name: string) => {
+    try {
+      setActionLoading(id)
+      setSources((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, status: 'idle' } : s))
+      )
+      await pauseFetchSource(id)
+      showNotice(`Paused ingestion for "${name}"`)
+      setTimeout(loadSources, 500)
+    } catch (err: any) {
+      showNotice(err.message || 'Failed to pause fetching', 'error')
+      loadSources()
     } finally {
       setActionLoading(null)
     }
@@ -342,11 +382,15 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
   const handleFetchAll = async () => {
     try {
       setActionLoading('all')
+      setSources((prev) =>
+        prev.map((s) => (s.is_active ? { ...s, status: 'fetching' } : s))
+      )
       await triggerFetchAll()
       showNotice('Queued prioritized batch ingestion across all active sources!')
-      setTimeout(loadSources, 3000)
+      setTimeout(loadSources, 2500)
     } catch (err: any) {
       showNotice(err.message || 'Batch fetch trigger failed', 'error')
+      loadSources()
     } finally {
       setActionLoading(null)
     }
@@ -413,6 +457,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     setLiveSearchQuery('')
     setExplorerOpen(true)
     loadDbDocuments(src, 1, 10, '')
+    fetchLiveEcaCirculars(src, 1, 10, '')
   }
 
   const handleOpenChunks = async (doc: IngestedDocumentItem) => {
@@ -435,8 +480,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
     const matchesSearch =
       src.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       src.url.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (src.department && src.department.toLowerCase().includes(searchQuery.toLowerCase()))
-    const matchesDept = selectedDeptFilter === 'all' || src.department === selectedDeptFilter
+      (src.department_id && departments.find(d => d.id === src.department_id)?.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    const matchesDept = selectedDeptFilter === 'all' || src.department_id?.toString() === selectedDeptFilter
     return matchesSearch && matchesDept
   })
 
@@ -591,29 +636,6 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               </button>
             </div>
           </div>
-
-          {/* Live Active Synchronization Status Banner */}
-          {sources.some((s) => s.status === 'fetching') && (
-            <div className="bg-indigo-50/90 border border-indigo-200 rounded-xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-indigo-950 shadow-sm animate-pulse">
-              <div className="flex items-center gap-2.5">
-                <span className="relative flex h-2.5 w-2.5">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
-                </span>
-                <span className="font-bold text-indigo-900">
-                  Data Synchronization Active:
-                </span>
-                <span className="text-indigo-800">
-                  Currently syncing & embedding: <strong className="underline">{sources.find((s) => s.status === 'fetching')?.name || 'next source in queue'}</strong>
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-semibold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-md border border-indigo-200">
-                  Auto-Syncing (2.5s)
-                </span>
-              </div>
-            </div>
-          )}
 
 
           {/* Toast Notification */}
@@ -859,7 +881,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                         {/* Department */}
                         <td className="py-3.5 px-3">
                           <span className="inline-block px-2.5 py-1 bg-neutral-100 border border-neutral-200 rounded-lg text-neutral-700 text-[11px] font-medium">
-                            {src.department || 'General'}
+                            {departments.find(d => d.id === src.department_id)?.name || 'General'}
                           </span>
                         </td>
 
@@ -882,31 +904,44 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                           <span className="text-indigo-600 font-semibold">{src.subsequent_fetch_limit}</span> Recur
                         </td>
 
-                        {/* Status Badge */}
+                        {/* Status Badge - Clickable to open live pipeline inspector */}
                         <td className="py-3.5 px-3 text-center">
                           {src.status === 'fetching' ? (
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[11px] font-medium animate-pulse">
+                            <button
+                              onClick={() => handleOpenLiveInspector(src.id, src.name)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[11px] font-medium animate-pulse cursor-pointer shadow-xs transition hover:scale-105 active:scale-95"
+                              title="Click to view live backend working & step-by-step progress"
+                            >
                               <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />
-                              Fetching...
-                            </span>
+                              <span>Fetching...</span>
+                            </button>
                           ) : src.status === 'completed' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-medium">
+                            <button
+                              onClick={() => handleOpenLiveInspector(src.id, src.name)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-medium cursor-pointer transition hover:scale-105"
+                              title="Click to inspect pipeline run logs"
+                            >
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                              Fresh
-                            </span>
+                              <span>Fresh</span>
+                            </button>
                           ) : src.status === 'error' ? (
-                            <span
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[11px] font-medium"
-                              title={src.error_message || 'Fetch error'}
+                            <button
+                              onClick={() => handleOpenLiveInspector(src.id, src.name)}
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-full text-[11px] font-medium cursor-pointer transition hover:scale-105"
+                              title={src.error_message || 'Fetch error - click to inspect error logs'}
                             >
                               <AlertCircle className="w-3 h-3 text-rose-600" />
-                              Error
-                            </span>
+                              <span>Error</span>
+                            </button>
                           ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-neutral-100 text-neutral-500 rounded-full text-[11px]">
+                            <button
+                              onClick={() => handleOpenLiveInspector(src.id, src.name)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-600 rounded-full text-[11px] cursor-pointer transition"
+                              title="Click to view pipeline status"
+                            >
                               <Clock className="w-3 h-3" />
-                              Idle
-                            </span>
+                              <span>Idle</span>
+                            </button>
                           )}
                         </td>
 
@@ -925,14 +960,25 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                         {/* Actions */}
                         <td className="py-3.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleFetchSingle(src.id, src.name)}
-                              disabled={actionLoading === src.id}
-                              className="p-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg border border-indigo-200 transition disabled:opacity-40"
-                              title="Fetch & Embed now"
-                            >
-                              <Play className="w-3.5 h-3.5 fill-current" />
-                            </button>
+                            {src.status === 'fetching' ? (
+                              <button
+                                onClick={() => handlePauseSingle(src.id, src.name)}
+                                disabled={actionLoading === src.id}
+                                className="p-1.5 bg-amber-50 hover:bg-amber-600 text-amber-600 hover:text-white rounded-lg border border-amber-200 transition disabled:opacity-40 animate-pulse"
+                                title="Pause / Stop fetching"
+                              >
+                                <Pause className="w-3.5 h-3.5 fill-current" />
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => handleFetchSingle(src.id, src.name)}
+                                disabled={actionLoading === src.id}
+                                className="p-1.5 bg-indigo-50 hover:bg-indigo-600 text-indigo-600 hover:text-white rounded-lg border border-indigo-200 transition disabled:opacity-40"
+                                title="Fetch & Embed now"
+                              >
+                                <Play className="w-3.5 h-3.5 fill-current" />
+                              </button>
+                            )}
                             <button
                               onClick={() => handleOpenEdit(src)}
                               className="p-1.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg transition border border-neutral-200"
@@ -975,7 +1021,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                       {explorerSource.name}
                     </h3>
                     <span className="text-[11px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 font-semibold border border-indigo-200">
-                      {explorerSource.department || 'General'}
+                      {departments.find(d => d.id === explorerSource.department_id)?.name || 'General'}
                     </span>
                   </div>
                   <p className="text-xs text-neutral-500 mt-0.5 flex items-center gap-1.5 truncate max-w-xl">
@@ -1562,8 +1608,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                       </button>
                     </div>
                     <select
-                      value={formData.department || ''}
-                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                      value={formData.department_id || ''}
+                      onChange={(e) => setFormData({ ...formData, department_id: parseInt(e.target.value) || undefined })}
                       className="w-full px-3 py-2 bg-[#f8f9fa] border border-[#e4e4e7] rounded-xl text-xs text-[#18181b] focus:outline-none"
                     >
                       {departmentsLoading ? (
@@ -1719,7 +1765,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                         <span className="font-medium text-neutral-800 truncate max-w-[280px]">
                           #{idx + 1}. {s.name}
                         </span>
-                        <span className="text-neutral-400 shrink-0 text-[10px]">{s.department || s.category}</span>
+                        <span className="text-neutral-400 shrink-0 text-[10px]">{departments.find(d => d.id === s.department_id)?.name || s.category}</span>
                       </div>
                     ))}
                 </div>
@@ -1841,6 +1887,14 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
           </div>
         </div>
       )}
+
+      {/* Live Ingestion Pipeline Inspector Modal */}
+      <LivePipelineModal
+        isOpen={isLiveInspectorOpen}
+        onClose={() => setIsLiveInspectorOpen(false)}
+        sourceId={liveInspectorSource?.id}
+        sourceName={liveInspectorSource?.name}
+      />
     </div>
   )
 }

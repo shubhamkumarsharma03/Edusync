@@ -6,7 +6,7 @@ export interface IngestionSource {
   id: string
   name: string
   url: string
-  department?: string | null
+  department_id?: number | null
   category: string
   slug?: string | null
   priority: number
@@ -23,7 +23,7 @@ export interface IngestionSource {
 export interface SourceCreatePayload {
   name: string
   url: string
-  department?: string
+  department_id?: number
   category?: string
   slug?: string
   priority?: number
@@ -109,6 +109,16 @@ export async function triggerFetchSource(id: string): Promise<{ status: string; 
   })
   if (!res.ok) {
     throw new Error(`Failed to trigger fetch: ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function pauseFetchSource(id: string): Promise<{ status: string; source_id: string; task_cancelled: boolean }> {
+  const res = await fetch(`${API_BASE_URL}/admin/sources/${id}/pause`, {
+    method: 'POST',
+  })
+  if (!res.ok) {
+    throw new Error(`Failed to pause fetch: ${res.status}`)
   }
   return res.json()
 }
@@ -213,3 +223,56 @@ export async function getSourceLiveFeed(
   }
   return res.json()
 }
+
+export interface ActiveDocumentInfo {
+  title: string
+  filename: string
+  url: string
+  source_type: string
+  page?: number | null
+  total_pages?: number | null
+  size_kb?: number | null
+}
+
+export interface PipelineLogEntry {
+  timestamp: string
+  level: 'info' | 'fetch' | 'ocr' | 'chunk' | 'embed' | 'bypass' | 'warn' | 'error' | 'success'
+  message: string
+  tag?: string | null
+}
+
+export interface PipelineProgressState {
+  source_id?: string | null
+  source_name: string
+  status: 'idle' | 'fetching' | 'completed' | 'error'
+  phase: string
+  step_index: number
+  total_steps: number
+  current_action: string
+  next_action: string
+  active_document?: ActiveDocumentInfo | null
+  stats: {
+    checked: number
+    total: number
+    ocr_count: number
+    chunks_count: number
+    bypassed_count: number
+    created_count: number
+    updated_count: number
+  }
+  logs: PipelineLogEntry[]
+  started_at?: string | null
+  updated_at?: string | null
+}
+
+export async function getLiveProgress(sourceId?: string): Promise<PipelineProgressState> {
+  const url = sourceId
+    ? `${API_BASE_URL}/admin/sources/${sourceId}/live-progress`
+    : `${API_BASE_URL}/admin/sources/live-progress`
+  const res = await fetch(url, { headers: { Accept: 'application/json' } })
+  if (!res.ok) {
+    throw new Error(`Failed to fetch live progress: ${res.status}`)
+  }
+  return res.json()
+}
+

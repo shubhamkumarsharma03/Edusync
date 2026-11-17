@@ -53,14 +53,14 @@ async def test_detect_new_document() -> None:
     mock_session.execute.return_value = mock_result
 
     result = await ChangeDetector.check_document(
-        mock_session, fetched, department="CSE", owner="Exam Cell"
+        mock_session, fetched, department_id=1, owner="Exam Cell"
     )
 
     assert result.status == ChangeStatus.NEW
     assert result.requires_reembedding is True
     assert result.source_url == fetched.source_url
     assert result.content_hash == compute_hash(fetched.raw_content, "pdf")
-    assert result.metadata.get("department") == "CSE"
+    assert result.metadata.get("department_id") == 1
     assert mock_session.commit.call_count == 0  # No commit needed until ingestion creates row
 
 
@@ -75,7 +75,7 @@ async def test_detect_unchanged_document() -> None:
         id=doc_id,
         source_url="https://ecajmer.ac.in/notices/circular.pdf",
         source_type="pdf",
-        department="CSE",
+        department_id=1,
         owner="HOD",
         content_hash=current_hash,
         status="fresh",
@@ -114,7 +114,7 @@ async def test_detect_modified_document() -> None:
         id=doc_id,
         source_url="https://ecajmer.ac.in/syllabus/cs_sem7.pdf",
         source_type="pdf",
-        department="CSE",
+        department_id=1,
         owner="HOD",
         content_hash=old_hash,
         status="fresh",

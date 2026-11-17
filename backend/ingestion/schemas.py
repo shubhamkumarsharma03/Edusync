@@ -85,3 +85,29 @@ class ChunkData(BaseModel):
     token_count: int
     chunk_index: int
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class KeyFact(BaseModel):
+    """A single factual statement extracted from a notice."""
+
+    fact: str
+    category: str = "general"
+
+
+class NoticeMemoryData(BaseModel):
+    """Structured notice metadata extracted via Gemini 1-call analysis."""
+
+    notice_type: str = "other"
+    department: str | None = None
+    target_year: list[str] | None = None
+    target_semester: list[str] | None = None
+    target_branch: list[str] | None = None
+    academic_session: str | None = None
+    effective_date: str | None = None
+    expiry_date: str | None = None
+    notice_serial: str | None = None
+    title_summary: str = ""
+    key_facts: list[dict[str, Any]] = Field(default_factory=list)
+    content_fingerprint: str = ""
+    supersedes_description: str | None = None
+    raw_llm_response: dict[str, Any] | None = None

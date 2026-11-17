@@ -12,6 +12,7 @@ from ingestion.ocr import DocumentOCR
 def ocr_instance(tmp_path):
     ocr = DocumentOCR()
     ocr.cache_dir = tmp_path
+    ocr.provider = "got_ocr"
     return ocr
 
 

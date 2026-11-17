@@ -172,6 +172,18 @@ class CollegeQueryNormalizer:
             re.compile(r"\b(prof(essor)?|dr|sir|ma'?am|faculty|teacher)\b", re.IGNORECASE),
             "faculty instructor teacher",
         ),
+        # Scholarships, Financial Aid & Government Schemes
+        (
+            re.compile(
+                r"\b(scholarships?|scooty|yojana|yojna|fellowship|financial[\s-]*aid)\b",
+                re.IGNORECASE,
+            ),
+            "scholarship scheme yojana distribution",
+        ),
+        (
+            re.compile(r"\b(kalpana|kalpana[\s-]*chawla)\b", re.IGNORECASE),
+            "Kalpana Chawla scooty scheme",
+        ),
     ]
 
     # Entity detection keywords
@@ -192,7 +204,12 @@ class CollegeQueryNormalizer:
         "Cyber Security": ["cyber", "cyber security"],
         "Examination Section": ["exam", "examination"],
         "Registrar Section": ["registrar", "order", "admin"],
-        "Academic Section": ["academic", "admission", "scholarship"],
+        "Academic Section": ["academic", "admission"],
+        "Proctor Section": ["proctor", "discipline", "id card", "anti-ragging"],
+        "Mechanical Engineering": ["me", "mech", "mechanical"],
+        "Electrical Engineering": ["ee", "electrical"],
+        "Civil Engineering": ["ce", "civil"],
+        "Electronics & Communication Engineering": ["ece", "electronics"],
     }
 
     @classmethod

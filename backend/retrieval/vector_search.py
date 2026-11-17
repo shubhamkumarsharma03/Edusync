@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ingestion.embedder import DocumentEmbedder
 from models.chunk import Chunk
+from models.department import Department
 from models.document import Document
+from models.notice_memory import NoticeMemory
 from retrieval.schemas import RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -24,16 +26,29 @@ class VectorSearcher:
         top_k: int = 20,
         query_embedding: list[float] | None = None,
         allowed_statuses: list[str] | None = None,
+        departments: list[str] | None = None,
+        include_superseded: bool = False,
     ) -> list[RetrievedChunk]:
         """Search top-k most similar chunks using cosine similarity in pgvector.
 
         Strictly enforces conflict and stale document exclusion by filtering on document status.
+        Supports optional filtering by department.
         """
         if not query and not query_embedding:
             return []
 
         if query_embedding is None:
-            embeddings = self.embedder.embed_texts([query])
+            import inspect
+
+            aembed = getattr(self.embedder, "aembed_texts", None)
+            if callable(aembed) and inspect.iscoroutinefunction(aembed):
+                embeddings = await aembed([query], task="retrieval.query")
+            elif callable(aembed) and inspect.iscoroutine(
+                res := aembed([query], task="retrieval.query")
+            ):
+                embeddings = await res
+            else:
+                embeddings = self.embedder.embed_texts([query])
             if not embeddings:
                 return []
             query_embedding = embeddings[0]
@@ -43,6 +58,17 @@ class VectorSearcher:
         # Compute cosine distance using pgvector operator
         distance_expr = Chunk.embedding.cosine_distance(query_embedding).label("distance")
 
+        conditions = [
+            Document.status.in_(allowed),
+            Chunk.embedding.is_not(None),
+        ]
+        if not include_superseded:
+            conditions.append(
+                (NoticeMemory.id.is_(None)) | (NoticeMemory.is_latest == True)  # noqa: E712
+            )
+        if departments:
+            conditions.append(Department.name.in_(departments))
+
         stmt = (
             select(
                 Chunk.id,
@@ -51,15 +77,14 @@ class VectorSearcher:
                 Chunk.token_count,
                 Chunk.last_verified,
                 Document.source_url,
-                Document.department,
+                Department.name.label("department"),
                 Document.owner,
                 distance_expr,
             )
             .join(Document, Chunk.document_id == Document.id)
-            .where(
-                Document.status.in_(allowed),
-                Chunk.embedding.is_not(None),
-            )
+            .outerjoin(Department, Document.department_id == Department.id)
+            .outerjoin(NoticeMemory, Chunk.document_id == NoticeMemory.document_id)
+            .where(*conditions)
             .order_by(distance_expr.asc())
             .limit(top_k)
         )

@@ -7,7 +7,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.chunk import Chunk
+from models.department import Department
 from models.document import Document
+from models.notice_memory import NoticeMemory
 from retrieval.schemas import RetrievedChunk
 
 logger = logging.getLogger(__name__)
@@ -27,11 +29,15 @@ class KeywordSearcher:
         query: str,
         top_k: int = 20,
         allowed_statuses: list[str] | None = None,
+        departments: list[str] | None = None,
+        include_superseded: bool = False,
     ) -> list[RetrievedChunk]:
         """Execute database-backed full text keyword search against chunks.
 
         Strictly enforces conflict and stale document exclusion by filtering on document status.
+        Supports optional filtering by department.
         """
+
         cleaned_query = query.strip()
         if not cleaned_query:
             return []
@@ -42,6 +48,17 @@ class KeywordSearcher:
         tsvector = func.to_tsvector("english", Chunk.content)
         rank_expr = func.ts_rank_cd(tsvector, tsquery).label("rank_score")
 
+        base_conditions = [
+            Document.status.in_(allowed),
+            tsvector.op("@@")(tsquery),
+        ]
+        if not include_superseded:
+            base_conditions.append(
+                (NoticeMemory.id.is_(None)) | (NoticeMemory.is_latest == True)  # noqa: E712
+            )
+        if departments:
+            base_conditions.append(Department.name.in_(departments))
+
         stmt = (
             select(
                 Chunk.id,
@@ -50,15 +67,14 @@ class KeywordSearcher:
                 Chunk.token_count,
                 Chunk.last_verified,
                 Document.source_url,
-                Document.department,
+                Department.name.label("department"),
                 Document.owner,
                 rank_expr,
             )
             .join(Document, Chunk.document_id == Document.id)
-            .where(
-                Document.status.in_(allowed),
-                tsvector.op("@@")(tsquery),
-            )
+            .outerjoin(Department, Document.department_id == Department.id)
+            .outerjoin(NoticeMemory, Chunk.document_id == NoticeMemory.document_id)
+            .where(*base_conditions)
             .order_by(rank_expr.desc())
             .limit(top_k)
         )
@@ -72,6 +88,17 @@ class KeywordSearcher:
                 or_query_str = " OR ".join(words)
                 fallback_tsquery = func.websearch_to_tsquery("english", or_query_str)
                 fallback_rank = func.ts_rank_cd(tsvector, fallback_tsquery).label("rank_score")
+                fallback_conditions = [
+                    Document.status.in_(allowed),
+                    tsvector.op("@@")(fallback_tsquery),
+                ]
+                if not include_superseded:
+                    fallback_conditions.append(
+                        (NoticeMemory.id.is_(None)) | (NoticeMemory.is_latest == True)  # noqa: E712
+                    )
+                if departments:
+                    fallback_conditions.append(Department.name.in_(departments))
+
                 fallback_stmt = (
                     select(
                         Chunk.id,
@@ -80,15 +107,14 @@ class KeywordSearcher:
                         Chunk.token_count,
                         Chunk.last_verified,
                         Document.source_url,
-                        Document.department,
+                        Department.name.label("department"),
                         Document.owner,
                         fallback_rank,
                     )
                     .join(Document, Chunk.document_id == Document.id)
-                    .where(
-                        Document.status.in_(allowed),
-                        tsvector.op("@@")(fallback_tsquery),
-                    )
+                    .outerjoin(Department, Document.department_id == Department.id)
+                    .outerjoin(NoticeMemory, Chunk.document_id == NoticeMemory.document_id)
+                    .where(*fallback_conditions)
                     .order_by(fallback_rank.desc())
                     .limit(top_k)
                 )

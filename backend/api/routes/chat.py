@@ -8,11 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.config import get_settings
 from db.session import get_db
 from retrieval.confidence_gate import ConfidenceGate
+from retrieval.fact_lookup import FactLookup
 from retrieval.hybrid_search import HybridSearcher
 from retrieval.query_normalizer import query_normalizer
 from retrieval.reranker import CrossEncoderReranker
 
 logger = logging.getLogger(__name__)
+
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
@@ -63,7 +65,7 @@ async def warm_llm_client() -> None:
     if api_key and not api_key.startswith("mock"):
         try:
             client = get_http_client()
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key={api_key}"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent?key={api_key}"
             await client.post(url, json={"contents": [{"parts": [{"text": "ping"}]}]})
         except Exception:
             pass
@@ -92,7 +94,13 @@ STUDENT QUESTION:
 
 ANSWER:"""
         client = get_http_client()
-        for model in ["gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.7-flash"]:
+        for model in [
+            "gemini-3.5-flash-lite",
+            "gemini-3.8-flash",
+            "gemini-3.5-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-3.7-flash",
+        ]:
             try:
                 url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
                 payload = {
@@ -100,7 +108,7 @@ ANSWER:"""
                     "generationConfig": {
                         "temperature": 0.2,
                         "maxOutputTokens": 3000,
-                        "thinkingConfig": {"thinkingBudget": 0},
+
                     },
                 }
                 resp = await client.post(url, json=payload)
@@ -112,8 +120,8 @@ ANSWER:"""
                         full_text = "".join(p.get("text", "") for p in parts if "text" in p).strip()
                         if full_text:
                             return full_text
-                elif resp.status_code == 429:
-                    logger.warning(f"Gemini model {model} rate limited (429), trying next...")
+                elif resp.status_code in (429, 500, 502, 503, 504):
+                    logger.warning(f"Gemini model {model} temporarily unavailable (HTTP {resp.status_code}), trying next...")
             except Exception as e:
                 logger.warning(f"Fast Gemini generation ({model}) fallback: {e}")
 
@@ -141,11 +149,36 @@ async def chat_endpoint(
     reranker = CrossEncoderReranker()
     gate = ConfidenceGate()
 
-    # 1. Hybrid Search (Vector + Keyword via RRF)
+    # 0. Fast-path Fact Lookup from active notice memory
+    matched_facts = await FactLookup.search(session=session, query=query, limit=5)
+    if matched_facts and matched_facts[0].confidence >= 0.9:
+        logger.info(f"Fast-path fact match found (confidence={matched_facts[0].confidence:.2f})")
+        facts_context = FactLookup.format_facts_context(matched_facts)
+        fast_answer = await generate_llm_answer_async(query, facts_context)
+        fact_sources = [
+            SourceCitation(
+                title=f.notice_title,
+                url=f.source_url,
+                department=None,
+                last_verified="Verified Fresh",
+                confidence_score=f.confidence,
+            )
+            for f in matched_facts[:2]
+        ]
+        return ChatResponse(
+            answer=fast_answer,
+            sources=fact_sources,
+            confidence="high",
+            confidence_score=matched_facts[0].confidence,
+            is_fallback=False,
+            query=query,
+        )
+
+    # 1. Hybrid Search (Vector + Keyword via RRF) to fetch top candidate pool
     raw_chunks = await searcher.search(
         session=session,
         query=query,
-        top_k=10,
+        top_k=20,
     )
 
     if not raw_chunks:
@@ -158,14 +191,14 @@ async def chat_endpoint(
             query=query,
         )
 
-    # 2. Cross-Encoder Reranking (executed in threadpool to avoid blocking event loop)
-    import asyncio
-
+    # 2. Cross-Encoder / Jina Reranking to select top 5 most relevant chunks
     norm = query_normalizer.normalize(query)
     rerank_query = norm.expanded_vector or query
 
-    reranked_chunks = await asyncio.to_thread(
-        reranker.rerank, query=rerank_query, chunks=raw_chunks, top_k=4
+    reranked_chunks = await reranker.arerank(
+        query=rerank_query,
+        chunks=raw_chunks,
+        top_k=5,
     )
 
     # 3. Confidence Gating (Trust Layer)
@@ -184,6 +217,9 @@ async def chat_endpoint(
 
     # 4. Format verified context
     context_blocks = []
+    if matched_facts:
+        context_blocks.append(FactLookup.format_facts_context(matched_facts))
+
     citations: list[SourceCitation] = []
     seen_urls: set[str] = set()
 

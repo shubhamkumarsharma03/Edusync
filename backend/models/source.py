@@ -1,8 +1,12 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, CheckConstraint, Integer, Text, func
+if TYPE_CHECKING:
+    from models.department import Department
+
+from sqlalchemy import Boolean, CheckConstraint, ForeignKey, Integer, Text, func
 from sqlalchemy.dialects.postgresql import TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base, UUIDMixin
 
@@ -14,7 +18,8 @@ class IngestionSource(Base, UUIDMixin):
 
     url: Mapped[str] = mapped_column(Text, nullable=False)
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    department: Mapped[str | None] = mapped_column(Text, nullable=True)
+    department_id: Mapped[int | None] = mapped_column(ForeignKey("departments.id"), nullable=True)
+    department_rel: Mapped["Department"] = relationship()
     category: Mapped[str] = mapped_column(Text, nullable=False, server_default="circulars")
     slug: Mapped[str | None] = mapped_column(Text, nullable=True)
     priority: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")

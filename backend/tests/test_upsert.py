@@ -13,19 +13,23 @@ from models.document import Document
 
 
 def test_embedder_output_dimensions() -> None:
-    """Test that DocumentEmbedder produces 384-dimensional dense vector embeddings."""
+    """Test that DocumentEmbedder produces 1024-dimensional dense vector embeddings for BGE-M3."""
     embedder = DocumentEmbedder()
     mock_model = MagicMock()
     mock_emb = MagicMock()
-    mock_emb.tolist.return_value = [0.1] * 384
+    mock_emb.tolist.return_value = [0.1] * 1024
     mock_model.encode.return_value = [mock_emb]
 
-    embedder._model = mock_model
-    results = embedder.embed_texts(["Engineering College Ajmer Circular"])
+    original_model = DocumentEmbedder._model
+    try:
+        DocumentEmbedder._model = mock_model
+        results = embedder.embed_texts(["Engineering College Ajmer Circular"])
 
-    assert len(results) == 1
-    assert len(results[0]) == 384
-    assert isinstance(results[0][0], float)
+        assert len(results) == 1
+        assert len(results[0]) == 1024
+        assert isinstance(results[0][0], float)
+    finally:
+        DocumentEmbedder._model = original_model
 
 
 @pytest.mark.asyncio
@@ -53,17 +57,18 @@ async def test_upsert_new_document() -> None:
     mock_embedder = MagicMock()
     mock_embedder.embed_chunks.return_value = [[0.1] * 384, [0.2] * 384]
 
+    dept_id = uuid.uuid4()
     doc, chunk_records = await upsert_document_and_chunks(
         session=mock_session,
         fetched=fetched,
         chunks=chunks,
-        department="CSE",
+        department_id=dept_id,
         owner="Exam Cell",
         embedder=mock_embedder,
     )
 
     assert doc.source_url == fetched.source_url
-    assert doc.department == "CSE"
+    assert doc.department_id == dept_id
     assert doc.status == "fresh"
     assert len(chunk_records) == 2
     assert chunk_records[0].content == "Chunk 1: Mid-term schedule"
@@ -79,7 +84,7 @@ async def test_upsert_modified_document_purges_old_chunks() -> None:
         id=doc_id,
         source_url="https://ecajmer.ac.in/syllabus/cs_sem7.pdf",
         source_type="pdf",
-        department="CSE",
+        department_id=1,
         owner="HOD",
         content_hash="old_hash_123",
         status="pending",
@@ -111,7 +116,7 @@ async def test_upsert_modified_document_purges_old_chunks() -> None:
         session=mock_session,
         fetched=fetched,
         chunks=new_chunks,
-        department="CSE",
+        department_id=1,
         owner="HOD",
         embedder=mock_embedder,
     )

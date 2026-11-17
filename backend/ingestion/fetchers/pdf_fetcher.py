@@ -47,30 +47,54 @@ class PDFFetcher(BaseFetcher):
         tables: list[ExtractedTable] = []
 
         try:
-            for page_num in range(len(doc)):
-                page = doc[page_num]
-                text = page.get_text("text").strip()
-                if len(text) >= ocr_service.min_text_threshold:
-                    page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
-                else:
-                    try:
-                        pix = page.get_pixmap(dpi=ocr_service.dpi)
-                        img_bytes = pix.tobytes("png")
-                        ocr_text = await ocr_service.extract_text_from_image(
-                            img_bytes,
-                            page_number=page_num + 1,
-                            doc_name=source.split("/")[-1].split("\\")[-1],
-                        )
-                        if ocr_text:
-                            page_texts.append(f"--- Page {page_num + 1} (GOT-OCR) ---\n{ocr_text}")
-                        elif text:
-                            page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
-                    except Exception as ocr_err:
-                        logger.warning(
-                            f"Local GOT-OCR error on page {page_num + 1} of {source}: {ocr_err}"
-                        )
-                        if text:
-                            page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+            # Check if document is predominantly scanned (no digital text layer)
+            digital_pages = sum(
+                1
+                for page_num in range(len(doc))
+                if len(doc[page_num].get_text("text").strip()) >= ocr_service.min_text_threshold
+            )
+            is_scanned_doc = digital_pages == 0 and len(doc) > 0
+
+            # Fast batch document OCR via Baidu PaddleOCR if active
+            if is_scanned_doc and ocr_service.is_baidu_active:
+                logger.info(
+                    f"Detected scanned PDF ({len(doc)} pages) without digital text: {source}. Running full document OCR..."
+                )
+                batch_text, batch_tables = await ocr_service.extract_document(
+                    file_input=raw_bytes,
+                    source_url=source,
+                    is_pdf=True,
+                )
+                if batch_text:
+                    page_texts.append(batch_text)
+                    tables.extend(batch_tables)
+
+            # Otherwise or if batch OCR did not populate text, process page by page
+            if not page_texts:
+                for page_num in range(len(doc)):
+                    page = doc[page_num]
+                    text = page.get_text("text").strip()
+                    if len(text) >= ocr_service.min_text_threshold:
+                        page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+                    else:
+                        try:
+                            pix = page.get_pixmap(dpi=ocr_service.dpi)
+                            img_bytes = pix.tobytes("png")
+                            ocr_text = await ocr_service.extract_text_from_image(
+                                img_bytes,
+                                page_number=page_num + 1,
+                                doc_name=source.split("/")[-1].split("\\")[-1],
+                            )
+                            if ocr_text:
+                                page_texts.append(f"--- Page {page_num + 1} (OCR) ---\n{ocr_text}")
+                            elif text:
+                                page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
+                        except Exception as ocr_err:
+                            logger.warning(
+                                f"OCR error on page {page_num + 1} of {source}: {ocr_err}"
+                            )
+                            if text:
+                                page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
 
                 # Extract structured tables using PyMuPDF table finder
                 try:

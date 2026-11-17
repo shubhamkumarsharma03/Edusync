@@ -1,8 +1,12 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from sqlalchemy import CheckConstraint, Text, func
+if TYPE_CHECKING:
+    from models.department import Department
+
+from sqlalchemy import CheckConstraint, ForeignKey, Text, func
 from sqlalchemy.dialects.postgresql import TIMESTAMP
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from db.base import Base, UUIDMixin
 
@@ -12,7 +16,8 @@ class Document(Base, UUIDMixin):
 
     source_url: Mapped[str] = mapped_column(Text, nullable=False)
     source_type: Mapped[str] = mapped_column(Text, nullable=False)
-    department: Mapped[str | None] = mapped_column(Text, nullable=True)
+    department_id: Mapped[int | None] = mapped_column(ForeignKey("departments.id"), nullable=True)
+    department_rel: Mapped["Department"] = relationship(lazy="selectin")
     owner: Mapped[str | None] = mapped_column(Text, nullable=True)
     content_hash: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="fresh")
@@ -23,6 +28,14 @@ class Document(Base, UUIDMixin):
     last_checked_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), server_default=func.now(), nullable=False
     )
+
+    @property
+    def department(self) -> str | None:
+        """Helper property to access department name if relationship is loaded."""
+        try:
+            return self.department_rel.name if self.department_rel else None
+        except Exception:
+            return None
 
     __table_args__ = (
         CheckConstraint(

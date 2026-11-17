@@ -5,24 +5,30 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import torch
 from PIL import Image
-from transformers import AutoModelForImageTextToText, AutoProcessor
 
 from api.config import get_settings
+from ingestion.ocr_baidu import baidu_ocr_client
+from ingestion.schemas import ExtractedTable
 
 logger = logging.getLogger(__name__)
 
 
 class DocumentOCR:
-    """Local, offline OCR extraction using stepfun-ai/GOT-OCR-2.0-hf.
+    """Unified OCR Service for EduSync.
 
-    Runs entirely on local hardware (GPU if available, otherwise CPU).
-    Requires zero external API keys or cloud services.
+    Routes to Baidu PaddleOCR (AI Studio) when configured, and falls back to
+    local, offline GOT-OCR 2.0 when cloud services are unavailable or offline.
     """
 
     def __init__(self) -> None:
         self.settings = get_settings()
+        self.provider: str = getattr(self.settings, "OCR_PROVIDER", "auto").lower()
+
+        # Baidu client reference
+        self.baidu_client = baidu_ocr_client
+
+        # Local GOT-OCR settings
         self.model_id: str = getattr(self.settings, "GOT_OCR_MODEL_ID", "stepfun-ai/GOT-OCR-2.0-hf")
         self.configured_device: str = getattr(self.settings, "GOT_OCR_DEVICE", "auto")
         self.max_tokens: int = getattr(self.settings, "GOT_OCR_MAX_TOKENS", 2048)
@@ -49,13 +55,25 @@ class DocumentOCR:
 
     @property
     def is_available(self) -> bool:
-        """Local GOT-OCR is always available without any third-party credentials."""
+        """OCR is always available via Baidu API or local fallback."""
         return True
 
+    @property
+    def is_baidu_active(self) -> bool:
+        """Check if Baidu PaddleOCR should be used."""
+        if self.provider == "baidu":
+            return self.baidu_client.is_configured
+        if self.provider == "auto":
+            return self.baidu_client.is_configured
+        return False
+
     def _ensure_model_loaded(self) -> None:
-        """Load model and processor once as a singleton into memory."""
+        """Lazy load local GOT-OCR model and processor as a singleton into memory."""
         if self._model is not None and self._processor is not None:
             return
+
+        import torch
+        from transformers import AutoModelForImageTextToText, AutoProcessor
 
         # Auto-detect GPU or use configured device
         if self.configured_device.lower() == "auto":
@@ -97,10 +115,11 @@ class DocumentOCR:
                 raise RuntimeError(f"Could not initialize local GOT-OCR 2.0: {e}") from e
 
     def _ocr_image_sync(self, pil_image: Image.Image) -> str:
-        """Synchronous OCR inference executed inside threadpool."""
+        """Synchronous OCR inference executed inside threadpool for local GOT-OCR."""
+        import torch
+
         self._ensure_model_loaded()
 
-        # Format image to RGB
         if pil_image.mode != "RGB":
             pil_image = pil_image.convert("RGB")
 
@@ -110,7 +129,6 @@ class DocumentOCR:
             format=self.format_output,
         ).to(self.device)
 
-        # Ensure EOS token ids include <|im_end|> (151645) and <|endoftext|> (151643) for clean early termination
         eos_ids = [151643, 151645]
         if hasattr(self._processor, "tokenizer"):
             tok = self._processor.tokenizer
@@ -136,35 +154,65 @@ class DocumentOCR:
 
         return output
 
+    async def extract_document(
+        self,
+        file_input: bytes | str | Path,
+        source_url: str | None = None,
+        is_pdf: bool = True,
+    ) -> tuple[str, list[ExtractedTable]]:
+        """Extract high-fidelity Markdown and structured tables for an entire document.
+
+        When Baidu PaddleOCR is active, processes the document as a single layout parsing job.
+        Returns a tuple of (combined_markdown_text, extracted_tables).
+        """
+        if self.is_baidu_active:
+            try:
+                result = await self.baidu_client.process_document(
+                    file_input=file_input,
+                    source_url=source_url,
+                    is_pdf=is_pdf,
+                )
+                return result.combined_markdown, result.tables
+            except Exception as baidu_err:
+                logger.warning(
+                    f"Baidu PaddleOCR failed for document ({baidu_err}). Falling back to local OCR..."
+                )
+
+        return "", []
+
     async def extract_text_from_image(
         self,
         image_input: bytes | str | Path | Image.Image,
         page_number: int | None = None,
         doc_name: str | None = None,
     ) -> str:
-        """Extract structured text and tables from an image or page bytes using local GOT-OCR 2.0.
+        """Extract structured text and tables from an image or page bytes.
 
-        Non-blocking: offloads heavy PyTorch inference to an executor thread.
+        Routes to Baidu PaddleOCR when enabled; falls back to local GOT-OCR 2.0.
         """
         if not image_input:
             return ""
 
         pil_image: Image.Image
+        img_bytes: bytes
         cache_key: str = ""
 
         if isinstance(image_input, Image.Image):
             pil_image = image_input
-            # Derive cache key from image data
-            cache_key = hashlib.sha256(pil_image.tobytes()).hexdigest()
+            buf = io.BytesIO()
+            pil_image.save(buf, format="PNG")
+            img_bytes = buf.getvalue()
+            cache_key = hashlib.sha256(img_bytes).hexdigest()
         elif isinstance(image_input, bytes):
-            cache_key = hashlib.sha256(image_input).hexdigest()
-            pil_image = Image.open(io.BytesIO(image_input))
+            img_bytes = image_input
+            cache_key = hashlib.sha256(img_bytes).hexdigest()
+            pil_image = Image.open(io.BytesIO(img_bytes))
         elif isinstance(image_input, (str, Path)):
             path_str = str(image_input)
             with open(path_str, "rb") as f:
-                raw = f.read()
-            cache_key = hashlib.sha256(raw).hexdigest()
-            pil_image = Image.open(io.BytesIO(raw))
+                img_bytes = f.read()
+            cache_key = hashlib.sha256(img_bytes).hexdigest()
+            pil_image = Image.open(io.BytesIO(img_bytes))
         else:
             raise ValueError(f"Unsupported image input type: {type(image_input)}")
 
@@ -184,12 +232,33 @@ class DocumentOCR:
                 except Exception as read_err:
                     logger.warning(f"Failed to read OCR cache file {cache_file}: {read_err}")
 
+        # 3. Try Baidu PaddleOCR if active
+        if self.is_baidu_active:
+            try:
+                baidu_res = await self.baidu_client.process_document(
+                    file_input=img_bytes,
+                    is_pdf=False,
+                )
+                extracted_text = baidu_res.combined_markdown
+                if extracted_text:
+                    self._cache[cache_key] = extracted_text
+                    try:
+                        cache_file = self.cache_dir / f"{cache_key}.txt"
+                        cache_file.write_text(extracted_text, encoding="utf-8")
+                    except Exception as write_err:
+                        logger.warning(f"Failed to write OCR cache file: {write_err}")
+                    return extracted_text
+            except Exception as baidu_err:
+                logger.warning(
+                    f"Baidu PaddleOCR page error ({baidu_err}). Falling back to local GOT-OCR..."
+                )
+
+        # 4. Fallback to Local GOT-OCR 2.0
         page_info = f" (Page {page_number})" if page_number is not None else ""
         doc_info = f" for '{doc_name}'" if doc_name else ""
         logger.info(f"Running local GOT-OCR 2.0 on image{page_info}{doc_info}...")
 
         try:
-            # Run model inference in threadpool to prevent blocking the async event loop
             extracted_text = await asyncio.to_thread(self._ocr_image_sync, pil_image)
             if cache_key and extracted_text:
                 self._cache[cache_key] = extracted_text

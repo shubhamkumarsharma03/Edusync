@@ -14,10 +14,46 @@ from models.source import IngestionSource
 logger = logging.getLogger(__name__)
 
 
+_active_tasks: dict[str, asyncio.Task] = {}
+
+
+async def cancel_fetch_source(source_id: UUID | str) -> bool:
+    """Cancel / pause an in-progress ingestion task for a source."""
+    sid_str = str(source_id)
+    cancelled = False
+    task = _active_tasks.get(sid_str)
+    if task and not task.done():
+        task.cancel()
+        cancelled = True
+        logger.info(f"Cancelled running task for source ID: {sid_str}")
+
+    # Immediately reset source status to idle in DB
+    try:
+        sid = UUID(sid_str)
+        async with async_session_maker() as session:
+            stmt = select(IngestionSource).where(IngestionSource.id == sid)
+            res = await session.execute(stmt)
+            src = res.scalar_one_or_none()
+            if src:
+                src.status = "idle"
+                await session.commit()
+    except Exception as err:
+        logger.warning(f"Failed to reset source status to idle in DB: {err}")
+
+    from ingestion.progress import progress_tracker
+
+    progress_tracker.fail_source("Fetching paused by user", source_id=sid_str)
+    return cancelled
+
+
 async def _run_fetch_source(source_id: UUID | str, limit: int | None = None) -> dict:
     """Execute prioritized ingestion for a specific IngestionSource."""
     sid = UUID(str(source_id)) if isinstance(source_id, str) else source_id
     logger.info(f"Starting prioritized ingestion for source ID: {sid}")
+
+    cur_task = asyncio.current_task()
+    if cur_task:
+        _active_tasks[str(sid)] = cur_task
 
     async with async_session_maker() as session:
         stmt = select(IngestionSource).where(IngestionSource.id == sid)
@@ -32,6 +68,8 @@ async def _run_fetch_source(source_id: UUID | str, limit: int | None = None) -> 
         source.error_message = None
         await session.commit()
 
+        from ingestion.progress import progress_tracker
+
         try:
             fetch_limit = limit
             if fetch_limit is None:
@@ -41,11 +79,14 @@ async def _run_fetch_source(source_id: UUID | str, limit: int | None = None) -> 
                     else source.subsequent_fetch_limit
                 )
 
+            progress_tracker.start_source(source.id, source.name, total_items=fetch_limit)
+
             summary = await ingest_source(
                 session=session,
                 source_url=source.url,
                 limit=fetch_limit,
-                department=source.department,
+                department_id=source.department_id,
+                source_id=str(source.id),
             )
 
             source.status = "completed"
@@ -53,14 +94,35 @@ async def _run_fetch_source(source_id: UUID | str, limit: int | None = None) -> 
             source.error_message = None
             await session.commit()
 
+            progress_tracker.finish_source(
+                summary.message,
+                source_id=str(source.id),
+                stats={
+                    "checked": summary.total_checked,
+                    "created_count": summary.created_count,
+                    "updated_count": summary.updated_count,
+                    "unchanged_count": summary.unchanged_count,
+                    "chunks_count": summary.total_chunks,
+                },
+            )
+
             logger.info(f"Successfully finished ingestion for {source.name}: {summary.message}")
             return summary.model_dump()
+        except asyncio.CancelledError:
+            logger.info(f"Fetch task for source {sid} was paused/cancelled by user.")
+            source.status = "idle"
+            await session.commit()
+            progress_tracker.fail_source("Fetching paused by user", source_id=str(source.id))
+            raise
         except Exception as e:
             logger.error(f"Error executing ingestion for source {source.url}: {e}", exc_info=True)
             source.status = "error"
             source.error_message = str(e)
             await session.commit()
+            progress_tracker.fail_source(str(e), source_id=str(source.id))
             return {"error": str(e)}
+        finally:
+            _active_tasks.pop(str(sid), None)
 
 
 @shared_task(name="ingestion.tasks.fetch_source_task")
@@ -116,7 +178,7 @@ async def _run_reingest_single(source_url: str):
             result = await session.execute(stmt)
             doc = result.scalar_one_or_none()
 
-            department = doc.department if doc else None
+            department_id = doc.department_id if doc else None
             owner = doc.owner if doc else None
 
             from ingestion.schemas import SourceType
@@ -132,7 +194,7 @@ async def _run_reingest_single(source_url: str):
                 session=session,
                 source=source_url,
                 source_type=source_type_enum,
-                department=department,
+                department_id=department_id,
                 owner=owner,
                 force=True,
             )
