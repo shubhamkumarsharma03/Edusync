@@ -36,6 +36,8 @@ class HybridSearcher:
         vector_results: list[RetrievedChunk],
         keyword_results: list[RetrievedChunk],
         top_k: int = 20,
+        target_departments: list[str] | None = None,
+        dept_boost: float = 1.3,
     ) -> list[RetrievedChunk]:
         """Merge and deduplicate vector and keyword search results using Reciprocal Rank Fusion (RRF).
 
@@ -88,9 +90,14 @@ class HybridSearcher:
                     token_count=chunk.token_count,
                 )
 
-        # Assign final fused RRF scores
+        # Assign final fused RRF scores with soft department boost (never hard WHERE)
         for chunk_id, fused_score in rrf_scores.items():
-            chunk_map[chunk_id].score = fused_score
+            chunk = chunk_map[chunk_id]
+            multiplier = 1.0
+            if target_departments and chunk.department:
+                if any(dept.lower() in chunk.department.lower() for dept in target_departments):
+                    multiplier = dept_boost
+            chunk.score = fused_score * multiplier
 
         # Sort descending by fused RRF score
         sorted_chunks = sorted(chunk_map.values(), key=lambda x: x.score, reverse=True)
@@ -111,8 +118,8 @@ class HybridSearcher:
         self,
         session: AsyncSession,
         query: str,
-        top_k: int = 20,
-        candidate_k: int = 20,
+        top_k: int = 25,
+        candidate_k: int | None = None,
         allowed_statuses: list[str] | None = None,
         departments: list[str] | None = None,
         include_superseded: bool = False,
@@ -120,6 +127,8 @@ class HybridSearcher:
         """Execute parallel hybrid search with domain NLP normalization and entity routing."""
         if not query.strip():
             return []
+
+        effective_candidate_k = candidate_k if candidate_k is not None else max(40, top_k * 2)
 
         import re
 
@@ -145,47 +154,29 @@ class HybridSearcher:
         vector_results: list[RetrievedChunk] = []
         keyword_results: list[RetrievedChunk] = []
 
-        # 1. First attempt: If department intent is recognized, filter by department
-        if target_depts:
-            vector_results = await self.vector_searcher.search(
-                session=session,
-                query=v_query,
-                top_k=candidate_k,
-                allowed_statuses=allowed_statuses,
-                departments=target_depts,
-                include_superseded=effective_superseded,
-            )
-            keyword_results = await self.keyword_searcher.search(
-                session=session,
-                query=k_query,
-                top_k=candidate_k,
-                allowed_statuses=allowed_statuses,
-                departments=target_depts,
-                include_superseded=effective_superseded,
-            )
-
-        # 2. Resilient fallback: If no department intent OR filtered search returned 0 results,
-        # perform unconstrained search so campus-wide notices are never missed
-        if not vector_results and not keyword_results:
-            vector_results = await self.vector_searcher.search(
-                session=session,
-                query=v_query,
-                top_k=candidate_k,
-                allowed_statuses=allowed_statuses,
-                departments=None,
-                include_superseded=effective_superseded,
-            )
-            keyword_results = await self.keyword_searcher.search(
-                session=session,
-                query=k_query,
-                top_k=candidate_k,
-                allowed_statuses=allowed_statuses,
-                departments=None,
-                include_superseded=effective_superseded,
-            )
+        # Phase 1b: Unconstrained candidate retrieval across corpus so college-wide circulars
+        # and departmental notices are never missed. Department intent is applied as a soft
+        # RRF ranking boost rather than a rigid SQL WHERE filter.
+        vector_results = await self.vector_searcher.search(
+            session=session,
+            query=v_query,
+            top_k=effective_candidate_k,
+            allowed_statuses=allowed_statuses,
+            departments=None,
+            include_superseded=effective_superseded,
+        )
+        keyword_results = await self.keyword_searcher.search(
+            session=session,
+            query=k_query,
+            top_k=effective_candidate_k,
+            allowed_statuses=allowed_statuses,
+            departments=None,
+            include_superseded=effective_superseded,
+        )
 
         return self.reciprocal_rank_fusion(
             vector_results=vector_results,
             keyword_results=keyword_results,
             top_k=top_k,
+            target_departments=target_depts,
         )

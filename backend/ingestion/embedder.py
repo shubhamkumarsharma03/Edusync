@@ -11,8 +11,22 @@ class DocumentEmbedder:
     """Hybrid document embedder supporting Jina Embeddings v3 API and local BAAI/bge-m3 fallback."""
 
     _model: Any = None
+    _query_cache: dict[str, list[float]] = {}
+    _CACHE_MAX_SIZE: int = 1024
     MODEL_NAME: str = "bge-m3"
     EMBEDDING_DIM: int = 1024
+
+    @classmethod
+    def get_cached_query_embedding(cls, query: str) -> list[float] | None:
+        return cls._query_cache.get(query.strip().lower())
+
+    @classmethod
+    def set_cached_query_embedding(cls, query: str, embedding: list[float]) -> None:
+        key = query.strip().lower()
+        if len(cls._query_cache) >= cls._CACHE_MAX_SIZE:
+            # Pop first inserted item (FIFO eviction)
+            cls._query_cache.pop(next(iter(cls._query_cache)))
+        cls._query_cache[key] = embedding
 
     def __init__(
         self,
@@ -72,8 +86,17 @@ class DocumentEmbedder:
         if not texts:
             return []
 
+        # Check cache if single query
+        if len(texts) == 1 and task == "retrieval.query":
+            cached = self.get_cached_query_embedding(texts[0])
+            if cached is not None:
+                return [cached]
+
         if self.jina_embedder:
-            return await self.jina_embedder.aembed_texts(texts, task=task)
+            embeddings = await self.jina_embedder.aembed_texts(texts, task=task)
+            if len(texts) == 1 and task == "retrieval.query" and embeddings:
+                self.set_cached_query_embedding(texts[0], embeddings[0])
+            return embeddings
 
         # Fall back to threadpool execution for CPU SentenceTransformer
         import asyncio
@@ -111,7 +134,10 @@ class DocumentEmbedder:
             convert_to_numpy=True,
             normalize_embeddings=True,
         )
-        return [emb.tolist() for emb in embeddings]
+        res = [emb.tolist() for emb in embeddings]
+        if len(texts) == 1 and task == "retrieval.query" and res:
+            self.set_cached_query_embedding(texts[0], res[0])
+        return res
 
     def embed_chunks(
         self,
