@@ -51,7 +51,8 @@ class PDFFetcher(BaseFetcher):
             digital_pages = sum(
                 1
                 for page_num in range(len(doc))
-                if len(doc[page_num].get_text("text").strip()) >= ocr_service.min_text_threshold
+                if len(str(doc[page_num].get_text("text") or "").strip())
+                >= ocr_service.min_text_threshold
             )
             is_scanned_doc = digital_pages == 0 and len(doc) > 0
 
@@ -73,7 +74,7 @@ class PDFFetcher(BaseFetcher):
             if not page_texts:
                 for page_num in range(len(doc)):
                     page = doc[page_num]
-                    text = page.get_text("text").strip()
+                    text = str(page.get_text("text") or "").strip()
                     if len(text) >= ocr_service.min_text_threshold:
                         page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
                     else:
@@ -96,23 +97,27 @@ class PDFFetcher(BaseFetcher):
                             if text:
                                 page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
 
-                # Extract structured tables using PyMuPDF table finder
-                try:
-                    tabs = page.find_tables()
-                    for t_idx, tab in enumerate(tabs):
-                        table_data = tab.extract()
-                        if table_data and len(table_data) > 0:
-                            headers = [str(c or "").strip() for c in table_data[0]]
-                            rows = [[str(c or "").strip() for c in row] for row in table_data[1:]]
-                            extracted_table = ExtractedTable(
-                                headers=headers,
-                                rows=rows,
-                                page_number=page_num + 1,
-                                title=f"Table {t_idx + 1} (Page {page_num + 1})",
-                            )
-                            tables.append(extracted_table)
-                except Exception as tab_err:
-                    logger.debug(f"Table extraction skipped on page {page_num + 1}: {tab_err}")
+                    # Extract structured tables using PyMuPDF table finder
+                    try:
+                        tabs = page.find_tables()
+                        if tabs and hasattr(tabs, "tables"):
+                            for t_idx, tab in enumerate(tabs.tables):
+                                table_data = tab.extract()
+                                if table_data and len(table_data) > 0:
+                                    headers = [str(c or "").strip() for c in table_data[0]]
+                                    rows = [
+                                        [str(c or "").strip() for c in row]
+                                        for row in table_data[1:]
+                                    ]
+                                    extracted_table = ExtractedTable(
+                                        headers=headers,
+                                        rows=rows,
+                                        page_number=page_num + 1,
+                                        title=f"Table {t_idx + 1} (Page {page_num + 1})",
+                                    )
+                                    tables.append(extracted_table)
+                    except Exception as tab_err:
+                        logger.debug(f"Table extraction skipped on page {page_num + 1}: {tab_err}")
 
             doc_metadata = doc.metadata or {}
             metadata: dict[str, Any] = {

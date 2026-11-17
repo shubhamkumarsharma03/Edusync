@@ -118,7 +118,7 @@ class LLMGenerator:
         # Extract response text
         content_blocks = response.content
         if content_blocks and hasattr(content_blocks[0], "text"):
-            return content_blocks[0].text.strip()
+            return getattr(content_blocks[0], "text", "").strip()
         return str(response.content).strip()
 
     async def _call_openai(self, system_prompt: str, user_prompt: str) -> str:
@@ -135,7 +135,8 @@ class LLMGenerator:
             max_tokens=600,
             temperature=0.2,
         )
-        return response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        return (content or "").strip()
 
     def _generate_offline_answer(self, query: str, chunks: Sequence[RetrievedChunk]) -> str:
         """Fallback grounded extractor when external API keys are unavailable (dev/offline mode)."""

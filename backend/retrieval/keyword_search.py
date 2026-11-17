@@ -1,6 +1,7 @@
 import logging
 import re
 from collections.abc import Sequence
+from typing import Any
 
 from rank_bm25 import BM25Okapi
 from sqlalchemy import func, select
@@ -154,7 +155,7 @@ class KeywordSearcher:
             .limit(top_k)
         )
 
-        rows = (await session.execute(stmt)).all()
+        rows: list[Any] = list((await session.execute(stmt)).all())
 
         # 3. Trigram Fuzzy Fallback (pg_trgm): If FTS yielded fewer than 3 hits, search via word_similarity
         if len(rows) == 0 and len(fts_terms) > 0:
@@ -163,6 +164,13 @@ class KeywordSearcher:
             salient_terms = [t for t in fts_terms if len(t) >= 4][:3]
             for term in salient_terms:
                 sim_expr = func.word_similarity(term, Chunk.content).label("sim_score")
+                fuzzy_conditions = [
+                    Document.status.in_(allowed),
+                    sim_expr > 0.45,
+                ]
+                if existing_ids:
+                    fuzzy_conditions.append(Chunk.id.not_in(existing_ids))
+
                 fuzzy_stmt = (
                     select(
                         Chunk.id,
@@ -178,11 +186,7 @@ class KeywordSearcher:
                     .join(Document, Chunk.document_id == Document.id)
                     .outerjoin(Department, Document.department_id == Department.id)
                     .outerjoin(NoticeMemory, Chunk.document_id == NoticeMemory.document_id)
-                    .where(
-                        Document.status.in_(allowed),
-                        Chunk.id.not_in(existing_ids) if existing_ids else True,
-                        sim_expr > 0.45,
-                    )
+                    .where(*fuzzy_conditions)
                     .order_by(sim_expr.desc())
                     .limit(top_k - len(rows))
                 )

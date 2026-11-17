@@ -14,6 +14,9 @@ async def test():
         doc = (
             await session.execute(select(Document).where(Document.source_url.contains("249.pdf")))
         ).scalar_one_or_none()
+        if not doc:
+            print("Document not found.")
+            return
         chunks = (
             (await session.execute(select(Chunk).where(Chunk.document_id == doc.id)))
             .scalars()

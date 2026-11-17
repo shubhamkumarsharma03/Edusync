@@ -59,6 +59,9 @@ def test_reranker_sorting_and_ranking() -> None:
     # Top ranked chunk must be c2
     assert results[0].content == c2.content
     assert results[0].rank == 1
+    assert results[0].rerank_score is not None
+    assert results[1].rerank_score is not None
+    assert results[2].rerank_score is not None
     assert results[0].rerank_score > results[1].rerank_score > results[2].rerank_score
     assert pytest.approx(results[0].score, rel=1e-3) == CrossEncoderReranker.sigmoid(4.2)
     assert pytest.approx(results[1].score, rel=1e-3) == CrossEncoderReranker.sigmoid(-0.5)
@@ -122,4 +125,6 @@ def test_hybrid_search_to_rerank_pipeline() -> None:
     # Reranker should elevate c_relevant to rank 1
     assert reranked[0].content == c_relevant.content
     assert reranked[0].rank == 1
+    assert reranked[0].rerank_score is not None
+    assert reranked[1].rerank_score is not None
     assert reranked[0].rerank_score > reranked[1].rerank_score

@@ -50,7 +50,7 @@ Strict compliance with UGC anti-ragging regulations is mandatory for all student
     fetched = FetchedDocument(
         source_url="https://ecajmer.ac.in/notice_501.pdf",
         source_type="pdf",
-        content_hash="dummyhash123",
+        metadata={"content_hash": "dummyhash123"},
         raw_content=sample_markdown.encode("utf-8"),
         extracted_text=sample_markdown,
     )
@@ -105,7 +105,7 @@ def test_markdown_tables_remain_atomic_with_breadcrumbs() -> None:
     fetched = FetchedDocument(
         source_url="https://ecajmer.ac.in/timetable_cse.pdf",
         source_type="pdf",
-        content_hash="dummyhash456",
+        metadata={"content_hash": "dummyhash456"},
         raw_content=table_markdown.encode("utf-8"),
         extracted_text=table_markdown,
     )

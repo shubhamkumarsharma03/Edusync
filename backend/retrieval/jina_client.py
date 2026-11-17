@@ -125,9 +125,10 @@ class JinaEmbedder:
         if not self.is_available():
             raise ValueError("JINA_API_KEY is not configured in environment or settings.")
 
+        api_key_str = (self.api_key or "").strip()
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key.strip()}",
+            "Authorization": f"Bearer {api_key_str}",
         }
 
         all_embeddings: list[list[float]] = []
@@ -165,11 +166,8 @@ class JinaEmbedder:
                     break
 
                 except (httpx.HTTPStatusError, httpx.RequestError) as err:
-                    status_code = (
-                        getattr(err.response, "status_code", None)
-                        if hasattr(err, "response") and err.response
-                        else None
-                    )
+                    resp_obj = getattr(err, "response", None)
+                    status_code = getattr(resp_obj, "status_code", None) if resp_obj else None
                     if attempt < self.max_retries and (
                         status_code in (429, 500, 502, 503, 504)
                         or isinstance(err, httpx.RequestError)
@@ -256,9 +254,10 @@ class JinaReranker:
         if not self.is_available():
             raise ValueError("JINA_API_KEY is not configured in environment or settings.")
 
+        api_key_str = (self.api_key or "").strip()
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.api_key.strip()}",
+            "Authorization": f"Bearer {api_key_str}",
         }
 
         doc_texts = [chunk.content for chunk in chunks]
@@ -300,11 +299,8 @@ class JinaReranker:
                 return reranked_chunks
 
             except (httpx.HTTPStatusError, httpx.RequestError) as err:
-                status_code = (
-                    getattr(err.response, "status_code", None)
-                    if hasattr(err, "response") and err.response
-                    else None
-                )
+                resp_obj = getattr(err, "response", None)
+                status_code = getattr(resp_obj, "status_code", None) if resp_obj else None
                 if attempt < self.max_retries and (
                     status_code in (429, 500, 502, 503, 504) or isinstance(err, httpx.RequestError)
                 ):

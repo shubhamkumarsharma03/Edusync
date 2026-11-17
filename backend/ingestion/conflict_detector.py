@@ -78,7 +78,7 @@ Reply with ONLY the word "YES" or "NO".
                 contents=prompt,
                 config={"max_output_tokens": 10},
             )
-            answer = response.text.strip().upper()
+            answer = (response.text or "").strip().upper()
             return "YES" in answer
         except Exception as e:
             logger.error(f"LLM conflict check failed: {e}")

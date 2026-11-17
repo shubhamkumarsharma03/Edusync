@@ -1,5 +1,6 @@
 import logging
 import re
+from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
@@ -53,7 +54,7 @@ class SourceUpdate(BaseModel):
 class SourceResponse(SourceBase):
 
     id: UUID
-    priority: int
+    priority: int | None = None
     status: str
     error_message: str | None = None
     last_fetched_at: datetime | None = None
@@ -577,7 +578,7 @@ async def seed_default_sources(
 
 
 def _extract_notice_meta(
-    chunks: list[Chunk], source_url: str
+    chunks: Sequence[Chunk], source_url: str
 ) -> tuple[str, str | None, str | None, str | None]:
     """Extract human-readable notice title, S.No, and date from chunk content."""
     title, sno, date, preview = None, None, None, None

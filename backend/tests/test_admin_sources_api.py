@@ -1,5 +1,6 @@
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -14,7 +15,7 @@ from models.source import IngestionSource
 @pytest.fixture
 def mock_db_session():
     """In-memory mock session for Admin Sources API tests to run in CI without live Postgres."""
-    sources_store: dict[uuid.UUID, IngestionSource] = {}
+    sources_store: dict[Any, Any] = {}
 
     session = AsyncMock()
 
@@ -52,26 +53,24 @@ def mock_db_session():
         return sources_store.get(entity_id)
 
     def mock_add(instance):
-        if not getattr(instance, "id", None):
+        inst: Any = instance
+        if not getattr(inst, "id", None):
             if isinstance(instance, Department):
-                instance.id = len(sources_store) + 1
+                object.__setattr__(inst, "id", len(sources_store) + 1)
             else:
-                instance.id = uuid.uuid4()
-        if getattr(instance, "is_active", None) is None:
-            instance.is_active = True
-        if getattr(instance, "sync_status", None) is None:
-            instance.sync_status = "idle"
-        if getattr(instance, "priority", None) is None:
-            instance.priority = 0
-        if getattr(instance, "documents_count", None) is None:
-            instance.documents_count = 0
-        if getattr(instance, "chunks_count", None) is None:
-            instance.chunks_count = 0
-        if getattr(instance, "created_at", None) is None:
+                object.__setattr__(inst, "id", uuid.uuid4())
+        if not isinstance(instance, Department):
+            object.__setattr__(inst, "is_active", True)
+            object.__setattr__(inst, "sync_status", "idle")
+            object.__setattr__(inst, "status", "idle")
+            object.__setattr__(inst, "priority", 0)
+            object.__setattr__(inst, "documents_count", 0)
+            object.__setattr__(inst, "chunks_count", 0)
+        if getattr(inst, "created_at", None) is None:
             now = datetime.now(UTC)
-            instance.created_at = now
-            instance.updated_at = now
-        sources_store[instance.id] = instance
+            object.__setattr__(inst, "created_at", now)
+            object.__setattr__(inst, "updated_at", now)
+        sources_store[inst.id] = inst
 
     async def mock_delete(instance):
         sources_store.pop(instance.id, None)

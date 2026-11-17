@@ -1,4 +1,5 @@
 import logging
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,7 +59,7 @@ class VectorSearcher:
         # Compute cosine distance using pgvector operator
         distance_expr = Chunk.embedding.cosine_distance(query_embedding).label("distance")
 
-        conditions = [
+        conditions: list[Any] = [
             Document.status.in_(allowed),
             Chunk.embedding.is_not(None),
         ]

@@ -57,7 +57,7 @@ async def test_upsert_new_document() -> None:
     mock_embedder = MagicMock()
     mock_embedder.embed_chunks.return_value = [[0.1] * 384, [0.2] * 384]
 
-    dept_id = uuid.uuid4()
+    dept_id = 1
     doc, chunk_records = await upsert_document_and_chunks(
         session=mock_session,
         fetched=fetched,

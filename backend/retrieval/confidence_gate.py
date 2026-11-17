@@ -48,6 +48,11 @@ class ConfidenceGate:
         "I don't have verified information on this topic in the official college circulars or notices. "
         "Please check with the relevant department office or visit the official college website."
     )
+
+    def fallback_response(self) -> str:
+        """Return the standard fallback message when confidence is insufficient."""
+        return self.DEFAULT_FALLBACK_MESSAGE
+
     DEFAULT_CAVEAT_MESSAGE: str = (
         "Note: This information is derived from related college notices. "
         "Please verify specific dates or fee amounts with the relevant department office."

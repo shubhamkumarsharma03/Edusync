@@ -58,7 +58,8 @@ class HTMLFetcher(BaseFetcher):
         # Extract discovered links (especially PDF notice links per ADR-012)
         discovered_links: list[str] = []
         for a_tag in soup.find_all("a", href=True):
-            href = a_tag["href"].strip()
+            raw_href = a_tag.get("href")
+            href = str(raw_href).strip() if raw_href else ""
             if href:
                 full_url = urljoin(base_url, href)
                 if (

@@ -38,6 +38,7 @@ def test_normalize_branches() -> None:
     """Verify that raw branch names and aliases normalize to standard codes."""
     raw = ["Computer Science", "IT", "Electrical", "random_branch"]
     normalized = NoticeAnalyzer._normalize_branches(raw)
+    assert normalized is not None
     assert normalized == ["CSE", "EE", "IT"]
     assert "random_branch" not in normalized
 

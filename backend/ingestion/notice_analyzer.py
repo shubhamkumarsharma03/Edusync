@@ -241,7 +241,7 @@ class NoticeAnalyzer:
                         "max_output_tokens": 1500,
                     },
                 )
-                return response.text
+                return response.text or "{}"
 
             response_text = await asyncio.to_thread(_call_gemini)
             raw_json = json.loads(response_text)

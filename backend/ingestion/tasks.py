@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from db.session import async_session_maker
 from ingestion.pipeline import ingest_document, ingest_source
+from ingestion.schemas import SourceType
 from models.document import Document
 from models.source import IngestionSource
 
@@ -181,19 +182,14 @@ async def _run_reingest_single(source_url: str):
             department_id = doc.department_id if doc else None
             owner = doc.owner if doc else None
 
-            from ingestion.schemas import SourceType
-
-            source_type_enum = None
-            if doc and doc.source_type:
-                try:
-                    source_type_enum = SourceType(doc.source_type)
-                except ValueError:
-                    pass
+            source_type_val: SourceType | None = None
+            if doc and doc.source_type in ("pdf", "html", "sheet"):
+                source_type_val = doc.source_type  # type: ignore
 
             await ingest_document(
                 session=session,
                 source=source_url,
-                source_type=source_type_enum,
+                source_type=source_type_val,
                 department_id=department_id,
                 owner=owner,
                 force=True,

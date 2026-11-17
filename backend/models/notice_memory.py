@@ -7,6 +7,7 @@ See docs/memory_system_plan.md for design rationale.
 
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import Boolean, Date, ForeignKey, Index, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB, TIMESTAMP
@@ -42,7 +43,7 @@ class NoticeMemory(Base, UUIDMixin):
     expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     notice_serial: Mapped[str | None] = mapped_column(Text, nullable=True)
     title_summary: Mapped[str] = mapped_column(Text, nullable=False)
-    key_facts: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default="'[]'::jsonb")
+    key_facts: Mapped[Any] = mapped_column(JSONB, nullable=False, server_default="'[]'::jsonb")
     content_fingerprint: Mapped[str] = mapped_column(Text, nullable=False)
 
     # --- Supersession tracking ---
@@ -61,7 +62,7 @@ class NoticeMemory(Base, UUIDMixin):
     gemini_model: Mapped[str] = mapped_column(
         Text, nullable=False, server_default="'gemini-3.5-flash-lite'"
     )
-    raw_llm_response: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    raw_llm_response: Mapped[Any] = mapped_column(JSONB, nullable=True)
 
     # Relationships
     document: Mapped["Document"] = relationship("Document", foreign_keys=[document_id])

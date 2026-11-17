@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Any
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import FetchedValue, ForeignKey, Index, Integer, Text, func
@@ -19,7 +20,7 @@ class Chunk(Base, UUIDMixin):
     content: Mapped[str] = mapped_column(Text, nullable=False)
     original_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
-    embedding: Mapped[Vector] = mapped_column(Vector(1024), nullable=True)
+    embedding: Mapped[Any] = mapped_column(Vector(1024), nullable=True)
     tsv = mapped_column(TSVECTOR, server_default=FetchedValue())
 
     last_verified: Mapped[datetime] = mapped_column(
