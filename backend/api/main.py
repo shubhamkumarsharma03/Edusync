@@ -21,6 +21,28 @@ logging.basicConfig(
 settings = get_settings()
 
 
+def run_auto_migrations() -> None:
+    """Run alembic upgrade head programmatically on startup to ensure DB schema is synchronized."""
+    import logging
+    import os
+
+    from alembic.config import Config
+
+    from alembic import command
+
+    logger = logging.getLogger("uvicorn.error")
+    try:
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        ini_path = os.path.join(backend_dir, "alembic.ini")
+        if os.path.exists(ini_path):
+            alembic_cfg = Config(ini_path)
+            alembic_cfg.set_main_option("script_location", os.path.join(backend_dir, "alembic"))
+            command.upgrade(alembic_cfg, "head")
+            logger.info("Auto DB migrations applied successfully to latest head.")
+    except Exception as e:
+        logger.warning(f"Auto DB migration skipped or failed: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan context manager for startup and shutdown hooks.
@@ -30,6 +52,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Clean up any orphaned 'fetching' statuses from previous server restarts
     try:
+        import asyncio
+
+        await asyncio.to_thread(run_auto_migrations)
+
         from sqlalchemy import update
 
         from db.session import async_session_maker
