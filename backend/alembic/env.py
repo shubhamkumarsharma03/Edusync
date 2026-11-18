@@ -14,9 +14,9 @@ from models import Base
 config = context.config
 
 # Interpret the config file for Python logging.
-# This line sets up loggers basically.
+# Keep existing loggers (such as uvicorn) active.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 settings = get_settings()
 # Escape '%' so configparser doesn't fail on URL-encoded passwords
