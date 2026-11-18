@@ -45,57 +45,106 @@ EduSync is an institutional AI assistant designed to eliminate misinformation an
 
 ```mermaid
 flowchart TD
-    subgraph DataSources ["1. Data Sources & Ingestion"]
-        DS1["ecajmer.ac.in Department Portals"] --> CRAWL["Playwright Crawler / Jina Reader API"]
-        CRAWL --> HASH["SHA-256 Content Hash Diff"]
-        HASH -- "Unchanged (Hash Match)" --> SKIP["Update last_checked_at (0 Compute Cost)"]
-        HASH -- "New or Modified" --> OCR["Baidu PaddleOCR-VL Engine"]
-        OCR <--> OCACHE[("Persistent SHA-256 Markdown Cache")]
+
+    %% React Client
+    subgraph group_client["React Client"]
+        node_react_app["Student & Admin UI<br/>React App<br/>[App.tsx]"]
+        node_client_chat_api["Chat API Client<br/>[chat.ts]"]
+        node_client_sources_api["Sources API Client<br/>[sources.ts]"]
+        node_admin_panel["Source Admin Panel<br/>React Component"]
     end
 
-    subgraph ChunkingAndEmbedding ["2. Structure-Aware Chunking & Embedding"]
-        OCR --> MD["Structured Markdown with Headings & Tables"]
-        MD --> CHUNKER["SemanticChunker with Breadcrumb Hierarchy"]
-        CHUNKER --> ENT["Entity Extraction (semester, notice_sno, academic_year)"]
-        CHUNKER --> BC["Inject Context Breadcrumbs: [Context: # > ## > ###]"]
-        BC & ENT --> EMBED{"Embedding Provider"}
-        EMBED -- "Jina API" --> JINA_EMBED["Jina Embeddings v3 (1024-d)<br/>task: 'retrieval.passage' (Batch: 32)"]
-        EMBED -- "Local Fallback" --> LOCAL_EMBED["BAAI/bge-m3 Local Model (1024-d)"]
-        JINA_EMBED & LOCAL_EMBED --> UP["Upsert Chunks & Document Metadata"]
+    %% FastAPI Service
+    subgraph group_api["FastAPI Service"]
+        node_fastapi["FastAPI Entry<br/>[main.py]"]
+        node_chat_routes["Chat Routes<br/>[chat.py]"]
+        node_admin_routes["Source Administration<br/>[admin_sources.py]"]
+        node_department_routes["Departments Routes<br/>[departments.py]"]
     end
 
-    subgraph StorageLayer ["3. Storage Layer (PostgreSQL 16+ with pgvector)"]
-        UP --> DB_DOCS[("documents & departments")]
-        UP --> DB_CHUNKS[("chunks (vector(1024), HNSW Index)")]
-        UP --> DB_CONF[("conflicts & queries_log")]
+    %% Synchronization Pipeline
+    subgraph group_ingestion["Synchronization Pipeline"]
+        node_sync_pipeline["Fetch, Parse & Chunk Pipeline<br/>[pipeline.py]"]
+        node_fetchers["Official Source Fetchers<br/>[factory.py]"]
+        node_change_upsert["Change Detection & Upsert<br/>[change_detector.py]"]
+        node_embedder["Chunk Embeddings<br/>[embedder.py]"]
+        node_sync_tasks["Async Sync Execution<br/>[tasks.py]"]
+        node_worker["Worker Entry<br/>[worker.py]"]
     end
 
-    subgraph RetrievalPipeline ["4. Intent-Routed Hybrid Retrieval"]
-        QUERY["Student Query (e.g., 'cse 3rd sem tt')"] --> NORM["CollegeQueryNormalizer"]
-        NORM --> DETECT["Entity Intent: Dept ('CSE'), Sem ('3rd Sem'), Type ('timetable')"]
-        DETECT --> ROUTE{"Department Intent Detected?"}
-        ROUTE -- Yes --> SEARCH_FILT["Filtered Search: Vector (task='retrieval.query') + Keyword (FTS)"]
-        ROUTE -- No --> SEARCH_UNFILT["Unconstrained Hybrid Search (Vector + Keyword)"]
-        SEARCH_FILT -- "0 Results" --> SEARCH_UNFILT
-        SEARCH_FILT & SEARCH_UNFILT --> RRF["Reciprocal Rank Fusion (RRF k=60)<br/>Top 20 Candidate Pool"]
-        RRF --> RERANK{"Reranker Provider"}
-        RERANK -- "Jina API" --> JINA_RERANK["Jina Reranker v2<br/>jina-reranker-v2-base-multilingual<br/>Top 5 Chunks"]
-        RERANK -- "Local Fallback" --> LOCAL_RERANK["CrossEncoder (ms-marco-MiniLM-L-6-v2)<br/>Top 5 Chunks"]
-        JINA_RERANK & LOCAL_RERANK --> GATE{"Top Score >= CONFIDENCE_THRESHOLD (0.55)?"}
-        GATE -- No --> FALLBACK["Safe Fallback Response (Zero Hallucination)"]
-        GATE -- Yes --> LLM["LLM Synthesis (Gemini Flash) with Citations & Tables"]
+    %% Retrieval and Answers
+    subgraph group_retrieval["Retrieval and Answers"]
+        node_retrieval_flow["Normalize, Hybrid Search & Rerank<br/>[hybrid_search.py]"]
+        node_confidence_gate["Evidence Confidence Gate<br/>[confidence_gate.py]"]
+        node_generator["Cited Answer Generator<br/>[generator.py]"]
     end
 
-    subgraph QuotaManagement ["5. Quota Tracking"]
-        JINA_EMBED -.-> TRACKER[("JinaTokenTracker<br/>10,000,000 Free Quota")]
-        JINA_RERANK -.-> TRACKER
-        TRACKER -.-> ADMIN_USAGE["GET /admin/jina-usage"]
+    %% Durable Storage
+    subgraph group_storage["Durable Storage"]
+        node_postgres[("PostgreSQL + pgvector<br/>[session.py]")]
+        node_alembic["Versioned Schema Migrations<br/>[env.py]"]
     end
 
-    subgraph PresentationLayer ["6. Presentation Layer"]
-        LLM & FALLBACK --> CHAT_UI["Student Chat Interface"]
-        DB_DOCS & DB_CHUNKS & ADMIN_USAGE --> ADMIN_UI["Admin Dashboard & Live Pipeline Inspector"]
+    %% External Services
+    subgraph group_external["External Services"]
+        node_official_sources["ECA Portal & Official URLs<br/>[ecajmer_fetcher.py]"]
+        node_local_models["Local Embedding & Reranker Models<br/>Sentence-Transformers<br/>[download_models.py]"]
+        node_gemini["Google Gemini<br/>Answer Synthesis API<br/>[config.py]"]
     end
+
+    %% Client Connections
+    node_react_app -->|"uses"| node_client_chat_api
+    node_react_app -->|"uses"| node_client_sources_api
+    node_admin_panel -->|"manages sources"| node_client_sources_api
+
+    %% API Connections
+    node_client_chat_api -->|"chat requests"| node_chat_routes
+    node_client_sources_api -->|"admin requests"| node_admin_routes
+
+    node_fastapi -->|"mounts"| node_chat_routes
+    node_fastapi -->|"mounts"| node_admin_routes
+    node_fastapi -->|"mounts"| node_department_routes
+
+    %% Chat and Retrieval
+    node_chat_routes -->|"retrieves evidence"| node_retrieval_flow
+    node_retrieval_flow -->|"dense + keyword search"| node_postgres
+    node_retrieval_flow -->|"reranks"| node_local_models
+    node_retrieval_flow -->|"ranked evidence"| node_confidence_gate
+    node_confidence_gate -->|"accepted evidence"| node_generator
+    node_generator -->|"synthesizes answer"| node_gemini
+
+    %% Synchronization Workflow
+    node_admin_routes -->|"starts synchronization"| node_sync_tasks
+    node_sync_tasks -->|"local async"| node_sync_pipeline
+    node_sync_tasks -.->|"production tasks"| node_worker
+    node_worker -->|"executes"| node_sync_pipeline
+
+    %% Ingestion Workflow
+    node_sync_pipeline -->|"retrieves"| node_fetchers
+    node_fetchers -->|"fetches"| node_official_sources
+    node_sync_pipeline -->|"chunks content"| node_embedder
+    node_embedder -->|"uses"| node_local_models
+    node_embedder -->|"vectors"| node_change_upsert
+    node_change_upsert -->|"upserts provenance & chunks"| node_postgres
+
+    %% Database Migrations
+    node_alembic -->|"evolves schema"| node_postgres
+
+    %% Styling
+    classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+    classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+    classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+    classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+    classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+    classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+    classDef toneTeal fill:#ccfbf1,stroke:#0f766e,stroke-width:1.5px,color:#134e4a
+
+    class node_react_app,node_client_chat_api,node_client_sources_api,node_admin_panel toneBlue
+    class node_fastapi,node_chat_routes,node_admin_routes,node_department_routes toneAmber
+    class node_sync_pipeline,node_fetchers,node_change_upsert,node_embedder,node_sync_tasks,node_worker toneMint
+    class node_retrieval_flow,node_confidence_gate,node_generator toneRose
+    class node_postgres,node_alembic toneIndigo
+    class node_official_sources,node_local_models,node_gemini toneTeal
 ```
 
 ---
