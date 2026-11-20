@@ -15,31 +15,52 @@ logger = logging.getLogger(__name__)
 # Known mappings for ECAjmer departments and cells
 KNOWN_DEPARTMENTS: dict[str, str] = {
     "cs-it": "Computer Science and Engineering",
+    "cse": "Computer Science and Engineering",
+    "it": "Information Technology",
     "ce": "Civil Engineering",
+    "civil": "Civil Engineering",
     "ee": "Electrical Engineering",
+    "electrical": "Electrical Engineering",
     "ece": "Electronics and Communication Engineering",
     "eic": "Electronic Instrumentation And Control Engineering",
     "me": "Mechanical Engineering",
+    "mechanical": "Mechanical Engineering",
     "mca": "Computer Applications",
     "mba": "Management Studies",
     "physics": "Physics",
     "chemistry": "Chemistry",
     "maths": "Mathematics",
+    "mathematics": "Mathematics",
     "english": "English",
+    "humanities": "Humanities",
     "economy": "Economics",
+    "economics": "Economics",
 }
 
 KNOWN_CELLS: dict[str, str] = {
     "registrar": "Registrar Section",
     "examination-section": "Examination Section",
+    "exam-cell": "Examination Section",
+    "exam": "Examination Section",
     "accounts": "Accounts Section",
+    "accounts-section": "Accounts Section",
     "academic-section": "Academic Section",
+    "academic": "Academic Section",
     "central-library": "Central Library",
+    "library": "Central Library",
     "first-year": "First Year Cell",
+    "first-year-cell": "First Year Cell",
     "tpo": "Training & Placement Cell",
+    "placement-cell": "Training & Placement Cell",
     "hostels": "Hostels Cell",
+    "hostel": "Hostels Cell",
     "proctor": "Proctor Section",
+    "proctor-section": "Proctor Section",
     "grievance": "Grievance Cell",
+    "women-cell": "Women Cell",
+    "sc-st-cell": "SC ST Cell",
+    "estate": "Estate Section",
+    "sports": "Sports Section",
 }
 
 
@@ -214,7 +235,27 @@ class ECAjmerFetcher(BaseFetcher):
                     for page_num in range(page_count):
                         page = doc[page_num]
                         text = str(page.get_text("text") or "").strip()
-                        if len(text) >= ocr_service.min_text_threshold:
+
+                        # Check for large embedded raster images (e.g. pasted screenshots of timetables)
+                        has_large_image = False
+                        try:
+                            for img in page.get_images():
+                                xref = img[0]
+                                b_img = doc.extract_image(xref)
+                                if (
+                                    b_img
+                                    and b_img.get("width", 0) >= 300
+                                    and b_img.get("height", 0) >= 200
+                                ):
+                                    has_large_image = True
+                                    break
+                        except Exception:
+                            pass
+
+                        # If text density is sufficient and no suspicious table screenshots, use digital text
+                        if len(text) >= ocr_service.min_text_threshold and not (
+                            has_large_image and len(text) < 150
+                        ):
                             page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
                         else:
                             try:
@@ -282,6 +323,7 @@ class ECAjmerFetcher(BaseFetcher):
         source_id: str | None = None,
         item_index: int | None = None,
         total_items: int | None = None,
+        slug: str | None = None,
     ) -> FetchedDocument:
         """Construct a full FetchedDocument from an individual circular entry and its attached PDF."""
         title = entry.get("title", "").strip()
@@ -338,8 +380,13 @@ class ECAjmerFetcher(BaseFetcher):
             "title": title,
             "sno": sno,
             "date": date,
+            "posted_date": date,
+            "portal_id": entry.get("id"),
+            "id": entry.get("id"),
             "department": department_name,
+            "source_section": department_name,
             "category": category_name,
+            "section_slug": slug,
             "pdf_url": pdf_url,
             "page_count": page_count,
             "table_count": len(tables),
@@ -450,6 +497,7 @@ class ECAjmerFetcher(BaseFetcher):
                     source_id=source_id,
                     item_index=idx,
                     total_items=total_entries,
+                    slug=slug,
                 )
 
                 if entry_hash and doc.extracted_text == "":

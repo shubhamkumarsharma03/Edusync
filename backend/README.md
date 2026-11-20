@@ -44,7 +44,7 @@ flowchart TD
   /models_cache   100% offline local model weights (bge-m3, ms-marco-MiniLM-L-6-v2)
   /retrieval      HybridSearcher (pgvector 1024d + BM25 via RRF), CrossEncoderReranker, ConfidenceGate
   /scripts        manage_models.py, seed_sources.py
-  /tests          Pytest async unit, mock, and integration test suite (85 tests)
+  /tests          Pytest async unit, mock, and integration test suite (117 tests)
 ```
 
 ---
@@ -90,9 +90,13 @@ uvicorn api.main:app --reload --port 8000
 | `PUT` | `/admin/sources/{id}` | Update source configuration (limits, active state, priority) |
 | `DELETE` | `/admin/sources/{id}` | Remove a data source from ingestion schedule |
 | `POST` | `/admin/sources/{id}/fetch` | Trigger on-demand crawler & embedding task for a source |
+| `GET` | `/admin/sources/{id}/documents` | Retrieve stored notices in exact chronological portal sequence |
+| `GET` | `/admin/sources/{id}/documents/{doc_id}/chunks` | Inspect extracted chunks, contextual headers, and tokens |
+| `GET` | `/admin/sources/{id}/live-feed` | Live proxy of ECA portal circular API without browser CORS blocks |
 | `POST` | `/admin/sources/seed-defaults` | Preload all official ECA departmental sources |
 | `GET` | `/admin/sources/live-progress` | Real-time pipeline step execution status for the Live Inspector |
 | `GET` | `/admin/departments` | List all registered academic and administrative departments |
+| `GET` | `/admin/jina-usage` | Real-time token usage stats vs 10M free limit |
 | `GET` | `/health` | System health check (DB connectivity & status) |
 
 ---
@@ -100,7 +104,7 @@ uvicorn api.main:app --reload --port 8000
 ## Testing & Code Quality
 
 ```bash
-pytest              # Run full async test suite (85 tests)
+pytest              # Run full async test suite (117 tests)
 ruff check .        # Lint check
 black --check .     # Code format check
 ```

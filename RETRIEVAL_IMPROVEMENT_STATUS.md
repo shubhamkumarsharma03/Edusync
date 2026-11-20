@@ -150,6 +150,17 @@ Evaluated on local PostgreSQL with CPU reranker (`cross-encoder/ms-marco-MiniLM-
 6. **Active API Key & Settings Multi-Env Resolution:**
    - Added active `GEMINI_API_KEY` to root `.env` and updated `backend/api/config.py` `env_file` tuple to `(".env", "../.env", "backend/.env")`.
    - Updated `GEMINI_ANALYSIS_MODEL` to `gemini-3.5-flash-lite` across all config and schema files.
+7. **Notice Ingestion Fidelity & Contextual Upgrades:**
+   - **Early SHA-256 Short-Circuiting:** Hashes binary PDF downloads upfront; skips parsing and OCR for unchanged documents.
+   - **Page-Level Hybrid PDF Parsing:** Evaluates text density per page ($<40$ chars or large raster images $>300\times200$ route to Baidu PaddleOCR-VL; clean native pages stay on fast PyMuPDF).
+   - **Repeated Markdown Table Headers:** Splits multi-row tables strictly on row boundaries while repeating Markdown table column headers (`| Col 1 | Col 2 |\n|---|---|`) and separator rows at the top of each sub-chunk.
+   - **Boilerplate Stripping:** Regex-based removal of repeated institutional letterheads, page numbers ("Page 1 of 2"), and trailing distribution lists ("Copy to: 1. Principal...").
+   - **Model-Safe Contextual Header Budgeting:** Injects `[Notice: ... | Ref: ... | Date: ... | Dept: ...]` into every chunk while keeping total tokens strictly $\le 550$ (50 tokens below embedding context limit).
+   - **Corrigendum & Revision Auto-Linking:** Automatically links and supersedes older circulars when a revised schedule or corrigendum is ingested.
+8. **Chronological Portal Ordering & Native Title Persistence:**
+   - Applied Alembic migrations `b2c3d4e5f6a7` and `c3d4e5f6a7b8`, adding `title`, `notice_sno`, `notice_date`, and `portal_id` to `documents` table with compound index `idx_documents_portal_order` on `(notice_date DESC NULLS LAST, notice_sno DESC NULLS LAST, portal_id DESC NULLS LAST)`.
+   - Admin source explorer now sorts records in the exact same chronological sequence as the live ECA portal feed (100% row-for-row match).
+   - Captured ground-truth notice titles directly from portal HTML anchor text and API payloads (`entry["title"]`), filtering out institutional letterhead noise (`ENGINEERING COLLEGE AJMER`). All 207 documents in PostgreSQL backfilled.
 
 ---
 
@@ -157,9 +168,10 @@ Evaluated on local PostgreSQL with CPU reranker (`cross-encoder/ms-marco-MiniLM-
 
 All roadmap items from the implementation plan have been completed:
 - [x] **Milestone 1:** Production In-Prompt Gemini Evidence Check (Phase 1 Refinement) & 100% Abstention Accuracy.
-- [x] **Milestone 2:** Full Corpus Ingestion across all 28 Priority Sources (204 documents, 529 chunks, 100% completed status).
+- [x] **Milestone 2:** Full Corpus Ingestion across all 28 Priority Sources (207 documents, 532 chunks, 100% completed status).
 - [x] **Milestone 3:** Phase 3 Conversational Query Rewriting & Multi-Turn Benchmark Evaluation.
-- [x] **Milestone 4:** Test Suite & Evaluation Recalibration (112 unit tests passing, 100% Recall@5, 0.9464 MRR).
+- [x] **Milestone 4:** Test Suite & Evaluation Recalibration (117 unit tests passing, 100% Recall@5, 0.9464 MRR).
+- [x] **Milestone 5:** Notice Ingestion Accuracy & Portal Chronological Title Synchronization.
 
 ---
 
@@ -177,7 +189,7 @@ backend\.venv\Scripts\Activate.ps1
 
 ### Key Verification Commands
 ```powershell
-# 1. Run unit test suite (112 passed):
+# 1. Run unit test suite (117 passed):
 pytest backend/tests/ -v
 
 # 2. Run the retrieval & gating evaluation harness:

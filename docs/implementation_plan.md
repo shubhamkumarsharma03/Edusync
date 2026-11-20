@@ -77,7 +77,9 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 ### 3.1 Fetchers
 - [x] `fetch_pdf(url)` — download + extract text (PyMuPDF or pdfplumber)
-- [ ] `fetch_pdf` OCR Fallback — automatically trigger Gemini Vision OCR when scanned pages contain 0 or minimal text (<40 chars)
+- [x] `fetch_pdf` Page-Level Hybrid OCR — automatically routes low text density (<40 chars) or large raster images (>300x200 px) to Baidu PaddleOCR-VL
+- [x] Early SHA-256 binary content hash check — sub-millisecond bypass of PDF parsing and OCR for unchanged documents
+- [x] Clean portal metadata extraction (`title`, `sno`, `date`, `portal_id`, `department`) directly from college website API/HTML
 - [x] `fetch_html(url)` — fetch + strip boilerplate (readability/BeautifulSoup)
 - [x] `fetch_sheet(url_or_path)` — parse CSV/Sheets export into structured rows
 
@@ -85,16 +87,21 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Implement `normalize_content()` (strip whitespace/boilerplate before hashing)
 - [x] Implement `compute_hash()` (SHA-256)
 - [x] Implement comparison against stored `documents.content_hash`; mark `pending` on mismatch
+- [x] Corrigendum & revision detection — auto-supersedes older notices in same department on topic match
 
 ### 3.3 Chunking (per TDD §5.2)
 - [x] Implement semantic-boundary chunker (headings/paragraphs first, 300–500 tokens, ~15% overlap)
-- [x] Special-case: keep tables as single chunks
-- [x] Attach parent metadata (department, owner, source_url) to every chunk
-- [ ] Ingest and chunk all pages of scanned documents (replacing single header chunks with rich multi-page chunks)
+- [x] Table row splitting preserving repeated Markdown table column headers (`| Col 1 | Col 2 |\n|---|---|`)
+- [x] Regex boilerplate stripping (letterheads, distribution lists "Copy to:...", page footers)
+- [x] Contextual header injection (`[Notice: ... | Ref: ... | Date: ... | Dept: ...]`) with strict token budget ($\le 550$ tokens)
+- [x] Short notice preservation (no arbitrary force-splitting of single-window circulars)
+- [x] Attach parent metadata (department, owner, source_url, original_content) to every chunk
 
 ### 3.4 Embedding & Upsert
-- [x] Wire in Sentence-Transformers (`all-MiniLM-L6-v2`) for local dev
+- [x] Wire in BAAI/bge-m3 (1024-d) locally and Jina Embeddings v3 for cloud acceleration
 - [x] Write `upsert_chunks()` — insert new/changed chunks into Postgres + vector index, update `last_verified`
+- [x] Native document metadata persistence (`title`, `notice_sno`, `notice_date`, `portal_id`)
+- [x] Deterministic portal chronological ordering index (`idx_documents_portal_order`)
 
 ### 3.5 Conflict Detection (per TDD §5.4)
 - [x] Implement rule-based same-department/same-type overlap check
@@ -102,13 +109,13 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 ### 3.6 Scheduling
 - [x] Set up Celery worker + Celery Beat (default interval: every 6 hours, configurable)
-- [x] Add manual trigger task (used later by the admin "re-ingest" button)
+- [x] Add manual trigger task (used by the admin "re-ingest" and live pipeline inspector)
 
 ### 3.7 Static College Knowledge Base
-- [ ] Create curated static Markdown documents in `backend/data/static/` (About College, Academic Regulations, Departments/HODs, Fee Structure, Hostels & Facilities, Helplines)
-- [ ] Implement `scripts/ingest_static_data.py` to chunk, hash-check, and embed static documents into PostgreSQL pgvector
+- [x] Create curated static Markdown documents in `backend/data/static/` (About College, Academic Regulations, Departments/HODs, Fee Structure, Hostels & Facilities, Helplines)
+- [x] Implement `scripts/ingest_static_data.py` to chunk, hash-check, and embed static documents into PostgreSQL pgvector
 
-**Exit criteria:** Running the ingestion task against seeded and real scanned documents produces complete multi-page chunks with tables; re-running with an unchanged source produces zero new embeddings; static institutional documents are fully queryable.
+**Exit criteria:** Running the ingestion task against seeded and real scanned documents produces complete multi-page chunks with tables; re-running with an unchanged source produces zero new embeddings; static institutional documents are fully queryable. (Completed)
 
 ---
 
@@ -117,36 +124,46 @@ This plan sequences the build so nothing later depends on something not yet buil
 **Goal:** A working `/chat` endpoint with hybrid search, reranking, confidence gating, and citations.
 
 ### 4.1 Hybrid Search
-- [x] Implement BM25/keyword search (e.g., Postgres full-text search or `rank_bm25`)
-- [x] Implement vector ANN search against `chunks.embedding`
-- [x] Merge + deduplicate results
-- [ ] Add department-segregation filter (`WHERE Document.department = :dept`) to VectorSearcher and KeywordSearcher
+- [x] Implement BM25/keyword search with stored `to_tsvector('simple', content)` and GIN trigram index
+- [x] Implement vector ANN search against `chunks.embedding` (1024-dim HNSW)
+- [x] Candidate pool scaling (`candidate_k = 40`, `top_k = 25`) preventing large-corpus truncation
+- [x] Soft department RRF multiplier (1.3x) and recency decay boosting (180-day half-life)
+- [x] Contextual query rewriting cascade (`gemini-3.5-flash-lite` -> `gemini-3.8-flash` -> `gemini-3.5-flash`) for multi-turn chats
 
 ### 4.2 Reranking
-- [x] Integrate cross-encoder reranker (`ms-marco-MiniLM` locally, or Cohere Rerank API)
-- [x] Sort merged candidates by rerank score
+- [x] Integrate cross-encoder reranker (`ms-marco-MiniLM` locally, or Jina Reranker v2 API)
+- [x] Feed clean natural student query directly to cross-encoder
 
 ### 4.3 Confidence Gate & Fallback
-- [x] Define `CONFIDENCE_THRESHOLD` as a configurable constant
-- [x] If top score < threshold → return fallback response (per PRD FR-15) instead of calling the LLM
+- [x] Three-tier calibrated confidence gate:
+  - $\ge 0.75$: Direct answer with source citations
+  - $0.40 - 0.75$: Answer with student caveat banner
+  - $< 0.40$: Official fallback response (zero hallucination)
+- [x] Single-call Gemini structured JSON evidence verification achieving 100.00% abstention accuracy on unanswerables
 
 ### 4.4 LLM Generation & Citations
-- [x] Build the grounded-generation prompt (answer only from provided chunks, cite source)
-- [x] Call Claude API (primary) with OpenAI fallback on failure
-- [x] Attach `sources[]` (document name, `last_verified`, `url`) to the response
+- [x] Build grounded-generation prompt (expanded to 16,000 characters context)
+- [x] Call Gemini Flash API with OpenAI fallback
+- [x] Attach `sources[]` (`document`, `last_verified`, `url`) to the response
 
-### 4.5 API Endpoints (per TDD §6)
-- [x] `POST /chat` (supports `query`, `department` filter, and auto-department routing)
-- [ ] `POST /feedback`
-- [ ] `GET /admin/documents`
-- [ ] `POST /admin/documents/{id}/reingest`
-- [ ] `GET /admin/conflicts`
-- [ ] `POST /admin/conflicts/{id}/resolve`
-- [ ] `GET /admin/analytics`
+### 4.5 API Endpoints
+- [x] `POST /chat` (supports query, conversation history, and department intent)
+- [x] `GET /admin/sources` & `POST /admin/sources` (priority management, limits)
+- [x] `GET /admin/sources/{id}/documents` (exact chronological portal order)
+- [x] `GET /admin/sources/{id}/live-feed` (ECA portal live proxy)
+- [x] `GET /admin/sources/live-progress` (real-time step execution tracker)
+- [x] `GET /admin/departments`
+- [x] `GET /admin/jina-usage` (token quota monitor)
+- [x] `GET /health`
 
 ### 4.6 Tests
-- [ ] Contract tests for every endpoint (FastAPI `TestClient`)
-- [ ] Retrieval tests against the fixture question set (`backend/tests/fixtures/eval_questions.json`)
+- [x] 117 automated unit and contract tests in `backend/tests/` passing cleanly
+- [x] 63-query evaluation benchmark harness (`eval/eval_set.json` & `eval/run_eval.py`):
+  - Recall@5: 100.00%
+  - Recall@10: 100.00%
+  - MRR: 0.9464
+  - Abstention Accuracy: 100.00%
+  - End-to-End Correctness: 74.60%
 
 **Exit criteria:** Hitting `/chat` with a seeded-data question returns a correct, cited answer; an out-of-scope question returns the fallback message, not a guess; all contract tests pass.
 

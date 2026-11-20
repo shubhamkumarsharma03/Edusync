@@ -38,11 +38,19 @@ class HybridSearcher:
         top_k: int = 20,
         target_departments: list[str] | None = None,
         dept_boost: float = 1.3,
+        target_semesters: list[str] | None = None,
+        target_branches: list[str] | None = None,
+        apply_recency: bool = False,
     ) -> list[RetrievedChunk]:
         """Merge and deduplicate vector and keyword search results using Reciprocal Rank Fusion (RRF).
 
         Formula: RRF_score(d) = sum( weight / (k + rank(d)) )
         """
+        import math
+        import re
+        from datetime import UTC, datetime
+
+        now = datetime.now(UTC)
         chunk_map: dict[UUID, RetrievedChunk] = {}
         rrf_scores: dict[UUID, float] = {}
 
@@ -90,13 +98,44 @@ class HybridSearcher:
                     token_count=chunk.token_count,
                 )
 
-        # Assign final fused RRF scores with soft department boost (never hard WHERE)
+        # Assign final fused RRF scores with soft entity boosts & recency decay (never hard WHERE)
         for chunk_id, fused_score in rrf_scores.items():
             chunk = chunk_map[chunk_id]
             multiplier = 1.0
+
+            # 1. Soft department boost
             if target_departments and chunk.department:
                 if any(dept.lower() in chunk.department.lower() for dept in target_departments):
-                    multiplier = dept_boost
+                    multiplier *= dept_boost
+
+            # 2. Soft semester boost
+            if target_semesters and chunk.content:
+                chunk_lower = chunk.content.lower()
+                if any(sem.lower() in chunk_lower for sem in target_semesters):
+                    multiplier *= 1.15
+
+            # 3. Soft branch boost
+            if target_branches and chunk.content:
+                if any(
+                    re.search(r"\b" + re.escape(b) + r"\b", chunk.content, re.IGNORECASE)
+                    for b in target_branches
+                ):
+                    multiplier *= 1.20
+
+            # 4. Soft recency decay boost (up to 20% boost for fresh circulars decaying over 180 days)
+            if apply_recency and chunk.last_verified:
+                try:
+                    chk_dt = (
+                        chunk.last_verified.replace(tzinfo=UTC)
+                        if chunk.last_verified.tzinfo is None
+                        else chunk.last_verified
+                    )
+                    age_days = max(0, (now - chk_dt).days)
+                    recency_factor = math.exp(-0.693 * (age_days / 180.0))
+                    multiplier *= 1.0 + 0.20 * recency_factor
+                except Exception:
+                    pass
+
             chunk.score = fused_score * multiplier
 
         # Sort descending by fused RRF score
@@ -174,9 +213,18 @@ class HybridSearcher:
             include_superseded=effective_superseded,
         )
 
+        # Detect query branches for soft ranking boost
+        query_branches: list[str] = []
+        for b in ["CSE", "IT", "ECE", "EE", "ME", "CE", "AUTO"]:
+            if re.search(r"\b" + b + r"\b", query, re.IGNORECASE):
+                query_branches.append(b)
+
         return self.reciprocal_rank_fusion(
             vector_results=vector_results,
             keyword_results=keyword_results,
             top_k=top_k,
             target_departments=target_depts,
+            target_semesters=norm.detected_semesters or None,
+            target_branches=query_branches or None,
+            apply_recency=True,
         )

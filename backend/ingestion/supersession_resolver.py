@@ -22,6 +22,25 @@ logger = logging.getLogger(__name__)
 class SupersessionResolver:
     """Manages notice memory records and resolves supersession relationships."""
 
+    @classmethod
+    def is_corrigendum_or_revision(cls, title: str, text: str = "") -> bool:
+        """Detect if notice indicates an update, revision, amendment or postponement."""
+        import re
+
+        combined = f"{title} {text[:1000]}".lower()
+        patterns = [
+            r"\brevised\b",
+            r"\bcorrigendum\b",
+            r"\bpostponed\b",
+            r"\bpostponement\b",
+            r"\bamendment\b",
+            r"\brescheduled?\b",
+            r"\bin continuation of\b",
+            r"\bextension of (?:last )?date\b",
+            r"\bupdated schedule\b",
+        ]
+        return any(re.search(pat, combined, re.IGNORECASE) for pat in patterns)
+
     @staticmethod
     def _parse_date(date_str: str | None) -> date | None:
         """Parse date string safely."""
@@ -86,6 +105,48 @@ class SupersessionResolver:
                     continue
             filtered_matches.append(match)
         existing_matches = filtered_matches
+
+        # Check for Corrigendum / Revision triggers in title
+        if cls.is_corrigendum_or_revision(memory_data.title_summary):
+            import re
+
+            ignore_words = {
+                "notice",
+                "order",
+                "circular",
+                "revised",
+                "corrigendum",
+                "college",
+                "ajmer",
+                "engineering",
+                "schedule",
+                "regarding",
+                "date",
+                "time",
+                "table",
+            }
+            topic_words = {
+                w
+                for w in re.findall(r"\b[a-zA-Z]{4,}\b", memory_data.title_summary.lower())
+                if w not in ignore_words
+            }
+            if topic_words and memory_data.department:
+                dept_stmt = select(NoticeMemory).where(
+                    NoticeMemory.department.ilike(memory_data.department),
+                    NoticeMemory.is_latest == True,  # noqa: E712
+                    NoticeMemory.document_id != document_id,
+                )
+                dept_candidates = list((await session.execute(dept_stmt)).scalars().all())
+                for cand in dept_candidates:
+                    if cand in existing_matches:
+                        continue
+                    cand_words = set(re.findall(r"\b[a-zA-Z]{4,}\b", cand.title_summary.lower()))
+                    if topic_words.intersection(cand_words):
+                        logger.info(
+                            f"Corrigendum/revision detected: '{memory_data.title_summary}' "
+                            f"supersedes earlier matching notice '{cand.title_summary}' (id={cand.id})"
+                        )
+                        existing_matches.append(cand)
 
         # Check if already exists for this exact document (e.g. re-ingestion of updated doc)
         existing_doc_query = select(NoticeMemory).where(NoticeMemory.document_id == document_id)

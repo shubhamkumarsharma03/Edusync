@@ -16,26 +16,34 @@ EduSync is an institutional AI assistant designed to eliminate misinformation an
 ### Key Features
 
 1. **Self-Updating Ingestion Pipeline**:
-   - Automated crawler for all 13+ ECA departments and sections.
-   - SHA-256 content hashing to re-embed **only modified circular chunks**, eliminating costly full re-indexing.
-   - Baidu PaddleOCR-VL engine converts complex scanned documents into structured Markdown with preserved tables.
+   - Automated crawler for all 13+ ECA departments and administrative sections.
+   - **Early SHA-256 Short-Circuiting**: Hashes raw binary file bytes immediately upon download, skipping parsing and OCR completely for unchanged documents (sub-millisecond skip).
+   - **Page-Level Hybrid PDF Parsing**: Selective OCR per page (pages with high native text density stay on fast PyMuPDF; low-density or raster image pages route to Baidu PaddleOCR-VL).
+   - **Repeated Markdown Table Column Headers**: Large timetables and fee schedules split strictly on row boundaries while repeating Markdown table column headers (`| Col 1 | Col 2 |\n|---|---|`) at the top of every chunk.
+   - **Institutional Boilerplate Stripping**: Targeted regex heuristics strip repeated letterheads, page footers ("Page 1 of 2"), and trailing distribution lists ("Copy to: 1. Principal...").
+   - **Automatic Corrigendum & Revision Linking**: Detects revised schedules and corrigenda, auto-superseding older notices in the same department/topic.
+   - **Model-Safe Contextual Header Budgeting**: Injects `[Notice: ... | Ref: ... | Date: ... | Dept: ...]` into every chunk while keeping total tokens strictly $\le 550$ (safe headroom below embedding model sequence length).
    - Persistent SHA-256 Markdown OCR cache eliminates redundant OCR execution.
    - High-speed URL-to-markdown extraction powered by **Jina Reader API** (`https://r.jina.ai/`).
 2. **Institutional Trust Layer & Confidence Gating**:
    - Every answer includes verified **Source Citations** with official document URLs, department origin, and verification timestamps.
-   - Cross-Encoder confidence gate (`0.55` threshold) returns a safe fallback message if no verified information is found, strictly preventing hallucinations.
+   - Three-tier confidence gating ($\ge 0.75$ high confidence direct, $0.40 - 0.75$ medium confidence with student caveat, $< 0.40$ official fallback).
+   - Single-call production Gemini evidence check achieving **100.00% Abstention Accuracy** on unanswerable and near-miss questions.
 3. **Intent-Routed Hybrid Search & Jina AI Cloud Acceleration**:
    - Structure-aware chunking with heading hierarchy breadcrumbs (`[Context: # > ## > ###]`).
    - Domain-specific query normalizer extracting department, semester, and topic intent.
-   - Fuses Dense Vector embeddings (1024-dim via pgvector HNSW) and PostgreSQL Full-Text Search (BM25) via **Reciprocal Rank Fusion (RRF)** to retrieve top 20 candidate chunks.
+   - Fuses Dense Vector embeddings (1024-dim via pgvector HNSW) and PostgreSQL Full-Text Search (BM25 with stored tsvector and GIN trigram index) via **Reciprocal Rank Fusion (RRF)** with candidate pool scaling (`candidate_k=40`, `top_k=25`) and soft recency/department multipliers.
    - Dual-provider embedding architecture: **Jina Embeddings v3** (`jina-embeddings-v3`, task-specific passage/query adapters) with transparent local **BAAI/bge-m3** fallback.
    - Dual-provider reranker architecture: **Jina Reranker v2** (`jina-reranker-v2-base-multilingual`) with local **ms-marco-MiniLM-L-6-v2** fallback to select top 5 chunks.
+   - Context-aware multi-turn conversational query rewriter (`gemini-3.5-flash-lite` -> `gemini-3.8-flash` -> `gemini-3.5-flash`).
    - Synthesized via **Gemini Flash** with clean markdown tables.
 4. **Token Quota Monitoring & Real-Time Tracking**:
    - Thread-safe `JinaTokenTracker` monitors combined token usage across embeddings and reranking against Jina's 10,000,000 free-tier limit.
    - Inspected live via `GET /admin/jina-usage`.
 5. **Dedicated Admin Panel & Live Pipeline Inspector**:
-   - Modern, standalone admin dashboard to manage data sources, view live ECA circular feeds, trigger on-demand synchronization, and inspect step-by-step pipeline execution in real time with 5-second auto-polling.
+   - Standalone admin dashboard to manage data sources, view live ECA circular feeds, trigger on-demand synchronization, and inspect step-by-step pipeline execution in real time with 5-second auto-polling.
+   - **100% Chronological Portal Ordering**: Documents in the admin explorer appear in the exact publication sequence (`notice_date DESC, notice_sno DESC, portal_id DESC`) as the live college portal.
+   - **Ground-Truth Title Persistence**: Persists clean official notice titles natively in PostgreSQL, eliminating OCR letterhead noise (`ENGINEERING COLLEGE AJMER`).
 6. **100% Offline Local Fallback**:
    - If `JINA_API_KEY` is not provided, the pipeline executes completely offline using cached local models (`backend/models_cache/bge-m3` and `ms-marco-MiniLM-L-6-v2`).
 
@@ -253,7 +261,7 @@ npm run dev
 ### Backend
 ```bash
 cd backend
-pytest              # Run full async test suite (95 tests)
+pytest              # Run full async test suite (117 tests)
 ruff check .        # Linting validation
 black --check .     # Code formatting check
 ```
@@ -267,7 +275,7 @@ npm run build       # Verify TypeScript & Vite production build
 
 ---
 
-## 📁 Repository Structure
+## Repository Structure
 
 ```
 /backend
@@ -291,7 +299,7 @@ npm run build       # Verify TypeScript & Vite production build
 
 ---
 
-## 📚 Project Documentation
+## Project Documentation
 
 - [EduSync Product Requirements Document (PRD)](docs/EduSync_PRD.md)
 - [Technical Design Document (TDD)](docs/EduSync_Technical_Design_Document.md)

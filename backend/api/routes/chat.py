@@ -93,7 +93,7 @@ CRITICAL INSTRUCTIONS:
 }}
 
 VERIFIED OFFICIAL NOTICES:
-{chunks_text[:4000]}
+{chunks_text[:16000]}
 
 STUDENT QUESTION:
 {query}

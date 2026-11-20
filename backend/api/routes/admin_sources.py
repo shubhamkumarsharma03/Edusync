@@ -577,6 +577,34 @@ async def seed_default_sources(
     return await list_sources(session)
 
 
+BOILERPLATE_TITLES = {
+    "engineering college ajmer",
+    "govt. engineering college, ajmer",
+    "government engineering college, ajmer",
+    "govt engineering college ajmer",
+    "government engineering college ajmer",
+    "office of the principal",
+    "office order",
+    "circular",
+    "notice",
+    "urgent notice",
+}
+
+
+def _clean_title(candidate: str | None) -> str | None:
+    if not candidate:
+        return None
+    c = candidate.strip()
+    c_lower = c.lower()
+    if (
+        c_lower in BOILERPLATE_TITLES
+        or c_lower.startswith("department of")
+        or c_lower.startswith("table")
+    ):
+        return None
+    return c
+
+
 def _extract_notice_meta(
     chunks: Sequence[Chunk], source_url: str
 ) -> tuple[str, str | None, str | None, str | None]:
@@ -586,11 +614,18 @@ def _extract_notice_meta(
         if not preview and c.content:
             preview = c.content[:300].strip()
         if not title:
-            m = re.search(r"^#\s+([^#\n\r]+)$", c.content, re.MULTILINE)
-            if m:
-                candidate = m.group(1).strip()
-                if not candidate.lower().startswith("table"):
-                    title = candidate
+            # Check contextual header first
+            m_notice = re.search(r"\[Notice:\s*([^|\n\r]+)", c.content)
+            if m_notice:
+                cand = _clean_title(m_notice.group(1))
+                if cand:
+                    title = cand
+            if not title:
+                m = re.search(r"^#\s+([^#\n\r]+)$", c.content, re.MULTILINE)
+                if m:
+                    cand = _clean_title(m.group(1))
+                    if cand:
+                        title = cand
         if not sno:
             m = re.search(r"\*\*Notice S\.No:\*\*\s*([^\n\r]+)", c.content)
             if m:
@@ -665,7 +700,12 @@ async def list_source_documents(
 
     offset = (page - 1) * limit
     paginated_stmt = (
-        base_query.order_by(Document.ingested_at.desc(), Document.last_checked_at.desc())
+        base_query.order_by(
+            Document.notice_date.desc().nullslast(),
+            Document.notice_sno.desc().nullslast(),
+            Document.portal_id.desc().nullslast(),
+            Document.ingested_at.desc(),
+        )
         .offset(offset)
         .limit(limit)
     )
@@ -676,6 +716,7 @@ async def list_source_documents(
         chunk_stmt = select(Chunk).where(Chunk.document_id == d.id).order_by(Chunk.id.asc())
         chunks = (await session.execute(chunk_stmt)).scalars().all()
         title, sno, date, preview = _extract_notice_meta(chunks, d.source_url)
+        resolved_title = d.title or title
         dept_name = (
             d.department_rel.name
             if d.department_rel
@@ -687,9 +728,9 @@ async def list_source_documents(
                 source_url=d.source_url,
                 source_type=d.source_type,
                 department=dept_name,
-                title=title,
-                notice_sno=sno,
-                notice_date=date,
+                title=resolved_title,
+                notice_sno=d.notice_sno or sno,
+                notice_date=str(d.notice_date) if d.notice_date else date,
                 content_hash=d.content_hash,
                 status=d.status,
                 chunk_count=len(chunks),

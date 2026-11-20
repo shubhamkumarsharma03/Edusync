@@ -2,7 +2,7 @@ import re
 from typing import Any
 
 from ingestion.schemas import ChunkData, ExtractedTable, FetchedDocument, NoticeMemoryData
-from ingestion.table_extractor import parse_markdown_tables
+from ingestion.table_extractor import parse_markdown_tables, split_table_to_chunks
 
 
 def count_tokens(text: str) -> int:
@@ -126,14 +126,54 @@ def extract_academic_year(text: str) -> str | None:
     return None
 
 
+def strip_notice_boilerplate(text: str) -> str:
+    """Strip recurring college notice boilerplate (repeated letterheads, footers,
+    page numbers, and trailing 'Copy to: 1. Principal...' distribution lists).
+    Keeps URLs, dates, and core factual instructions completely intact.
+    """
+    if not text or not text.strip():
+        return ""
+
+    cleaned = text
+
+    # 1. Truncate trailing distribution lists (Copy forwarded to, Copy to following...)
+    distribution_patterns = [
+        r"\n\s*(?:Copy\s+(?:forwarded\s+)?(?:for\s+information\s+and\s+necessary\s+action\s+)?to\s*[:\-]|Copy\s+to\s+the\s+following|Copy\s+to\s*:)[\s\S]*$",
+    ]
+    for pat in distribution_patterns:
+        cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE)
+
+    # 2. Strip standard institutional header addresses (leaving title and main content)
+    header_patterns = [
+        r"(?m)^\s*(?:GOVERNMENT\s+ENGINEERING\s+COLLEGE[,\s]+AJMER|ENGINEERING\s+COLLEGE[,\s]+AJMER)\s*$",
+        r"(?m)^\s*(?:AN\s+AUTONOMOUS\s+INSTITUTION\s+OF\s+GOVT\.\s+OF\s+RAJASTHAN)\s*$",
+        r"(?m)^\s*NH-8[,\s]+BARLIYA\s+CHOR?AHA?[,\s]+AJMER\s*[-–\s]*\d*\s*$",
+    ]
+    for pat in header_patterns:
+        cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE)
+
+    # 3. Strip page number artifacts and signatures
+    page_patterns = [
+        r"(?m)^\s*Page\s+\d+\s+of\s+\d+\s*$",
+        r"(?m)^\s*---\s+Page\s+\d+\s+---\s*$",
+        r"(?m)^\s*(?:Signature\s+Not\s+Verified|Digitally\s+signed\s+by)[\s\S]*?(?=\n\n|\Z)",
+    ]
+    for pat in page_patterns:
+        cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE)
+
+    # Collapse excessive blank lines
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
 class SemanticChunker:
     """Chunks documents along semantic boundaries (headings, paragraphs, tables) with overlap."""
 
     def __init__(
         self,
-        target_tokens: int = 800,
-        min_tokens: int = 150,
-        max_tokens: int = 1200,
+        target_tokens: int = 400,
+        min_tokens: int = 100,
+        max_tokens: int = 500,
         overlap_ratio: float = 0.15,
     ) -> None:
         self.target_tokens = target_tokens
@@ -219,7 +259,12 @@ class SemanticChunker:
                     existing_tables.append(mdt)
 
         # 2. Process structured tables as intact individual chunks with context breadcrumbs
-        for t_idx, table in enumerate(existing_tables):
+        # If table is large, split across row boundaries repeating markdown headers
+        all_table_chunks: list[ExtractedTable] = []
+        for table in existing_tables:
+            all_table_chunks.extend(split_table_to_chunks(table, max_rows=12))
+
+        for t_idx, table in enumerate(all_table_chunks):
             table_md = table.to_markdown()
             row_statements = table.to_row_statements()
 
@@ -260,7 +305,7 @@ class SemanticChunker:
 
         # 3. Process text content along semantic boundaries (headings & sections)
         if not raw_text:
-            return self._apply_memory_header(chunks, memory_data, dept)
+            return self._apply_memory_header(chunks, memory_data, dept, base_meta=base_meta)
 
         # Remove table markdown blocks already handled as separate chunks
         clean_text = re.sub(
@@ -269,15 +314,38 @@ class SemanticChunker:
             raw_text,
             flags=re.DOTALL,
         )
-        clean_text = clean_text.strip()
+        # Strip recurring boilerplate (letterheads, copy-to distribution lists, stamps)
+        clean_text = strip_notice_boilerplate(clean_text)
 
         if not clean_text:
-            return self._apply_memory_header(chunks, memory_data, dept)
+            return self._apply_memory_header(chunks, memory_data, dept, base_meta=base_meta)
 
         # Split text into sections along Markdown headings (#, ##, ###) while tracking breadcrumb hierarchy
         sections_with_breadcrumbs = self._split_markdown_sections_with_breadcrumbs(clean_text)
         if not sections_with_breadcrumbs:
-            return self._apply_memory_header(chunks, memory_data, dept)
+            return self._apply_memory_header(chunks, memory_data, dept, base_meta=base_meta)
+
+        # Intact short notice rule: If notice has NO sub-headings (<=1 distinct breadcrumb) and fits within max_tokens,
+        # preserve as single intact chunk so dates/deadlines are never split!
+        distinct_breadcrumbs = {b for _, b in sections_with_breadcrumbs if b}
+        clean_token_count = count_tokens(clean_text)
+        if len(distinct_breadcrumbs) <= 1 and clean_token_count <= self.max_tokens:
+            chunk_content = f"[Context: {title}]\n\n{clean_text}" if title else clean_text
+            chunks.append(
+                ChunkData(
+                    content=chunk_content,
+                    token_count=count_tokens(chunk_content),
+                    chunk_index=chunk_idx,
+                    metadata={
+                        **base_meta,
+                        "is_table": False,
+                        "page_number": 1,
+                        "breadcrumb": title or "Full Notice",
+                        "semester": extract_semester(clean_text) or doc_semester,
+                    },
+                )
+            )
+            return self._apply_memory_header(chunks, memory_data, dept, base_meta=base_meta)
 
         current_paragraphs: list[str] = []
         current_token_count = 0
@@ -369,7 +437,7 @@ class SemanticChunker:
                 )
             )
 
-        return self._apply_memory_header(chunks, memory_data, dept)
+        return self._apply_memory_header(chunks, memory_data, dept, base_meta=base_meta)
 
     @classmethod
     def _apply_memory_header(
@@ -377,18 +445,69 @@ class SemanticChunker:
         chunks: list[ChunkData],
         memory_data: NoticeMemoryData | None,
         dept: str | None,
+        base_meta: dict[str, Any] | None = None,
     ) -> list[ChunkData]:
-        """Prepend structured notice memory header to chunks for enriched embeddings."""
-        if not memory_data:
+        """Prepend structured notice memory & portal metadata header to chunks for enriched embeddings."""
+        base_meta = base_meta or {}
+        if not memory_data and not base_meta.get("source_section"):
             return chunks
-        sem_str = ", ".join(memory_data.target_semester) if memory_data.target_semester else "All"
-        branch_str = ", ".join(memory_data.target_branch) if memory_data.target_branch else "All"
-        dept_str = memory_data.department or dept or "General"
-        session_str = memory_data.academic_session or "Current"
-        memory_header = (
-            f"[Notice: {memory_data.title_summary} | Type: {memory_data.notice_type} | "
-            f"Dept: {dept_str} | Branch: {branch_str} | Sem: {sem_str} | Session: {session_str}]\n\n"
+
+        title_str = (
+            base_meta.get("title")
+            or (memory_data.title_summary if memory_data else "")
+            or "College Notice"
         )
+        dept_str = (
+            base_meta.get("department")
+            or (memory_data.department if memory_data else "")
+            or dept
+            or "General"
+        )
+        sno_str = (
+            base_meta.get("notice_sno") or (memory_data.notice_serial if memory_data else "") or ""
+        )
+        date_str = (
+            base_meta.get("document_date")
+            or (str(memory_data.effective_date) if memory_data else "")
+            or ""
+        )
+        sem_str = (
+            ", ".join(memory_data.target_semester)
+            if (memory_data and memory_data.target_semester)
+            else base_meta.get("semester")
+        )
+        branch_str = (
+            ", ".join(memory_data.target_branch)
+            if (memory_data and memory_data.target_branch)
+            else (
+                ", ".join(base_meta["target_branch"])
+                if isinstance(base_meta.get("target_branch"), list)
+                else base_meta.get("target_branch")
+            )
+        )
+        type_str = memory_data.notice_type if memory_data else base_meta.get("doc_type", "notice")
+        session_str = (
+            memory_data.academic_session if memory_data else base_meta.get("academic_year")
+        ) or "Current"
+
+        header_parts = [f"Notice: {title_str}"]
+        if sno_str:
+            header_parts.append(f"Ref: {sno_str}")
+        if date_str:
+            header_parts.append(f"Date: {date_str}")
+        if dept_str:
+            header_parts.append(f"Section: {dept_str}")
+        if branch_str:
+            header_parts.append(f"Branch: {branch_str}")
+        if sem_str:
+            header_parts.append(f"Sem: {sem_str}")
+        if type_str and type_str != "other":
+            header_parts.append(f"Type: {type_str}")
+        if session_str:
+            header_parts.append(f"Session: {session_str}")
+
+        memory_header = f"[{' | '.join(header_parts)}]\n\n"
+
         for chk in chunks:
             chk.content = memory_header + chk.content
             chk.token_count = count_tokens(chk.content)

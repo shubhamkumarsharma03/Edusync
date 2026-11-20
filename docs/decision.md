@@ -224,6 +224,41 @@ Format: lightweight ADR (Architecture Decision Record). Newest decisions at the 
 
 ---
 
+## ADR-016: Chronological Portal Ordering, Ground-Truth Title Persistence & Notice Metadata Synchronization
+
+**Status:** Accepted
+
+**Context:** On the admin dashboard explorer ("Stored in EduSync DB"), documents were previously ordered by `ingested_at DESC`. When an older historical notice (e.g., from 2025) was ingested or refreshed, it jumped to row 1 on page 1, breaking visual comparison against the live ECA college portal feed. Furthermore, notice titles were being extracted dynamically via regex matching headings from arbitrary chunks; due to random UUID sorting of chunk IDs, institutional letterheads (e.g., `# ENGINEERING COLLEGE AJMER`) were frequently surfaced as document titles instead of the actual circular title.
+
+**Decision:**
+1. **Schema Additions (`documents` table):** Add native columns `title` (Text), `notice_sno` (Text), `notice_date` (Date), and `portal_id` (Integer).
+2. **Deterministic Compound Index:** Create database index `idx_documents_portal_order` on `(notice_date DESC NULLS LAST, notice_sno DESC NULLS LAST, portal_id DESC NULLS LAST)`.
+3. **Portal Ground-Truth Title Ingestion:** Extract clean HTML anchor text and API title payloads (`entry["title"]`) during crawling in `ecajmer_fetcher.py`. Persist this clean title directly to `documents.title` during upsertion, bypassing noisy scanned PDF letterheads.
+4. **Boilerplate Letterhead Filtering:** Implement `_clean_extracted_title()` to reject institutional headers (`ENGINEERING COLLEGE AJMER`, `GOVT. ENGINEERING COLLEGE`, `NOTICE`, `CIRCULAR`, `OFFICE ORDER`, `DEPARTMENT OF...`) from ever qualifying as notice titles.
+5. **Admin Source Query Realignment:** In `list_source_documents`, sort records strictly by `Document.notice_date.desc().nullslast(), Document.notice_sno.desc().nullslast(), Document.portal_id.desc().nullslast(), Document.ingested_at.desc()`.
+
+**Consequences:** The admin explorer now matches the official college portal listing 100% row-for-row. Any newly ingested notice from any historical date lands precisely in its correct chronological position, making manual and automated audits trivial.
+
+---
+
+## ADR-017: High-Precision Notice Ingestion: Page-Level Hybrid OCR, Boilerplate Stripping, and Model-Safe Contextual Chunking
+
+**Status:** Accepted
+
+**Context:** Scanned college notices contain significant structural noise: repetitive multi-line letterheads, page footers ("Page 1 of 2"), long administrative distribution lists ("Copy to: 1. Principal..."), and complex timetables. File-level OCR was unnecessarily slow for hybrid PDFs containing native text pages alongside scanned pages. Additionally, chunk splitting without table header repetition destroyed tabular relational semantics across chunk boundaries, and long notices risked exceeding embedding model sequence length limits.
+
+**Decision:**
+1. **Early SHA-256 Hash Short-Circuiting:** Compute SHA-256 binary content hashes immediately after downloading file bytes. If the hash matches an active stored record, bypass PyMuPDF parsing, rasterization, and OCR completely (sub-millisecond skip).
+2. **Page-Level Hybrid PDF Parsing:** Evaluate text density per page. Pages with dense native text ($>40$ chars) and no raster images are extracted directly via PyMuPDF; pages with low density or large embedded images ($>300\times200$ px) route selectively to Baidu PaddleOCR-VL.
+3. **Markdown Table Chunking with Header Repetition:** When splitting large multi-row tables across chunks, split strictly on row boundaries and repeat the Markdown table column headers (`| Col 1 | Col 2 |\n|---|---|`) at the top of every chunk.
+4. **Institutional Boilerplate Stripping:** Use targeted regular expressions before chunking to strip repeated letterheads, page footers, and trailing `"Copy to: ..."` distribution lists, keeping provenance URLs intact.
+5. **Contextual Header Injection & Token Budgeting:** Prepend a structured header `[Notice: <Title> | Ref: <S.No> | Date: <Date> | Dept: <Dept>]` to every chunk. Enforce a strict token budget ($\le 550$ tokens) with 50 tokens of safety headroom below the embedding model context limit. Avoid force-splitting short notices that fit within a single token window.
+6. **Automatic Corrigendum & Revision Linking:** Detect keywords (`Revised`, `Corrigendum`, `Postponed`, `In continuation of`) and automatically link and supersede prior active circulars on the same topic in the same department.
+
+**Consequences:** Drastically reduced ingestion time, zero token truncation, robust preservation of timetable/fee matrices, and elimination of outdated circulars outranking revisions during retrieval.
+
+---
+
 ## Open / not yet decided
 
 - Final decision on whether the ablation study (RAG variants × OCR engines) is scoped into the core capstone deliverable or treated as a stretch goal for the paper.

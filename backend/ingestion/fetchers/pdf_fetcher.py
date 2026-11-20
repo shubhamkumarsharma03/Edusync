@@ -75,7 +75,27 @@ class PDFFetcher(BaseFetcher):
                 for page_num in range(len(doc)):
                     page = doc[page_num]
                     text = str(page.get_text("text") or "").strip()
-                    if len(text) >= ocr_service.min_text_threshold:
+
+                    # Check for large embedded raster images (e.g. pasted screenshots of timetables)
+                    has_large_image = False
+                    try:
+                        for img in page.get_images():
+                            xref = img[0]
+                            b_img = doc.extract_image(xref)
+                            if (
+                                b_img
+                                and b_img.get("width", 0) >= 300
+                                and b_img.get("height", 0) >= 200
+                            ):
+                                has_large_image = True
+                                break
+                    except Exception:
+                        pass
+
+                    # If text density is sufficient and no suspicious table screenshots, use digital text
+                    if len(text) >= ocr_service.min_text_threshold and not (
+                        has_large_image and len(text) < 150
+                    ):
                         page_texts.append(f"--- Page {page_num + 1} ---\n{text}")
                     else:
                         try:

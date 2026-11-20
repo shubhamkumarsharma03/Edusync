@@ -117,26 +117,39 @@ CREATE TABLE documents (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     source_url      TEXT NOT NULL,
     source_type     TEXT NOT NULL CHECK (source_type IN ('pdf', 'html', 'sheet')),
-    department      TEXT,
+    department_id   UUID REFERENCES departments(id) ON DELETE SET NULL,
     owner           TEXT,
     content_hash    TEXT NOT NULL,
     status          TEXT NOT NULL DEFAULT 'fresh'
                         CHECK (status IN ('fresh', 'stale', 'conflicted', 'pending')),
+    title           TEXT,
+    notice_sno      TEXT,
+    notice_date     DATE,
+    portal_id       INT,
     ingested_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_checked_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_documents_portal_order ON documents (
+    notice_date DESC NULLS LAST,
+    notice_sno DESC NULLS LAST,
+    portal_id DESC NULLS LAST
 );
 
 CREATE TABLE chunks (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     document_id     UUID NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     content         TEXT NOT NULL,
+    original_content TEXT,
     token_count     INT NOT NULL,
     embedding       VECTOR(1024),          -- 1024-dim BAAI/bge-m3 embedding
+    tsv             TSVECTOR GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED,
     last_verified   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX chunks_embedding_idx ON chunks 
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
+CREATE INDEX idx_chunks_tsv ON chunks USING gin (tsv);
+CREATE INDEX idx_chunks_content_trgm ON chunks USING gin (content gin_trgm_ops);
 
 CREATE TABLE conflicts (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -162,54 +175,56 @@ CREATE TABLE queries_log (
 
 ## 5. Core Algorithms
 
-### 5.1 Change Detection (Hash Diff & Persistent OCR Cache)
+### 5.1 Change Detection & Page-Level Hybrid Parsing
 ```
 for each registered source in ingestion_sources:
-    fetch raw document content (PDF/HTML)
-    new_hash = SHA256(raw_content)
-    if new_hash != documents.content_hash:
-        check local persistent OCR cache (.cache/ocr_markdown/{hash}.md)
-        if cached:
-            markdown = read_cache()
-        else:
-            markdown = baidu_paddleocr_vl(raw_content)
-            save_cache(new_hash, markdown)
-        chunk, embed with BGE-M3, and upsert
+    fetch circular entries from native ECA API (/api/circulars/public/{slug})
+    extract clean portal metadata (title, sno, date, portal_id, department)
+    download raw PDF file bytes
+    new_hash = SHA256(raw_bytes)
+    if new_hash == documents.content_hash:
+        update documents.last_checked_at (0 compute, bypass PyMuPDF and OCR completely)
     else:
-        update documents.last_checked_at (0 compute and 0 embedding cost)
+        for each page in PDF:
+            if page text density >= 40 chars and no large raster images:
+                extract plain text directly via PyMuPDF (fast native path)
+            else:
+                route page selectively to Baidu PaddleOCR-VL (selective OCR)
+        strip institutional boilerplate (letterheads, distribution lists, footers)
+        split multi-row tables preserving repeated Markdown table column headers
+        build contextual header: [Notice: {title} | Ref: {sno} | Date: {date} | Dept: {dept}]
+        chunk with strict token budget (<= 550 tokens)
+        check and link corrigenda / revisions against prior active notices
+        embed chunks and upsert Document + Chunks into PostgreSQL + pgvector
 ```
 
 ### 5.2 Structure-Aware Markdown Chunking & Breadcrumbs
-- **Heading Stack Hierarchy**: Baidu OCR output is parsed into Markdown sections while maintaining a heading stack (`# > ## > ### > ####`).
+- **Heading Stack Hierarchy**: Clean Markdown output is parsed into sections while maintaining a heading stack (`# > ## > ### > ####`).
 - **Context Injection**: Each child paragraph and table chunk is prepended with `[Context: Breadcrumb Path]\n\n`, allowing dense vectors and keyword FTS to match hierarchical section context.
-- **Entity Extraction**: Regex extractors pull key metadata fields:
-  - `semester`: e.g. `3rd Sem`, `1st Sem`
-  - `notice_sno`: Official dispatch code (e.g. `ECA/Acad/2026/1042`, `F.(2)/Admin/Estt/2025/89`)
-  - `academic_year`: e.g. `2025-26`, `2026-2027`
-- **Atomic Tables**: Markdown tables are kept intact as dedicated chunks with natural language row statements and breadcrumb headers.
-- **Target Size**: 800 tokens target (up to 1,200 max) to fully exploit BGE-M3's 8,192 token window.
+- **Model-Safe Token Budget**: Hard limit of $\le 550$ tokens per chunk with 50 tokens of safety headroom below embedding model sequence limits. Notices that naturally fit within a single token window are preserved intact without force-splitting.
+- **Table Preservation**: Multi-row tables are split strictly on row boundaries with repeated Markdown table column headers (`| Col 1 | Col 2 |\n|---|---|`) and separator rows at the top of each split chunk.
+- **Boilerplate Stripping**: Regex heuristics strip repetitive college letterheads, page numbers ("Page 1 of 2"), and trailing distribution lists ("Copy to: 1. Principal...").
 
-### 5.3 Intent-Routed Hybrid Retrieval & Reranking
+### 5.3 Intent-Routed Hybrid Retrieval & Three-Tier Confidence Gate
 ```
 1. norm = CollegeQueryNormalizer.normalize(query)
    -> extracts detected_departments, detected_semesters, expanded_vector, expanded_keyword
 2. query_vec = Embedder.aembed_texts([norm.expanded_vector], task="retrieval.query")
-3. if norm.detected_departments:
-       vector_results = ANN_search(query_vec, filter=departments, top_k=20)
-       keyword_results = FTS_search(norm.expanded_keyword, filter=departments, top_k=20)
-4. if not vector_results and not keyword_results: # Resilient fallback
-       vector_results = ANN_search(query_vec, filter=None, top_k=20)
-       keyword_results = FTS_search(norm.expanded_keyword, filter=None, top_k=20)
-5. candidate_pool = Reciprocal_Rank_Fusion(vector_results, keyword_results, k=60, top_k=20)
-6. reranked = Reranker.arerank(query=norm.expanded_vector, chunks=candidate_pool, top_k=5)
+3. vector_results = ANN_search(query_vec, candidate_k=40)
+   keyword_results = FTS_search(norm.expanded_keyword, candidate_k=40)
+4. Soft Entity & Recency RRF Fusion:
+   - 1.3x soft multiplier for chunks matching query department
+   - Up to 1.2x recency multiplier (180-day half-life decay) prioritizing newest circulars
+   - Candidate pool of top 25 chunks
+5. reranked = Reranker.arerank(query=natural_query, chunks=candidate_pool, top_k=5)
    -> Routes to Jina Reranker v2 API (with local CrossEncoder fallback)
-   -> Updates JinaTokenTracker with API token consumption against 10M quota
-7. if reranked[0].score < CONFIDENCE_THRESHOLD (0.55):
-       return fallback_response() # Trust layer: zero hallucination
-   else:
-       return generate_answer(query, reranked[:5]) # Gemini Flash synthesis with citations & tables
+6. Three-Tier Confidence Gate:
+   - Tier 1 (score >= 0.75): High confidence, direct cited response
+   - Tier 2 (0.40 <= score < 0.75): Medium confidence, response with student caveat banner
+   - Tier 3 (score < 0.40): Low confidence, official fallback message (zero hallucination)
+7. Single-call Gemini In-Prompt Evidence Verification:
+   -> Grounded JSON schema ({"answerable": bool, "evidence": str, "answer": str}) guaranteeing 100% abstention accuracy on unanswerable queries.
 ```
-`CONFIDENCE_THRESHOLD` is strictly calibrated at `0.55`.
 
 ### 5.4 Conflict Detection
 When two active documents are tagged with overlapping `department` + a matching document "type" heuristic (e.g., both classified as "exam schedule" via a lightweight classifier or filename/keyword rule) and their content disagrees on a extracted key fact (date, amount), flag a `conflicts` row instead of silently ingesting both as retrievable. Documents in `conflicts` are strictly excluded from retrieval until administrative resolution.

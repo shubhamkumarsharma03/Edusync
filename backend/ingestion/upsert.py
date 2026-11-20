@@ -1,5 +1,7 @@
 import logging
-from datetime import UTC, datetime
+import re
+from datetime import UTC, date, datetime
+from typing import Any
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +13,154 @@ from models.chunk import Chunk
 from models.document import Document
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_notice_date(val: Any) -> date | None:
+    if not val:
+        return None
+    if isinstance(val, date) and not isinstance(val, datetime):
+        return val
+    if isinstance(val, datetime):
+        return val.date()
+    val_str = str(val).strip()
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"):
+        try:
+            d = datetime.strptime(val_str, fmt).date()
+            if 1990 <= d.year <= 2035:
+                return d
+        except ValueError:
+            pass
+    m = re.search(r"(\d{4})[-/](\d{1,2})[-/](\d{1,2})", val_str)
+    if m:
+        try:
+            d = date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+            if 1990 <= d.year <= 2035:
+                return d
+        except ValueError:
+            pass
+    m = re.search(r"(\d{1,2})[-/](\d{1,2})[-/](\d{4})", val_str)
+    if m:
+        try:
+            d = date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+            if 1990 <= d.year <= 2035:
+                return d
+        except ValueError:
+            pass
+    return None
+
+
+BOILERPLATE_TITLES = {
+    "engineering college ajmer",
+    "govt. engineering college, ajmer",
+    "government engineering college, ajmer",
+    "govt engineering college ajmer",
+    "government engineering college ajmer",
+    "office of the principal",
+    "office order",
+    "circular",
+    "notice",
+    "urgent notice",
+}
+
+
+def _clean_extracted_title(candidate: str | None) -> str | None:
+    if not candidate:
+        return None
+    c = candidate.strip()
+    c_lower = c.lower()
+    if (
+        c_lower in BOILERPLATE_TITLES
+        or c_lower.startswith("department of")
+        or c_lower.startswith("table")
+    ):
+        return None
+    return c
+
+
+def _extract_document_meta(
+    fetched: FetchedDocument, chunks: list[ChunkData]
+) -> tuple[str | None, str | None, date | None, int | None]:
+    # 1. Clean Title ground truth from portal listing
+    title = _clean_extracted_title(fetched.metadata.get("title"))
+
+    sno = fetched.metadata.get("sno") or fetched.metadata.get("notice_sno")
+    raw_date = (
+        fetched.metadata.get("notice_date")
+        or fetched.metadata.get("date")
+        or fetched.metadata.get("posted_date")
+    )
+    portal_id = fetched.metadata.get("portal_id") or fetched.metadata.get("id")
+
+    # 2. Extract from chunks if missing
+    if not title or not sno or not raw_date:
+        for c in chunks:
+            if not title:
+                m_notice = re.search(r"\[Notice:\s*([^|\n\r]+)", c.content)
+                if m_notice:
+                    cand = _clean_extracted_title(m_notice.group(1))
+                    if cand:
+                        title = cand
+                if not title:
+                    m = re.search(r"^#\s+([^#\n\r]+)$", c.content, re.MULTILINE)
+                    if m:
+                        cand = _clean_extracted_title(m.group(1))
+                        if cand:
+                            title = cand
+            if not sno:
+                m = re.search(r"\*\*Notice S\.No:\*\*\s*([^\n\r]+)", c.content)
+                if m:
+                    sno = m.group(1).strip()
+            if not raw_date:
+                m = re.search(r"\*\*Date:\*\*\s*([^\n\r]+)", c.content)
+                if m:
+                    raw_date = m.group(1).strip()
+            if title and sno and raw_date:
+                break
+
+    # 3. Fallback extraction from full extracted text
+    if not title or not sno or not raw_date:
+        text = fetched.extracted_text
+        if not title:
+            m = re.search(r"^#\s+([^#\n\r]+)$", text, re.MULTILINE)
+            if m:
+                cand = _clean_extracted_title(m.group(1))
+                if cand:
+                    title = cand
+        if not sno:
+            m = re.search(r"\*\*Notice S\.No:\*\*\s*([^\n\r]+)", text)
+            if m:
+                sno = m.group(1).strip()
+        if not raw_date:
+            m = re.search(r"\*\*Date:\*\*\s*([^\n\r]+)", text)
+            if m:
+                raw_date = m.group(1).strip()
+
+    if not sno:
+        m = re.search(r"(20\d{2}WEB\d{4})", fetched.source_url)
+        if m:
+            sno = m.group(1)
+
+    parsed_date = _parse_notice_date(raw_date)
+
+    parsed_portal_id = None
+    if portal_id is not None:
+        try:
+            parsed_portal_id = int(portal_id)
+        except (ValueError, TypeError):
+            pass
+    if parsed_portal_id is None and sno:
+        m = re.search(r"WEB(\d+)", sno, re.IGNORECASE)
+        if m:
+            try:
+                parsed_portal_id = int(m.group(1))
+            except (ValueError, TypeError):
+                pass
+
+    return title, sno, parsed_date, parsed_portal_id
+
+
+# Alias for backward compatibility
+_extract_sno_and_date = _extract_document_meta
 
 
 async def upsert_document_and_chunks(
@@ -35,6 +185,7 @@ async def upsert_document_and_chunks(
     dept_id = department_id
     doc_owner = owner or fetched.metadata.get("owner")
     now = datetime.now(UTC)
+    doc_title, notice_sno, notice_date, portal_id = _extract_document_meta(fetched, chunks)
 
     # 1. Query existing document
     stmt = select(Document).where(Document.source_url == fetched.source_url)
@@ -50,6 +201,10 @@ async def upsert_document_and_chunks(
             owner=doc_owner,
             content_hash=computed_hash,
             status="fresh",
+            title=doc_title,
+            notice_sno=notice_sno,
+            notice_date=notice_date,
+            portal_id=portal_id,
             ingested_at=now,
             last_checked_at=now,
         )
@@ -67,6 +222,14 @@ async def upsert_document_and_chunks(
             document.department_id = dept_id
         if doc_owner:
             document.owner = doc_owner
+        if doc_title:
+            document.title = doc_title
+        if notice_sno:
+            document.notice_sno = notice_sno
+        if notice_date:
+            document.notice_date = notice_date
+        if portal_id is not None:
+            document.portal_id = portal_id
         document.last_checked_at = now
         document.ingested_at = now
         logger.info(

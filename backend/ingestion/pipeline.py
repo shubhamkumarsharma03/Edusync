@@ -46,6 +46,43 @@ class SourceIngestionSummary(BaseModel):
     details: list[IngestionSummary] = Field(default_factory=list)
 
 
+async def resolve_or_create_department(
+    session: AsyncSession,
+    name_or_slug: str | None,
+    category: str = "department",
+) -> int | None:
+    """Resolve existing department ID by name or slug, or create a new department/cell
+    record dynamically to eliminate NULL department_ids in the documents table.
+    """
+    if not name_or_slug or not str(name_or_slug).strip():
+        return None
+    clean_name = str(name_or_slug).strip()
+
+    stmt = select(Department.id).where(
+        (Department.name.ilike(clean_name)) | (Department.slug.ilike(clean_name))
+    )
+    dept_id = (await session.execute(stmt)).scalar_one_or_none()
+    if dept_id is not None:
+        return dept_id
+
+    slug = clean_name.lower().replace(" ", "-").replace("&", "and")
+    slug_stmt = select(Department.id).where(Department.slug == slug)
+    dept_id = (await session.execute(slug_stmt)).scalar_one_or_none()
+    if dept_id is not None:
+        return dept_id
+
+    dept_category = "cell" if ("cell" in slug or "section" in slug) else category
+    new_dept = Department(
+        name=clean_name,
+        slug=slug,
+        category=dept_category,
+        is_active=True,
+    )
+    session.add(new_dept)
+    await session.flush()
+    return new_dept.id
+
+
 async def ingest_document(
     session: AsyncSession,
     source: str,
@@ -69,12 +106,7 @@ async def ingest_document(
     try:
         # Resolve department_id from string department name if not provided
         if department_id is None and department is not None:
-            dept_res = await session.execute(
-                select(Department.id).where(
-                    (Department.name.ilike(department)) | (Department.slug.ilike(department))
-                )
-            )
-            department_id = dept_res.scalar_one_or_none()
+            department_id = await resolve_or_create_department(session, department)
 
         # Pre-check existing document hash from DB for fast-path check
         if not force and "existing_hash" not in fetch_kwargs:
@@ -86,6 +118,14 @@ async def ingest_document(
 
         # 1. Fetch document content
         fetched = await fetch_document(source, source_type=source_type, **fetch_kwargs)
+
+        # Ensure department_id is resolved from fetched metadata if still None
+        if department_id is None:
+            detected_d = fetched.metadata.get("department") or fetched.metadata.get(
+                "source_section"
+            )
+            if detected_d:
+                department_id = await resolve_or_create_department(session, detected_d)
 
         # 2. Check for changes against stored content hash
         detection = await ChangeDetector.check_document(
@@ -110,7 +150,10 @@ async def ingest_document(
         memory_data = await NoticeAnalyzer.analyze(fetched)
 
         # 5. Chunk document along semantic boundaries enriched with notice memory
-        chunks = chunk_document(fetched, department=None, owner=owner, memory_data=memory_data)
+        doc_dept_name = fetched.metadata.get("department") or department
+        chunks = chunk_document(
+            fetched, department=doc_dept_name, owner=owner, memory_data=memory_data
+        )
 
         # 6. Embed and upsert into database + vector index
         doc, chunk_records = await upsert_document_and_chunks(
@@ -257,6 +300,14 @@ async def ingest_source(
 
         try:
             doc_dept_id = department_id
+            if doc_dept_id is None:
+                notice_dept = fetched.metadata.get("department") or fetched.metadata.get(
+                    "source_section"
+                )
+                if notice_dept:
+                    doc_dept_id = await resolve_or_create_department(session, notice_dept)
+
+            doc_dept_name = fetched.metadata.get("department") or department_name
 
             # Step 2: Hash Check
             progress_tracker.update_step(
@@ -334,7 +385,9 @@ async def ingest_source(
             memory_data = await NoticeAnalyzer.analyze(fetched)
 
             # Step 4: Semantic Chunking enriched with notice memory
-            chunks = chunk_document(fetched, department=None, owner=owner, memory_data=memory_data)
+            chunks = chunk_document(
+                fetched, department=doc_dept_name, owner=owner, memory_data=memory_data
+            )
             table_chunks_count = sum(1 for c in chunks if c.metadata.get("is_table"))
 
             progress_tracker.update_step(

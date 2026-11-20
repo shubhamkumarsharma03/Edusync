@@ -183,3 +183,35 @@ def validate_table(table: ExtractedTable) -> tuple[bool, str]:
         return False, "Table contains only empty cells"
 
     return True, "Valid"
+
+
+def split_table_to_chunks(
+    table: ExtractedTable,
+    max_rows: int = 15,
+) -> list[ExtractedTable]:
+    """Split a large table across row boundaries while preserving headers in every split chunk.
+
+    Guarantees that each sub-chunk retains the full Markdown column headers and separator,
+    preventing headless row fragments.
+    """
+    if not table.rows or len(table.rows) <= max_rows:
+        return [table]
+
+    sub_tables: list[ExtractedTable] = []
+    total_parts = (len(table.rows) + max_rows - 1) // max_rows
+
+    for i in range(0, len(table.rows), max_rows):
+        part_idx = (i // max_rows) + 1
+        sub_rows = table.rows[i : i + max_rows]
+        base_title = table.title or "Table"
+        part_title = f"{base_title} (Part {part_idx}/{total_parts})"
+
+        sub_table = ExtractedTable(
+            headers=list(table.headers),
+            rows=sub_rows,
+            page_number=table.page_number,
+            title=part_title,
+        )
+        sub_tables.append(sub_table)
+
+    return sub_tables
