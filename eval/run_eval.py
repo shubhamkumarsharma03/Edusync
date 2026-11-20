@@ -28,7 +28,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "backend"))
 
 from api.routes.chat import generate_llm_answer_async
 from db.session import async_session_maker
-from ingestion.embedder import DocumentEmbedder
 from retrieval.confidence_gate import ConfidenceGate
 from retrieval.hybrid_search import HybridSearcher
 from retrieval.query_normalizer import query_normalizer
@@ -142,7 +141,6 @@ async def run_evaluation(
             split = item.get("split", "tune")
             is_unanswerable = item["is_unanswerable"]
             expected_doc_ids = {UUID(uid) for uid in item.get("expected_document_ids", [])}
-            expected_facts = item.get("expected_facts", [])
 
             t0 = time.perf_counter()
 
@@ -338,7 +336,7 @@ async def run_evaluation(
     print(f"  Stage 4 : Confidence Gating                : {avg_lat(latencies['gate']):>8.2f} ms")
     if latencies["gemini_check"]:
         print(f"  Stage 5 : Gemini Evidence Verification     : {avg_lat(latencies['gemini_check']):>8.2f} ms")
-    print(f"  -------------------------------------------------------------------")
+    print("  -------------------------------------------------------------------")
     print(f"  Total Retrieval Pipeline Avg Latency       : {avg_lat(latencies['total']):>8.2f} ms")
     print(f"  Total Wall Clock Time                      : {total_wall_sec:>8.2f} s")
     print(f"{'='*75}\n")
