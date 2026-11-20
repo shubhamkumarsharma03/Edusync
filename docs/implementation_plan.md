@@ -176,9 +176,9 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] `ChatWindow` component: message list + input box
 - [x] `MessageBubble` component: renders answer text, source citation(s), `last_verified` date, confidence indicator (High/Medium/Low)
 - [x] API wrapper (`/src/api/chat.ts`) calling `POST /chat`
-- [ ] Department Selector filter (All, CSE, Examination, Registrar, Civil, EE, Mech, ECE, MCA, MBA) passed to chat API
-- [ ] Feedback control (thumbs up/down) wired to `POST /feedback`
-- [ ] Loading/error states (API timeout, fallback response styling distinct from normal answers)
+- [x] Department Selector filter (All, CSE, Examination, Registrar, Civil, EE, Mech, ECE, MCA, MBA) passed to chat API
+- [x] Feedback control (thumbs up/down) wired to `POST /feedback` (`POST /chat/feedback`)
+- [x] Loading/error states (API timeout, fallback response styling distinct from normal answers)
 - [x] Basic responsive layout (mobile + desktop)
 
 **Exit criteria:** End-to-end manual test — type a question in the browser, see a real answer with citation sourced from the seeded documents.
@@ -189,12 +189,12 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 **Goal:** Content owners can see system health and resolve conflicts without touching the DB directly.
 
-- [ ] `DocumentsTable` — list with status badges (fresh/stale/conflicted/pending), manual "Re-ingest" button per row
-- [ ] `ConflictsPanel` — list unresolved conflicts, action to mark one document authoritative
-- [ ] `AnalyticsPanel` — query volume chart, top unanswered questions, feedback breakdown
-- [ ] Basic auth gate (even simple shared-password auth is acceptable for MVP; note as a known limitation)
+- [x] `DocumentsTable` — list with status badges (fresh/stale/conflicted/pending/archived), department & status filtering, search, view PDF action, and manual "Re-ingest" button per row
+- [x] `ConflictsPanel` — list unresolved conflicts with side-by-side comparison, action to mark one document authoritative, mark both as non-conflicting, or dismiss with audit note tracking
+- [x] `AnalyticsPanel` — KPI metrics (total queries, avg latency, fallback rate, resolution rate), feedback breakdown, top unanswered/fallback questions, and recent query audit table
+- [x] Basic auth gate — shared-passcode security modal (`edusync-admin-2026`) with backend verification and session storage persistence
 
-**Exit criteria:** Editing a seeded source and re-running ingestion is visible as a status change in the dashboard within one refresh; a manually created conflict can be resolved through the UI and disappears from retrieval exclusion.
+**Exit criteria:** Editing a seeded source and re-running ingestion is visible as a status change in the dashboard within one refresh; a manually created conflict can be resolved through the UI and disappears from retrieval exclusion. (Completed)
 
 ---
 

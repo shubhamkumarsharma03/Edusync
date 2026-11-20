@@ -5,10 +5,6 @@ import {
   Pin,
   Plus,
   Send,
-  Copy,
-  Check,
-  ThumbsUp,
-  ThumbsDown,
   Menu,
   X,
   ExternalLink,
@@ -16,36 +12,22 @@ import {
   MessageSquare,
 } from 'lucide-react'
 import { checkBackendHealth } from './api/client'
-import { sendChatMessage } from './api/chat'
-import { AdminSourcesPanel } from './components/AdminSourcesPanel'
-import { MarkdownContent } from './components/MarkdownContent'
+import { sendChatMessage, sendChatFeedback } from './api/chat'
+import { AdminDashboard } from './components/AdminDashboard'
+import { MessageBubble, BubbleMessage } from './components/MessageBubble'
+import { DepartmentSelector } from './components/DepartmentSelector'
 
-
-interface Message {
-  id: string
-  sender: 'user' | 'assistant'
-  text: string
-  timestamp: string
-  suggestions?: string[]
-  sources?: {
-    title: string
-    url?: string
-    lastVerified?: string
-  }[]
-  feedback?: 'up' | 'down' | null
-}
-
-const INITIAL_MESSAGES: Message[] = [
+const INITIAL_MESSAGES: BubbleMessage[] = [
   {
     id: '1',
     sender: 'assistant',
-    text: 'Hello. I am EduSync. How can I assist you with your research or college circulars today?',
+    text: 'Hello! I am EduSync, the institutional AI assistant for Engineering College Ajmer. Ask me about exam schedules, fees, syllabi, or official circulars.',
     timestamp: 'Today 9:41 AM',
     suggestions: [
-      'Analyze dataset',
-      'Summarize article',
-      'Mid-term schedule',
-      'Semester fee notice',
+      'Mid-term exam schedule for CSE',
+      'Semester fee notice and due dates',
+      'Mercy exam rules for B.Tech',
+      'Central Library book issue timings',
     ],
   },
 ]
@@ -60,11 +42,13 @@ export const App: React.FC = () => {
     )
   })
 
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES)
+  const [messages, setMessages] = useState<BubbleMessage[]>(INITIAL_MESSAGES)
   const [input, setInput] = useState('')
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('all')
+  const [lastUserQuery, setLastUserQuery] = useState<string>('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isBackendOnline, setIsBackendOnline] = useState<boolean>(false)
-  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [isTyping, setIsTyping] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -107,13 +91,13 @@ export const App: React.FC = () => {
     }
   }
 
-  const [isTyping, setIsTyping] = useState(false)
-
   const handleSend = async (textToSend?: string) => {
     const query = (textToSend || input).trim()
     if (!query || isTyping) return
 
-    const userMsg: Message = {
+    setLastUserQuery(query)
+
+    const userMsg: BubbleMessage = {
       id: Date.now().toString(),
       sender: 'user',
       text: query,
@@ -134,32 +118,46 @@ export const App: React.FC = () => {
         role: m.sender as 'user' | 'assistant',
         content: m.text,
       }))
-      const res = await sendChatMessage(query, undefined, historyPayload)
-      const botMsg: Message = {
+
+      const res = await sendChatMessage(
+        query,
+        selectedDepartment === 'all' ? null : selectedDepartment,
+        historyPayload
+      )
+
+      const botMsg: BubbleMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'assistant',
         text: res.answer,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        confidence: res.confidence,
+        confidenceScore: res.confidence_score,
+        isFallback: res.is_fallback,
+        queryId: res.query_id,
         sources: res.sources.map((s) => ({
           title: s.title,
           url: s.url,
+          department: s.department,
           lastVerified: s.last_verified,
+          confidenceScore: s.confidence_score,
         })),
       }
       setMessages((prev) => [...prev, botMsg])
     } catch (err: any) {
-      const errorMsg: Message = {
+      const errorMsg: BubbleMessage = {
         id: (Date.now() + 1).toString(),
         sender: 'assistant',
-        text: 'Sorry, could not connect to the backend server. Please verify the API is running.',
+        text:
+          err.message ||
+          'Sorry, could not connect to the backend server. Please verify the API is running.',
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isError: true,
       }
       setMessages((prev) => [...prev, errorMsg])
     } finally {
       setIsTyping(false)
     }
   }
-
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -168,27 +166,33 @@ export const App: React.FC = () => {
     }
   }
 
-  const handleCopy = (id: string, text: string) => {
-    navigator.clipboard.writeText(text)
-    setCopiedId(id)
-    setTimeout(() => setCopiedId(null), 2000)
-  }
-
-  const handleFeedback = (id: string, type: 'up' | 'down') => {
+  const handleFeedback = async (
+    messageId: string,
+    queryId: string | undefined,
+    type: 'up' | 'down'
+  ) => {
     setMessages((prev) =>
       prev.map((msg) =>
-        msg.id === id ? { ...msg, feedback: msg.feedback === type ? null : type } : msg
+        msg.id === messageId ? { ...msg, feedback: msg.feedback === type ? null : type } : msg
       )
     )
+
+    if (queryId) {
+      try {
+        await sendChatFeedback(queryId, type)
+      } catch (err) {
+        console.warn('Failed to record student feedback to server:', err)
+      }
+    }
   }
 
   const openAdminInNewTab = () => {
     window.open('/admin', '_blank')
   }
 
-  // If URL path is /admin or #admin, render full-page standalone Admin Sources Dashboard
+  // If URL path is /admin or #admin, render full-page Admin Dashboard
   if (isAdminView) {
-    return <AdminSourcesPanel isStandalone={true} />
+    return <AdminDashboard />
   }
 
   return (
@@ -196,7 +200,7 @@ export const App: React.FC = () => {
       {/* Mobile Backdrop Overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-black/25 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+          className="fixed inset-0 bg-black/25 backdrop-blur-xs z-40 lg:hidden transition-opacity"
           onClick={() => setSidebarOpen(false)}
         />
       )}
@@ -228,9 +232,7 @@ export const App: React.FC = () => {
               Navigation
             </h3>
             <nav className="space-y-1">
-              <button
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg bg-[#eaecee] text-[#18181b]"
-              >
+              <button className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-semibold rounded-lg bg-[#eaecee] text-[#18181b]">
                 <MessageSquare className="w-3.5 h-3.5 text-neutral-700" />
                 <span>Student Assistant</span>
               </button>
@@ -313,7 +315,10 @@ export const App: React.FC = () => {
             <span className="font-semibold text-base sm:text-lg tracking-tight text-[#18181b]">
               EduSync
             </span>
-            <span className={`w-2 h-2 rounded-full ${isBackendOnline ? 'bg-emerald-500' : 'bg-neutral-300'}`} title={isBackendOnline ? 'Online' : 'Offline'} />
+            <span
+              className={`w-2 h-2 rounded-full ${isBackendOnline ? 'bg-emerald-500' : 'bg-neutral-300'}`}
+              title={isBackendOnline ? 'Online' : 'Offline'}
+            />
           </div>
 
           {/* Right Actions: Admin Panel Link in New Tab */}
@@ -322,7 +327,7 @@ export const App: React.FC = () => {
               href="/admin"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-700 hover:text-[#18181b] rounded-xl text-xs font-semibold border border-[#e4e4e7] shadow-sm transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-700 hover:text-[#18181b] rounded-xl text-xs font-semibold border border-[#e4e4e7] shadow-2xs transition"
               title="Open Admin Data Sources in a new tab"
             >
               <Database className="w-3.5 h-3.5 text-indigo-600" />
@@ -343,139 +348,52 @@ export const App: React.FC = () => {
 
           {/* Chat Messages */}
           {messages.map((msg) => (
-            <div key={msg.id} className="space-y-2 sm:space-y-3">
-              {msg.sender === 'user' ? (
-                /* User Bubble */
-                <div className="flex justify-end pl-6 sm:pl-12">
-                  <div className="bg-white border border-[#e5e7eb] rounded-xl sm:rounded-2xl px-4 py-3 sm:px-5 sm:py-3.5 text-sm sm:text-[15px] text-[#18181b] shadow-[0_1px_2px_rgba(0,0,0,0.04)] max-w-full sm:max-w-xl md:max-w-2xl break-words">
-                    <p className="leading-relaxed whitespace-pre-wrap">{msg.text}</p>
-                  </div>
-                </div>
-              ) : (
-                /* Assistant Bubble */
-                <div className="flex items-start gap-2.5 sm:gap-3.5 max-w-full sm:max-w-2xl md:max-w-3xl pr-4 sm:pr-8">
-                  {/* Bot Icon */}
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-[#e4e4e7] flex-shrink-0 flex items-center justify-center p-1 mt-0.5 shadow-sm">
-                    <img src="/logo-icon.png" alt="EduSync AI" className="w-full h-full object-contain" />
-                  </div>
-
-                  {/* Bubble Content */}
-                  <div className="space-y-2 flex-1 min-w-0">
-                    <div className="bg-[#f4f4f5] rounded-xl sm:rounded-2xl p-4 sm:p-5 text-sm sm:text-[15px] text-[#18181b] leading-relaxed break-words">
-                      <MarkdownContent content={msg.text} />
-
-                      {/* Sources */}
-                      {msg.sources && msg.sources.length > 0 && (
-                        <div className="mt-3.5 pt-3 border-t border-neutral-200/80 space-y-1.5">
-                          <span className="text-[11px] font-semibold text-neutral-500 uppercase tracking-wider block">
-                            Sources:
-                          </span>
-                          {msg.sources.map((src, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center gap-1.5 text-xs text-neutral-700 bg-white/80 px-2.5 py-1.5 rounded-lg border border-neutral-200"
-                            >
-                              <span className="font-medium truncate">{src.title}</span>
-                              {src.lastVerified && (
-                                <span className="text-[11px] text-neutral-400 flex-shrink-0">
-                                  &bull; {src.lastVerified}
-                                </span>
-                              )}
-                              {src.url && (
-                                <a
-                                  href={src.url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="ml-auto text-neutral-500 hover:text-neutral-900 flex-shrink-0"
-                                >
-                                  <ExternalLink className="w-3 h-3" />
-                                </a>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Actions Toolbar */}
-                    <div className="flex items-center gap-3 px-1 text-neutral-400">
-                      <button
-                        onClick={() => handleCopy(msg.id, msg.text)}
-                        title="Copy message"
-                        className="hover:text-neutral-700 transition-colors p-1"
-                      >
-                        {copiedId === msg.id ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => handleFeedback(msg.id, 'up')}
-                        title="Thumbs up"
-                        className={`hover:text-neutral-700 transition-colors p-1 ${
-                          msg.feedback === 'up' ? 'text-blue-600' : ''
-                        }`}
-                      >
-                        <ThumbsUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleFeedback(msg.id, 'down')}
-                        title="Thumbs down"
-                        className={`hover:text-neutral-700 transition-colors p-1 ${
-                          msg.feedback === 'down' ? 'text-rose-600' : ''
-                        }`}
-                      >
-                        <ThumbsDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-
-                    {/* Suggestions */}
-                    {msg.suggestions && (
-                      <div className="flex flex-wrap gap-2 pt-1.5">
-                        {msg.suggestions.map((suggestion, index) => (
-                          <button
-                            key={index}
-                            onClick={() => handleSend(suggestion)}
-                            className="px-3.5 py-1.5 rounded-full border border-[#d4d4d8] bg-white hover:bg-neutral-50 text-neutral-700 text-xs sm:text-[13px] font-normal transition-colors shadow-sm active:scale-95"
-                          >
-                            {suggestion}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onSuggestionClick={(sugg) => handleSend(sugg)}
+              onRetry={(q) => handleSend(q)}
+              onFeedback={handleFeedback}
+              userQueryForRetry={lastUserQuery}
+            />
           ))}
 
-          {/* Loading / Typing Indicator */}
+          {/* Loading / Searching Indicator */}
           {isTyping && (
             <div className="flex items-start gap-2.5 sm:gap-3.5 max-w-full sm:max-w-2xl md:max-w-3xl pr-4">
-              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-[#e4e4e7] flex-shrink-0 flex items-center justify-center p-1 mt-0.5 shadow-sm">
-                <img src="/logo-icon.png" alt="EduSync AI" className="w-full h-full object-contain animate-pulse" />
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-[#e4e4e7] flex-shrink-0 flex items-center justify-center p-1 mt-0.5 shadow-2xs">
+                <img
+                  src="/logo-icon.png"
+                  alt="EduSync AI"
+                  className="w-full h-full object-contain animate-pulse"
+                />
               </div>
               <div className="bg-[#f4f4f5] rounded-2xl px-4 py-3 text-xs text-neutral-500 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
-                <span>Searching verified circulars & generating response...</span>
+                <span>Searching verified circulars & generating grounded answer...</span>
               </div>
             </div>
           )}
 
           <div ref={messagesEndRef} />
-
         </main>
 
-        {/* Dynamic Responsive Input Bar */}
+        {/* Dynamic Responsive Input Bar with Department Selector Filter */}
         <div className="p-3 sm:p-5 md:p-6 bg-gradient-to-t from-[#fcfcfc] via-[#fcfcfc] to-transparent sticky bottom-0 z-20 flex-shrink-0">
-          <div className="max-w-3xl lg:max-w-4xl mx-auto">
+          <div className="max-w-3xl lg:max-w-4xl mx-auto space-y-2">
+            {/* Department Filter Selector (FR: All, CSE, Examination, Registrar, Civil, EE, Mech, ECE, MCA, MBA) */}
+            <DepartmentSelector
+              selectedDept={selectedDepartment}
+              onSelectDept={setSelectedDepartment}
+            />
+
+            {/* Input Form */}
             <form
               onSubmit={(e) => {
                 e.preventDefault()
                 handleSend()
               }}
-              className="flex items-end gap-2 bg-white border border-[#e4e4e7] rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.04)] focus-within:border-neutral-400 focus-within:shadow-[0_2px_12px_rgba(0,0,0,0.08)] transition-all"
+              className="flex items-end gap-2 bg-white border border-[#e4e4e7] rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-xs focus-within:border-neutral-400 focus-within:shadow-md transition-all"
             >
               <button
                 type="button"
@@ -491,16 +409,20 @@ export const App: React.FC = () => {
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder="Message EduSync..."
+                placeholder={
+                  selectedDepartment === 'all'
+                    ? 'Ask about exams, fee notices, circulars...'
+                    : `Ask about circulars scoped to ${selectedDepartment}...`
+                }
                 className="flex-1 bg-transparent text-sm sm:text-[15px] text-[#18181b] placeholder-neutral-400 focus:outline-none px-1 py-1 font-normal resize-none max-h-28 overflow-y-auto leading-relaxed"
               />
 
               <button
                 type="submit"
-                disabled={!input.trim()}
+                disabled={!input.trim() || isTyping}
                 className={`p-2 rounded-xl flex items-center justify-center transition-all flex-shrink-0 mb-0.5 ${
-                  input.trim()
-                    ? 'bg-[#18181b] text-white hover:bg-black cursor-pointer shadow-sm'
+                  input.trim() && !isTyping
+                    ? 'bg-[#18181b] text-white hover:bg-black cursor-pointer shadow-xs'
                     : 'text-neutral-300 cursor-not-allowed'
                 }`}
                 title="Send"
@@ -509,8 +431,8 @@ export const App: React.FC = () => {
               </button>
             </form>
 
-            <p className="text-center text-[10px] sm:text-[11px] text-neutral-400 mt-2">
-              EduSync can make mistakes. Consider verifying important information.
+            <p className="text-center text-[10px] sm:text-[11px] text-neutral-400">
+              EduSync answers are strictly verified against official ECA circulars.
             </p>
           </div>
         </div>

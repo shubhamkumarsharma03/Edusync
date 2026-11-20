@@ -73,6 +73,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REINGEST_INTERVAL_HOURS: int = 6
 
+    # Admin Dashboard Authentication
+    ADMIN_SECRET_KEY: str = "edusync-admin-2026"
+
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env", "backend/.env"),
         env_file_encoding="utf-8",

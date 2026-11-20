@@ -16,34 +16,92 @@ export interface ChatMessage {
 export interface ChatResponse {
   answer: string
   sources: SourceCitation[]
-  confidence: string
+  confidence: 'high' | 'medium' | 'low' | string
   confidence_score: number
   is_fallback: boolean
   query: string
+  query_id?: string
 }
 
 export async function sendChatMessage(
   query: string,
-  department?: string,
-  history?: ChatMessage[]
+  department?: string | null,
+  history?: ChatMessage[],
+  timeoutMs: number = 30000
 ): Promise<ChatResponse> {
-  const response = await fetch(`${API_BASE_URL}/chat`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify({
-      query,
-      department: department || null,
-      history: history || [],
-    }),
-  })
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}))
-    throw new Error(errorData.detail || `Chat request failed with status: ${response.status}`)
+  try {
+    const response = await fetch(`${API_BASE_URL}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        query,
+        department: department && department !== 'all' ? department : null,
+        history: history || [],
+      }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.detail || `Chat request failed with status: ${response.status}`)
+    }
+
+    return await response.json()
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      throw new Error('Request timed out while waiting for verified college notices. Please try again.')
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
   }
+}
 
-  return response.json()
+export async function sendChatFeedback(
+  queryId: string,
+  feedback: 'up' | 'down'
+): Promise<{ status: string; query_id: string; feedback: string }> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/chat/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({
+        query_id: queryId,
+        feedback,
+      }),
+    })
+
+    if (!response.ok) {
+      // Fallback attempt to root /feedback if needed
+      const fallbackRes = await fetch(`${API_BASE_URL}/feedback`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          query_id: queryId,
+          feedback,
+        }),
+      })
+      if (!fallbackRes.ok) {
+        throw new Error(`Feedback failed (${response.status})`)
+      }
+      return fallbackRes.json()
+    }
+
+    return response.json()
+  } catch (err: any) {
+    console.error('Feedback submission failed:', err)
+    throw err
+  }
 }

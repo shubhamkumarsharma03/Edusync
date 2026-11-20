@@ -3,13 +3,17 @@ import sys
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import get_settings
+from api.routes.admin_dashboard import router as admin_dashboard_router
 from api.routes.admin_sources import router as admin_sources_router
+from api.routes.chat import FeedbackRequest, record_feedback
 from api.routes.chat import router as chat_router
 from api.routes.departments import router as departments_router
+from db.session import get_db
 
 # Configure root logger for real-time terminal output across all modules
 logging.basicConfig(
@@ -94,9 +98,19 @@ app.add_middleware(
 )
 
 # Include API routers
+app.include_router(admin_dashboard_router)
 app.include_router(admin_sources_router)
 app.include_router(chat_router)
 app.include_router(departments_router)
+
+
+@app.post("/feedback", tags=["Chat"])
+async def root_feedback_endpoint(
+    payload: FeedbackRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    """Direct root alias for student query feedback (POST /feedback)."""
+    return await record_feedback(payload=payload, session=session)
 
 
 @app.get("/", tags=["General"])
