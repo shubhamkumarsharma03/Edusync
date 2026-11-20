@@ -10,6 +10,7 @@ from ingestion.embedder import DocumentEmbedder
 from ingestion.hasher import compute_document_hash
 from ingestion.schemas import ChunkData, FetchedDocument
 from models.chunk import Chunk
+from models.department import Department
 from models.document import Document
 
 logger = logging.getLogger(__name__)
@@ -183,7 +184,19 @@ async def upsert_document_and_chunks(
 
     computed_hash = compute_document_hash(fetched)
     dept_id = department_id
-    doc_owner = owner or fetched.metadata.get("owner")
+    doc_owner = (
+        owner
+        or fetched.metadata.get("owner")
+        or fetched.metadata.get("department")
+        or fetched.metadata.get("source_section")
+    )
+    if not doc_owner and dept_id is not None:
+        dept_record = (
+            await session.execute(select(Department.name).where(Department.id == dept_id))
+        ).scalar_one_or_none()
+        if dept_record:
+            doc_owner = dept_record
+
     now = datetime.now(UTC)
     doc_title, notice_sno, notice_date, portal_id = _extract_document_meta(fetched, chunks)
 
@@ -253,9 +266,15 @@ async def upsert_document_and_chunks(
     chunk_records: list[Chunk] = []
     for idx, chunk_data in enumerate(chunks):
         embedding_vec = embeddings[idx] if idx < len(embeddings) else None
+        orig_text = (
+            chunk_data.metadata.get("original_content")
+            if chunk_data.metadata and chunk_data.metadata.get("original_content")
+            else chunk_data.content
+        )
         chunk_obj = Chunk(
             document_id=document.id,
             content=chunk_data.content,
+            original_content=orig_text,
             token_count=chunk_data.token_count,
             embedding=embedding_vec,
             last_verified=now,

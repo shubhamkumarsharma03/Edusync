@@ -46,7 +46,9 @@ def upgrade() -> None:
     doc_rows = session.execute(sa.text("SELECT id, source_url FROM documents")).fetchall()
     for doc_id, source_url in doc_rows:
         chunk_row = session.execute(
-            sa.text("SELECT content FROM chunks WHERE document_id = :doc_id ORDER BY id ASC LIMIT 1"),
+            sa.text(
+                "SELECT content FROM chunks WHERE document_id = :doc_id ORDER BY id ASC LIMIT 1"
+            ),
             {"doc_id": doc_id},
         ).fetchone()
 

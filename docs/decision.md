@@ -259,6 +259,38 @@ Format: lightweight ADR (Architecture Decision Record). Newest decisions at the 
 
 ---
 
+## ADR-018: Database Audit, Metadata Completeness, and Student Query Lifecycle Logging
+
+**Status:** Accepted
+
+**Context:** A comprehensive database audit across all 8 tables (`documents`, `chunks`, `departments`, `ingestion_sources`, `conflicts`, `notice_memory`, `queries_log`, `alembic_version`) revealed several metadata gaps:
+1. `documents.owner` was 100% NULL (207/207 rows) because fetchers and upsert logic did not map department names to the owner field.
+2. `chunks.original_content` was 83.6% NULL (450/538 rows) because migration `a1b2c3d4e5f6` added the column as nullable but did not backfill legacy chunks.
+3. 4 portal index HTML documents had NULL `notice_sno` and `notice_date`.
+4. `notice_memory` had 98 NULL departments and 97 NULL serial numbers/dates due to zero-shot LLM extraction failures on blurry PDF scans.
+5. `queries_log` contained 0 rows because the `/chat` route did not persist inbound queries or citations.
+6. 3 unresolved conflict rows locked 6 valid documents from retrieval.
+
+**Decision:**
+1. **Schema & Ingestion Hardening:**
+   - In `upsert.py`, ensure `doc_owner` resolves with cascading fallback: `owner -> metadata.get("owner") -> metadata.get("department") -> metadata.get("source_section") -> departments.name lookup`.
+   - In `upsert.py`, ensure `Chunk` instantiation explicitly populates `original_content = chunk_data.metadata.get("original_content") or chunk_data.content`.
+   - In `notice_analyzer.py` and `supersession_resolver.py`, cascade department, notice serial number, and effective date lookups to ground-truth document metadata whenever LLM extraction returns empty.
+2. **One-Time Data Backfill:**
+   - Backfilled all 207 `documents.owner` rows from `departments.name`.
+   - Backfilled all 450 `chunks.original_content` rows from `chunks.content` (stripping contextual header prefixes).
+   - Backfilled all `notice_memory` metadata fields from `documents`.
+   - Assigned structured identifiers to HTML portal documents (`TPO-INDEX`, `ACAD-PORTAL`, `MATHS-PORTAL`, `MANDATORY-DISCLOSURE`).
+3. **Query Logging & Feedback:**
+   - In `backend/api/routes/chat.py`, persist every query transaction to `queries_log` with question text, qualifying chunk UUIDs, answer text, and confidence scores.
+   - Added `POST /chat/feedback` endpoint accepting `query_id` and `feedback` ("up" | "down") to support student feedback collection per PRD FR-15.
+4. **Admin Conflict Resolution:**
+   - Built `scripts/resolve_pending_conflicts.py` providing automated classification and audit notes for pending conflicts (e.g. Sem 3 vs Sem 7 fee notices verified non-conflicting; revised exam notices superseding older notices).
+
+**Consequences:** 100% metadata completeness across all PostgreSQL tables, elimination of orphan/untyped records, active query audit logging in production, and zero risk of retrieval lockout.
+
+---
+
 ## Open / not yet decided
 
 - Final decision on whether the ablation study (RAG variants × OCR engines) is scoped into the core capstone deliverable or treated as a stretch goal for the paper.

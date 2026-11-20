@@ -128,8 +128,15 @@ class NoticeAnalyzer:
         return f"{type_part}:{branch_part.lower()}:{sem_part}:{session_part}"
 
     @classmethod
-    def _fallback_extract(cls, text: str, url: str) -> NoticeMemoryData:
+    def _fallback_extract(
+        cls, text: str, url: str, metadata: dict | None = None
+    ) -> NoticeMemoryData:
         """Rule-based heuristic fallback if Gemini API is unavailable."""
+        meta = metadata or {}
+        dept_val = meta.get("department") or meta.get("source_section")
+        serial_val = meta.get("sno") or meta.get("notice_sno")
+        date_val = meta.get("notice_date") or meta.get("date")
+
         lower_text = text.lower()
         notice_type = "other"
         for kw, ntype in [
@@ -159,20 +166,21 @@ class NoticeAnalyzer:
                 suffix = "st" if s == 1 else "nd" if s == 2 else "rd" if s == 3 else "th"
                 sems.append(f"{s}{suffix} Sem")
 
-        # Extract title from leading lines, skipping generic college header
-        title = "Institutional Notice"
-        for line in text.strip().split("\n"):
-            clean_l = line.strip().strip("#* ").strip()
-            if not clean_l:
-                continue
-            if re.search(
-                r"^(government\s+)?engineering\s+college(\s+ajmer)?$", clean_l, re.IGNORECASE
-            ):
-                continue
-            if re.search(r"^department\s+of", clean_l, re.IGNORECASE):
-                continue
-            title = clean_l[:120]
-            break
+        # Extract title from metadata or leading lines, skipping generic college header
+        title = meta.get("title") or "Institutional Notice"
+        if title == "Institutional Notice":
+            for line in text.strip().split("\n"):
+                clean_l = line.strip().strip("#* ").strip()
+                if not clean_l:
+                    continue
+                if re.search(
+                    r"^(government\s+)?engineering\s+college(\s+ajmer)?$", clean_l, re.IGNORECASE
+                ):
+                    continue
+                if re.search(r"^department\s+of", clean_l, re.IGNORECASE):
+                    continue
+                title = clean_l[:120]
+                break
 
         fingerprint = cls._canonical_fingerprint(
             notice_type=notice_type,
@@ -184,14 +192,14 @@ class NoticeAnalyzer:
 
         return NoticeMemoryData(
             notice_type=notice_type,
-            department=None,
+            department=dept_val,
             target_year=None,
             target_semester=sems or None,
             target_branch=branches or None,
             academic_session=None,
-            effective_date=None,
+            effective_date=date_val,
             expiry_date=None,
-            notice_serial=None,
+            notice_serial=serial_val,
             title_summary=title,
             key_facts=[],
             content_fingerprint=fingerprint,
@@ -211,7 +219,9 @@ class NoticeAnalyzer:
         # Check if valid key exists
         if not api_key or api_key in ("your-gemini-api-key", "placeholder", ""):
             logger.info("Gemini API key not configured. Using rule-based metadata fallback.")
-            return cls._fallback_extract(fetched.extracted_text, fetched.source_url)
+            return cls._fallback_extract(
+                fetched.extracted_text, fetched.source_url, metadata=fetched.metadata
+            )
 
         # Assemble document text including tables
         doc_parts = [fetched.extracted_text]
@@ -268,16 +278,32 @@ class NoticeAnalyzer:
             if not isinstance(key_facts, list):
                 key_facts = []
 
+            dept_val = (
+                raw_json.get("department")
+                or fetched.metadata.get("department")
+                or fetched.metadata.get("source_section")
+            )
+            eff_date = (
+                raw_json.get("effective_date")
+                or fetched.metadata.get("notice_date")
+                or fetched.metadata.get("date")
+            )
+            serial_val = (
+                raw_json.get("notice_serial")
+                or fetched.metadata.get("sno")
+                or fetched.metadata.get("notice_sno")
+            )
+
             return NoticeMemoryData(
                 notice_type=notice_type,
-                department=raw_json.get("department"),
+                department=dept_val,
                 target_year=raw_json.get("target_year"),
                 target_semester=raw_json.get("target_semester"),
                 target_branch=normalized_branches,
                 academic_session=raw_json.get("academic_session"),
-                effective_date=raw_json.get("effective_date"),
+                effective_date=eff_date,
                 expiry_date=raw_json.get("expiry_date"),
-                notice_serial=raw_json.get("notice_serial"),
+                notice_serial=serial_val,
                 title_summary=title_summary,
                 key_facts=key_facts,
                 content_fingerprint=fingerprint,
@@ -289,4 +315,6 @@ class NoticeAnalyzer:
             logger.error(
                 f"Gemini notice analysis failed: {e}. Falling back to heuristic extraction."
             )
-            return cls._fallback_extract(fetched.extracted_text, fetched.source_url)
+            return cls._fallback_extract(
+                fetched.extracted_text, fetched.source_url, metadata=fetched.metadata
+            )

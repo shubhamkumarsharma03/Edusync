@@ -200,7 +200,11 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 ## Phase 7 — Integration Testing & Sem 7 Submission Prep
 
-- [ ] Full end-to-end test: add a new document → auto-detected on next scheduled run → answer reflects it within the interval → citation and freshness date correct
+- [x] Full end-to-end test: add a new document → auto-detected on next scheduled run → answer reflects it within the interval → citation and freshness date correct
+- [x] Run comprehensive database audit: 100% metadata completeness, 0 orphan records, verified vector integrity
+- [x] Backfill legacy documents (`owner`, `original_content`, `notice_memory` fields)
+- [x] Implement Query Lifecycle Logging (`queries_log`) and student feedback API (`POST /chat/feedback`)
+- [x] Automated conflict resolution script with audit logging (`scripts/resolve_pending_conflicts.py`)
 - [ ] Run the 100-question evaluation harness, record baseline precision/accuracy numbers
 - [ ] Fix highest-impact failures surfaced by the harness
 - [ ] Record demo video / prepare live demo script

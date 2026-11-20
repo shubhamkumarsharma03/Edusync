@@ -1,13 +1,16 @@
 import json
 import logging
 import re
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import get_settings
 from db.session import get_db
+from models.query_log import QueryLog
 from retrieval.confidence_gate import ConfidenceGate
 from retrieval.fact_lookup import FactLookup
 from retrieval.http_client import get_http_client
@@ -58,6 +61,12 @@ class ChatResponse(BaseModel):
     confidence_score: float = 1.0
     is_fallback: bool = False
     query: str
+    query_id: UUID | None = None
+
+
+class FeedbackRequest(BaseModel):
+    query_id: UUID
+    feedback: str = Field(..., pattern="^(up|down)$")
 
 
 async def warm_llm_client() -> None:
@@ -178,6 +187,24 @@ async def chat_endpoint(
     reranker = CrossEncoderReranker()
     gate = ConfidenceGate()
 
+    async def _log_and_return(
+        resp: ChatResponse, chunk_ids: list[UUID] | None = None
+    ) -> ChatResponse:
+        try:
+            q_log = QueryLog(
+                question=query,
+                retrieved_chunk_ids=chunk_ids or None,
+                answer=resp.answer,
+                confidence_score=resp.confidence_score,
+            )
+            session.add(q_log)
+            await session.commit()
+            await session.refresh(q_log)
+            resp.query_id = q_log.id
+        except Exception as e:
+            logger.warning(f"Failed to record QueryLog: {e}")
+        return resp
+
     # 0. Conversational Query Rewriting (Phase 3 Multi-Turn Context Resolution)
     search_query = query
     if req.history:
@@ -206,13 +233,15 @@ async def chat_endpoint(
             )
             for f in matched_facts[:2]
         ]
-        return ChatResponse(
-            answer=fast_answer,
-            sources=fact_sources,
-            confidence="high",
-            confidence_score=matched_facts[0].confidence,
-            is_fallback=False,
-            query=query,
+        return await _log_and_return(
+            ChatResponse(
+                answer=fast_answer,
+                sources=fact_sources,
+                confidence="high",
+                confidence_score=matched_facts[0].confidence,
+                is_fallback=False,
+                query=query,
+            )
         )
 
     # 1. Hybrid Search (Vector + Keyword via RRF) to fetch top candidate pool
@@ -223,13 +252,15 @@ async def chat_endpoint(
     )
 
     if not raw_chunks:
-        return ChatResponse(
-            answer="I don't have verified information on this in the official circulars. Please check with the relevant department office or visit the official college website.",
-            sources=[],
-            confidence="low",
-            confidence_score=0.0,
-            is_fallback=True,
-            query=query,
+        return await _log_and_return(
+            ChatResponse(
+                answer="I don't have verified information on this in the official circulars. Please check with the relevant department office or visit the official college website.",
+                sources=[],
+                confidence="low",
+                confidence_score=0.0,
+                is_fallback=True,
+                query=query,
+            )
         )
 
     # 2. Cross-Encoder / Jina Reranking to select top 5 most relevant chunks (natural query for cross-attention)
@@ -243,14 +274,16 @@ async def chat_endpoint(
     gate_result = gate.evaluate(reranked_chunks)
 
     if gate_result.is_fallback:
-        return ChatResponse(
-            answer=gate_result.fallback_message
-            or "I don't have enough confidence in the available documents to answer accurately.",
-            sources=[],
-            confidence=gate_result.confidence_level.value,
-            confidence_score=gate_result.top_score,
-            is_fallback=True,
-            query=query,
+        return await _log_and_return(
+            ChatResponse(
+                answer=gate_result.fallback_message
+                or "I don't have enough confidence in the available documents to answer accurately.",
+                sources=[],
+                confidence=gate_result.confidence_level.value,
+                confidence_score=gate_result.top_score,
+                is_fallback=True,
+                query=query,
+            )
         )
 
     # 4. Format verified context
@@ -280,6 +313,9 @@ async def chat_endpoint(
             )
 
     combined_context = "\n\n".join(context_blocks)
+    qualifying_ids = [
+        c.id for c in gate_result.qualifying_chunks if hasattr(c, "id") and isinstance(c.id, UUID)
+    ]
 
     # 5. Generate Grounded Answer asynchronously with in-prompt evidence check
     llm_res = await generate_llm_answer_async(search_query, combined_context)
@@ -287,24 +323,46 @@ async def chat_endpoint(
         logger.info(
             f"Gemini in-prompt evidence check determined question is unanswerable from context: {query}"
         )
-        return ChatResponse(
-            answer=gate_result.fallback_message or gate.fallback_response(),
-            sources=[],
-            confidence="low",
-            confidence_score=gate_result.top_score,
-            is_fallback=True,
-            query=query,
+        return await _log_and_return(
+            ChatResponse(
+                answer=gate_result.fallback_message or gate.fallback_response(),
+                sources=[],
+                confidence="low",
+                confidence_score=gate_result.top_score,
+                is_fallback=True,
+                query=query,
+            ),
+            qualifying_ids,
         )
 
     answer_text = llm_res.answer or gate.fallback_response()
     if gate_result.caveat:
         answer_text = f"{answer_text}\n\n> ⚠️ *{gate_result.caveat}*"
 
-    return ChatResponse(
-        answer=answer_text,
-        sources=citations,
-        confidence=gate_result.confidence_level.value,
-        confidence_score=gate_result.top_score,
-        is_fallback=False,
-        query=query,
+    return await _log_and_return(
+        ChatResponse(
+            answer=answer_text,
+            sources=citations,
+            confidence=gate_result.confidence_level.value,
+            confidence_score=gate_result.top_score,
+            is_fallback=False,
+            query=query,
+        ),
+        qualifying_ids,
     )
+
+
+@router.post("/feedback")
+async def record_feedback(
+    payload: FeedbackRequest,
+    session: AsyncSession = Depends(get_db),
+):
+    """Record student up/down feedback for a previously answered query."""
+    stmt = select(QueryLog).where(QueryLog.id == payload.query_id)
+    res = await session.execute(stmt)
+    log_entry = res.scalar_one_or_none()
+    if not log_entry:
+        raise HTTPException(status_code=404, detail="Query log not found")
+    log_entry.feedback = payload.feedback
+    await session.commit()
+    return {"status": "success", "query_id": str(payload.query_id), "feedback": payload.feedback}

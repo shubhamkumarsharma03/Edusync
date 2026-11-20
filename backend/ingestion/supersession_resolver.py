@@ -14,6 +14,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ingestion.schemas import NoticeMemoryData
+from models.department import Department
+from models.document import Document
 from models.notice_memory import NoticeMemory
 
 logger = logging.getLogger(__name__)
@@ -184,17 +186,43 @@ class SupersessionResolver:
         if not new_is_latest:
             to_supersede = []
 
+        # Resolve ground truth from document if notice_memory fields are missing
+        resolved_dept = memory_data.department
+        resolved_sno = memory_data.notice_serial
+        resolved_date = effective_d
+
+        if (not resolved_dept or not resolved_sno or not resolved_date) and document_id:
+            try:
+                doc_stmt = (
+                    select(Document, Department.name)
+                    .outerjoin(Department, Document.department_id == Department.id)
+                    .where(Document.id == document_id)
+                )
+                exec_res = await session.execute(doc_stmt)
+                if hasattr(exec_res, "first"):
+                    doc_res = exec_res.first()
+                    if doc_res:
+                        doc_obj, dept_name = doc_res
+                        if not resolved_dept:
+                            resolved_dept = dept_name
+                        if not resolved_sno:
+                            resolved_sno = doc_obj.notice_sno
+                        if not resolved_date:
+                            resolved_date = doc_obj.notice_date
+            except (Exception, StopAsyncIteration):
+                pass
+
         if existing_self:
             # Update existing row for this document
             existing_self.notice_type = memory_data.notice_type
-            existing_self.department = memory_data.department
+            existing_self.department = resolved_dept
             existing_self.target_year = memory_data.target_year
             existing_self.target_semester = memory_data.target_semester
             existing_self.target_branch = memory_data.target_branch
             existing_self.academic_session = memory_data.academic_session
-            existing_self.effective_date = effective_d
+            existing_self.effective_date = resolved_date
             existing_self.expiry_date = expiry_d
-            existing_self.notice_serial = memory_data.notice_serial
+            existing_self.notice_serial = resolved_sno
             existing_self.title_summary = memory_data.title_summary
             existing_self.key_facts = memory_data.key_facts
             existing_self.content_fingerprint = memory_data.content_fingerprint
@@ -208,14 +236,14 @@ class SupersessionResolver:
                 id=new_memory_id,
                 document_id=document_id,
                 notice_type=memory_data.notice_type,
-                department=memory_data.department,
+                department=resolved_dept,
                 target_year=memory_data.target_year,
                 target_semester=memory_data.target_semester,
                 target_branch=memory_data.target_branch,
                 academic_session=memory_data.academic_session,
-                effective_date=effective_d,
+                effective_date=resolved_date,
                 expiry_date=expiry_d,
-                notice_serial=memory_data.notice_serial,
+                notice_serial=resolved_sno,
                 title_summary=memory_data.title_summary,
                 key_facts=memory_data.key_facts,
                 content_fingerprint=memory_data.content_fingerprint,
