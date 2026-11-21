@@ -14,6 +14,10 @@ minversion = "8.0"
 addopts = "-ra -q --asyncio-mode=auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+filterwarnings = [
+    "ignore::ResourceWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
 
 [tool.ruff]
 target-version = "py311"

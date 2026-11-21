@@ -48,6 +48,9 @@ async def test_upsert_new_document() -> None:
     ]
 
     mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_session.execute.return_value = mock_result
     mock_session.add = MagicMock()
     mock_session.add_all = MagicMock()
     mock_result = MagicMock()
@@ -104,6 +107,9 @@ async def test_upsert_modified_document_purges_old_chunks() -> None:
     ]
 
     mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_session.execute.return_value = mock_result
     mock_session.add_all = MagicMock()
     mock_result = MagicMock()
     mock_result.scalar_one_or_none.return_value = existing_doc
@@ -133,6 +139,9 @@ async def test_upsert_modified_document_purges_old_chunks() -> None:
 async def test_ingest_document_pipeline_lifecycle() -> None:
     """Test full ingest_document pipeline for unchanged vs modified sources."""
     mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalar_one_or_none.return_value = None
+    mock_session.execute.return_value = mock_result
 
     # Case 1: Unchanged document (0 re-embedding invariant)
     mock_detection_unchanged = DetectionResult(

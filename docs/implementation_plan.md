@@ -169,19 +169,28 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 ---
 
-## Phase 5 — Frontend: Student Chat UI
+## Phase 5 — Frontend: Student Chat UI & Multi-Conversation Session Management
 
-**Goal:** A student can ask a question and see a trustworthy, cited answer.
+**Goal:** A student can ask a question, see trustworthy cited answers, navigate pinned/recent/archived chats, and switch student accounts.
 
 - [x] `ChatWindow` component: message list + input box
 - [x] `MessageBubble` component: renders answer text, source citation(s), `last_verified` date, confidence indicator (High/Medium/Low)
-- [x] API wrapper (`/src/api/chat.ts`) calling `POST /chat`
+- [x] API wrapper (`/src/api/chat.ts`) calling `POST /chat` with multi-turn conversation history
 - [x] Department Selector filter (All, CSE, Examination, Registrar, Civil, EE, Mech, ECE, MCA, MBA) passed to chat API
 - [x] Feedback control (thumbs up/down) wired to `POST /feedback` (`POST /chat/feedback`)
 - [x] Loading/error states (API timeout, fallback response styling distinct from normal answers)
-- [x] Basic responsive layout (mobile + desktop)
+- [x] Responsive layout (mobile drawer + collapsible desktop sidebar)
+- [x] **ChatGPT-Style Multi-Conversation Architecture**:
+  - [x] Primary "New chat" button in sidebar and top header
+  - [x] "Pinned" conversations section with one-click pin/unpin, archive, rename, and delete
+  - [x] "Recent Chats" section with auto-titling from student queries, search filter, and active state highlight
+  - [x] "Archived" section with restore to recents and permanent deletion
+  - [x] Inline title editor for custom conversation renaming
+  - [x] Multi-Student Account partitioning: isolated conversation histories, pinned notices, and archives per student account (`student_id`)
+  - [x] Conversational Dialogue Context in RAG: recent dialogue turns passed to LLM generation prompt for resolving follow-up references while strictly preserving official notice grounding
+  - [x] PostgreSQL persistence via `chat_sessions` table (Alembic migration `e5f6a7b8c9d0`) with REST API endpoints (`/chat/sessions`)
 
-**Exit criteria:** End-to-end manual test — type a question in the browser, see a real answer with citation sourced from the seeded documents.
+**Exit criteria:** End-to-end manual test — start new chats, pin important circular inquiries, archive completed chats, rename conversations, and verify follow-up query context resolution; all frontend and backend tests pass. (Completed)
 
 ---
 
@@ -234,7 +243,34 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 ---
 
-## Phase 8 — Sem 8: Scale, Evaluate, Deploy (Forward-Looking Outline)
+## Phase 8 — Multi-Student Authentication, Database Expansion & Continuous Telemetry
+
+**Goal:** Expand EduSync from a single-tenant assistant into a multi-student institutional platform with user registration, secure PostgreSQL session persistence, and data-driven telemetry for continuous RAG accuracy enhancement.
+
+- [ ] **Database & Migrations**:
+  - [ ] Migration: create `students` table (`college_roll_no`, `email`, `full_name`, `branch`, `semester`, `password_hash`, `is_active`, `role`)
+  - [ ] Migration: update `chat_sessions` to enforce foreign key `student_id -> students(id)`
+  - [ ] Migration: expand `queries_log` with `session_id`, `student_id`, `raw_question`, `rewritten_question`, latency breakdown, and token usage
+  - [ ] Migration: create `knowledge_gaps` table to aggregate low-confidence / ungrounded questions
+  - [ ] Migration: create `query_feedback` table for granular student issue tagging (`outdated_date`, `wrong_info`, etc.)
+- [ ] **Backend Services & API**:
+  - [ ] Student registration endpoint (`POST /api/auth/register`) and login (`POST /api/auth/login`) with Argon2id password hashing and JWT issuance
+  - [ ] JWT authentication dependency protecting `/api/chat` and `/api/chat/sessions`
+  - [ ] Background knowledge gap accumulator triggering on `is_fallback == true`
+  - [ ] Student academic context injection: automatically pass student `branch` and `semester` to dense retriever
+- [ ] **Frontend Integration (Zero Mock Data)**:
+  - [ ] Student registration / login dialog styled in EduSync light aesthetic
+  - [ ] Dynamic session loading directly from `GET /api/chat/sessions` (empty state when 0 sessions, no dummy data)
+  - [ ] Real-time sync of message stream, pinned chats, and archives to PostgreSQL
+  - [ ] Student profile badge in sidebar bottom reflecting live DB record
+- [ ] **Verification**:
+  - [ ] Contract tests for auth and sessions API
+  - [ ] Unit tests for multi-tenant isolation (Student A cannot read Student B's chat history)
+  - [ ] Automated telemetry verification on `/chat` calls
+
+---
+
+## Phase 9 — Sem 8: Scale, Evaluate, Deploy (Forward-Looking Outline)
 
 *(Detailed task breakdown to follow once Sem 7 is complete — outlined here so the team can see the full arc.)*
 

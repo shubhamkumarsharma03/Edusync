@@ -320,6 +320,48 @@ Format: lightweight ADR (Architecture Decision Record). Newest decisions at the 
 
 ---
 
+## ADR-020: Multi-Conversation Session Architecture, Student Account Partitioning, and Conversational Context Resolution
+
+**Status:** Accepted
+
+**Context:** The student chat interface previously stored a single in-memory transcript that was lost on reload and lacked conversation persistence, organization (pinned/archived/recents), and support for multiple student accounts. Furthermore, multi-turn follow-up queries required conversational context in the synthesis prompt so that the LLM could resolve references to previous turns while preserving grounded retrieval.
+
+**Decision:**
+1. **Database Schema & Server Sessions:** Created `chat_sessions` table via Alembic migration `e5f6a7b8c9d0`, indexing `(student_id, updated_at)` with fields for `title`, `is_pinned`, `is_archived`, and `messages` JSONB.
+2. **REST API Endpoints:** Built `/chat/sessions` supporting full CRUD, active vs archived filtering, pin toggle, and archive toggle.
+3. **Multi-User Partitioning & Local Storage:**
+   - Client-side storage layer (`chatStorage.ts`) partitions conversation states by `student_id` (e.g. `edusync_chats_${studentId}`).
+   - Provides immediate, zero-latency UI interaction (switching, pinning, archiving, renaming) combined with background PostgreSQL synchronization.
+   - Profile switcher modal allows switching active student accounts on the fly without breaking other users' data.
+4. **Conversational Memory in RAG:**
+   - The query rewriter handles query standalone reformulation for hybrid search.
+   - The answer generation pipeline (`generate_llm_answer_async`) accepts the last 4 dialogue turns and injects them as `RECENT CONVERSATION CONTEXT` into the prompt, enabling natural follow-up understanding while strictly preserving grounded factual constraints.
+5. **ChatGPT Light Aesthetic:** Redesigned the student layout with a collapsible sidebar, primary "New chat" button, search filter, pinned notices section, recents list, archived drawer, and clean floating input bar.
+
+**Consequences:** Students have a familiar ChatGPT-style conversation management workflow, follow-up queries are answered with full conversational context, and the architecture is prepared for institutional multi-user student authentication.
+
+---
+
+## ADR-021: Database Expansion for Multi-Student Registration, Relational Session Isolation, and Telemetry Improvement Layer
+
+**Status:** Accepted / Planning
+
+**Context:** The application requires true multi-user student support with registration, individual institutional credentials, and relational isolation of chat histories, pinned notices, and archives. Furthermore, to continuously improve RAG retrieval accuracy and institutional notice coverage, the database must capture actionable telemetry (knowledge gap tracking for unanswered questions, latency breakdowns, rewritten query effectiveness, and fine-grained student feedback).
+
+**Decision:**
+1. **Student Account Entity (`students`)**: Introduce a dedicated `students` table storing institutional identifiers (`college_roll_no`, `email`), academic context (`branch`, `semester`, `degree`), and secure password hashes (`password_hash`).
+2. **Relational Session Binding**: Upgrade `chat_sessions.student_id` to a strict foreign key referencing `students(id)` with cascade deletion and composite indexes for fast chronological and pinned queries.
+3. **Continuous Improvement Telemetry (`queries_log`, `knowledge_gaps`, `query_feedback`)**:
+   - `queries_log`: Expanded with session ID, student ID, `raw_question`, `rewritten_question`, `detected_intent`, latency metrics (retrieval vs generation), and token counts.
+   - `knowledge_gaps`: Automatically aggregates recurring queries where the confidence gate fell below 0.40, alerting institutional administrators to missing circulars.
+   - `query_feedback`: Records specific issue tags (`outdated_date`, `wrong_info`, `missing_details`, `helpful`) rather than only binary signals.
+4. **Context-Aware Retrieval**: The student's academic profile (`branch`, `semester`) will be injected into retrieval queries to personalize grounding without requiring students to repeat their department or semester in every prompt.
+5. **No Dummy Data Guarantee**: The frontend will fetch all conversation lists and transcripts exclusively from PostgreSQL via authenticated REST endpoints.
+
+**Consequences:** Enables secure institutional multi-tenancy, isolates personal chat histories and pinned circulars per student, eliminates client mock state, and provides the structured data needed to train and evaluate the RAG pipeline.
+
+---
+
 ## Open / not yet decided
 
 - Final decision on whether the ablation study (RAG variants × OCR engines) is scoped into the core capstone deliverable or treated as a stretch goal for the paper.

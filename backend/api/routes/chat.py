@@ -1,6 +1,8 @@
 import json
 import logging
 import re
+import time
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -8,15 +10,20 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from api.auth_utils import get_optional_student
 from api.config import get_settings
 from db.session import get_db
+from models.knowledge_gap import KnowledgeGap
+from models.query_feedback import QueryFeedback
 from models.query_log import QueryLog
+from models.student import Student
 from retrieval.confidence_gate import ConfidenceGate
 from retrieval.fact_lookup import FactLookup
 from retrieval.http_client import get_http_client
 from retrieval.hybrid_search import HybridSearcher
 from retrieval.query_rewriter import query_rewriter
 from retrieval.reranker import CrossEncoderReranker
+from retrieval.resembled_questions import get_closely_resembled_questions
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +69,18 @@ class ChatResponse(BaseModel):
     is_fallback: bool = False
     query: str
     query_id: UUID | None = None
+    suggestions: list[str] = Field(
+        default_factory=list, description="Closely resembled or suggested follow-up questions"
+    )
 
 
 class FeedbackRequest(BaseModel):
     query_id: UUID
     feedback: str = Field(..., pattern="^(up|down)$")
+    issue_tag: str | None = Field(
+        None, description="Optional issue tag e.g. outdated_date, wrong_info"
+    )
+    student_comment: str | None = Field(None, description="Optional student comment")
 
 
 async def warm_llm_client() -> None:
@@ -81,27 +95,39 @@ async def warm_llm_client() -> None:
             pass
 
 
-async def generate_llm_answer_async(query: str, chunks_text: str) -> GroundedAnswerResult:
-    """Generate grounded answer using high-speed async Gemini REST API with in-prompt evidence check."""
+async def generate_llm_answer_async(
+    query: str, chunks_text: str, history: list[ChatMessage] | None = None
+) -> GroundedAnswerResult:
+    """Generate grounded answer using high-speed async Gemini REST API with in-prompt evidence check and conversation context."""
     api_key = settings.GEMINI_API_KEY
     if api_key and not api_key.startswith("mock"):
+        dialogue_context = ""
+        if history:
+            turns = []
+            for h in history[-4:]:
+                speaker = "Student" if h.role == "user" else "EduSync Assistant"
+                turns.append(f"{speaker}: {h.content}")
+            if turns:
+                dialogue_context = "RECENT CONVERSATION CONTEXT:\n" + "\n".join(turns) + "\n\n"
+
         prompt = f"""You are EduSync, the official AI assistant for Engineering College Ajmer (ECA).
 Analyze whether the provided verified official notices contain direct, verified factual evidence to answer the student's question.
 
 CRITICAL INSTRUCTIONS:
 1. Grounding: Answer ONLY based on verified facts in the notices below.
-2. Near-Miss Check: If the notices mention related topics (e.g. general exam fees, general circulars, or workshop announcements) but DO NOT contain the specific fact or answer requested by the student (e.g. duplicate degree fee or laptop requirements), you MUST set "answerable": false, "evidence": "", and "answer": "". DO NOT invent or extrapolate answers.
-3. If "answerable": true, provide a clear, concise, professional markdown answer with bold dates, fees, and bullet points.
+2. Contextual Follow-up: Use the recent conversation context (if present) to understand pronouns or references (e.g. "it", "that exam", "where is it?"), but ground all factual information STRICTLY in the verified official notices.
+3. Near-Miss Check: If the notices mention related topics (e.g. general exam fees, general circulars, or workshop announcements) but DO NOT contain the specific fact or answer requested by the student (e.g. duplicate degree fee or laptop requirements), you MUST set "answerable": false, "evidence": "", and "answer": "". DO NOT invent or extrapolate answers.
+4. If "answerable": true, provide a clear, concise, professional markdown answer with bold dates, fees, and bullet points.
    - If the notice contains timetable tables or OCR LaTeX markup (e.g. \\begin{{tabular}}), ALWAYS convert them into a clean, human-readable markdown table. NEVER output raw LaTeX syntax.
    - Do NOT output raw metadata tags like "[Document Notice]".
-4. Return STRICT JSON with keys:
+5. Return STRICT JSON with keys:
 {{
   "answerable": true or false,
   "evidence": "exact quote from notices supporting the answer, or empty string if not found",
   "answer": "markdown answer string, or empty string if unanswerable"
 }}
 
-VERIFIED OFFICIAL NOTICES:
+{dialogue_context}VERIFIED OFFICIAL NOTICES:
 {chunks_text[:16000]}
 
 STUDENT QUESTION:
@@ -176,9 +202,11 @@ JSON RESPONSE:"""
 @router.post("", response_model=ChatResponse)
 async def chat_endpoint(
     req: ChatRequest,
+    current_student: Student | None = Depends(get_optional_student),
     session: AsyncSession = Depends(get_db),
 ) -> ChatResponse:
     """Answer student questions using Hybrid Search, Reranking, Confidence Gating, and Citation."""
+    t_start = time.perf_counter()
     query = req.query.strip()
     if not query:
         raise HTTPException(status_code=400, detail="Query cannot be empty")
@@ -187,20 +215,60 @@ async def chat_endpoint(
     reranker = CrossEncoderReranker()
     gate = ConfidenceGate()
 
+    # Parse session UUID if provided
+    parsed_session_id = None
+    if req.session_id:
+        try:
+            parsed_session_id = UUID(req.session_id)
+        except Exception:
+            pass
+
     async def _log_and_return(
         resp: ChatResponse, chunk_ids: list[UUID] | None = None
     ) -> ChatResponse:
         try:
+            total_latency = int((time.perf_counter() - t_start) * 1000)
             q_log = QueryLog(
                 question=query,
                 retrieved_chunk_ids=chunk_ids or None,
                 answer=resp.answer,
                 confidence_score=resp.confidence_score,
+                session_id=parsed_session_id,
+                student_id=current_student.id if current_student else None,
+                raw_question=query,
+                rewritten_question=search_query,
+                target_department=req.department,
+                is_fallback=resp.is_fallback,
+                total_latency_ms=total_latency,
+                model_used="gemini-2.5-flash",
             )
             session.add(q_log)
             await session.commit()
             await session.refresh(q_log)
             resp.query_id = q_log.id
+
+            # If fallback triggered, record or increment knowledge gap
+            if resp.is_fallback:
+                try:
+                    norm_topic = search_query[:120].strip()
+                    gap_stmt = select(KnowledgeGap).where(
+                        KnowledgeGap.normalized_topic == norm_topic
+                    )
+                    gap_res = await session.execute(gap_stmt)
+                    gap = gap_res.scalar_one_or_none()
+                    if gap:
+                        gap.query_frequency += 1
+                        gap.last_queried_at = datetime.now()
+                    else:
+                        new_gap = KnowledgeGap(
+                            normalized_topic=norm_topic,
+                            department=req.department,
+                            query_frequency=1,
+                        )
+                        session.add(new_gap)
+                    await session.commit()
+                except Exception as gap_err:
+                    logger.warning(f"Failed to record KnowledgeGap: {gap_err}")
         except Exception as e:
             logger.warning(f"Failed to record QueryLog: {e}")
         return resp
@@ -219,7 +287,7 @@ async def chat_endpoint(
     if matched_facts and matched_facts[0].confidence >= 0.9:
         logger.info(f"Fast-path fact match found (confidence={matched_facts[0].confidence:.2f})")
         facts_context = FactLookup.format_facts_context(matched_facts)
-        fast_res = await generate_llm_answer_async(search_query, facts_context)
+        fast_res = await generate_llm_answer_async(search_query, facts_context, req.history)
         fast_answer = fast_res.answer if fast_res.answerable else ""
         if not fast_answer:
             fast_answer = facts_context[:1000]
@@ -252,6 +320,9 @@ async def chat_endpoint(
     )
 
     if not raw_chunks:
+        fallback_suggestions = await get_closely_resembled_questions(
+            query=query, department=req.department, retrieved_chunks=None
+        )
         return await _log_and_return(
             ChatResponse(
                 answer="I don't have verified information on this in the official circulars. Please check with the relevant department office or visit the official college website.",
@@ -260,6 +331,7 @@ async def chat_endpoint(
                 confidence_score=0.0,
                 is_fallback=True,
                 query=query,
+                suggestions=fallback_suggestions,
             )
         )
 
@@ -274,6 +346,9 @@ async def chat_endpoint(
     gate_result = gate.evaluate(reranked_chunks)
 
     if gate_result.is_fallback:
+        fallback_suggestions = await get_closely_resembled_questions(
+            query=query, department=req.department, retrieved_chunks=raw_chunks
+        )
         return await _log_and_return(
             ChatResponse(
                 answer=gate_result.fallback_message
@@ -283,6 +358,7 @@ async def chat_endpoint(
                 confidence_score=gate_result.top_score,
                 is_fallback=True,
                 query=query,
+                suggestions=fallback_suggestions,
             )
         )
 
@@ -318,10 +394,13 @@ async def chat_endpoint(
     ]
 
     # 5. Generate Grounded Answer asynchronously with in-prompt evidence check
-    llm_res = await generate_llm_answer_async(search_query, combined_context)
+    llm_res = await generate_llm_answer_async(search_query, combined_context, req.history)
     if not llm_res.answerable:
         logger.info(
             f"Gemini in-prompt evidence check determined question is unanswerable from context: {query}"
+        )
+        fallback_suggestions = await get_closely_resembled_questions(
+            query=query, department=req.department, retrieved_chunks=raw_chunks
         )
         return await _log_and_return(
             ChatResponse(
@@ -331,6 +410,7 @@ async def chat_endpoint(
                 confidence_score=gate_result.top_score,
                 is_fallback=True,
                 query=query,
+                suggestions=fallback_suggestions,
             ),
             qualifying_ids,
         )
@@ -338,6 +418,10 @@ async def chat_endpoint(
     answer_text = llm_res.answer or gate.fallback_response()
     if gate_result.caveat:
         answer_text = f"{answer_text}\n\n> ⚠️ *{gate_result.caveat}*"
+
+    grounded_suggestions = await get_closely_resembled_questions(
+        query=query, department=req.department, retrieved_chunks=gate_result.qualifying_chunks
+    )
 
     return await _log_and_return(
         ChatResponse(
@@ -347,6 +431,7 @@ async def chat_endpoint(
             confidence_score=gate_result.top_score,
             is_fallback=False,
             query=query,
+            suggestions=grounded_suggestions,
         ),
         qualifying_ids,
     )
@@ -355,14 +440,29 @@ async def chat_endpoint(
 @router.post("/feedback")
 async def record_feedback(
     payload: FeedbackRequest,
+    current_student: Student | None = Depends(get_optional_student),
     session: AsyncSession = Depends(get_db),
 ):
-    """Record student up/down feedback for a previously answered query."""
+    """Record student feedback (up/down and optional issue tags) for a previously answered query."""
     stmt = select(QueryLog).where(QueryLog.id == payload.query_id)
     res = await session.execute(stmt)
     log_entry = res.scalar_one_or_none()
     if not log_entry:
         raise HTTPException(status_code=404, detail="Query log not found")
     log_entry.feedback = payload.feedback
+
+    if payload.issue_tag or payload.student_comment:
+        try:
+            qf = QueryFeedback(
+                query_id=payload.query_id,
+                student_id=current_student.id if current_student else None,
+                feedback_type=payload.feedback,
+                issue_tag=payload.issue_tag,
+                student_comment=payload.student_comment,
+            )
+            session.add(qf)
+        except Exception as err:
+            logger.warning(f"Failed to record QueryFeedback: {err}")
+
     await session.commit()
     return {"status": "success", "query_id": str(payload.query_id), "feedback": payload.feedback}

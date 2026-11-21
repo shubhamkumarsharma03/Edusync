@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  HelpCircle,
   RotateCcw,
   ShieldCheck,
   ThumbsDown,
@@ -140,6 +141,28 @@ export const MessageBubble: React.FC<MessageBubbleProps> = ({
               <span className="font-semibold text-neutral-700 block mb-0.5">Note for Students:</span>
               EduSync grounds answers only in official Engineering College Ajmer circulars. If your question concerns general knowledge, unreleased notices, or personal matters, please consult the respective departmental office.
             </div>
+
+            {/* Closely Resembled Questions for Unanswered / Fallback Queries */}
+            {message.suggestions && message.suggestions.length > 0 && (
+              <div className="mt-3.5 pt-3 border-t border-amber-200/80 space-y-2">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-amber-900">
+                  <HelpCircle className="w-3.5 h-3.5 text-amber-700" />
+                  <span>Closely resembled questions you can ask:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {message.suggestions.map((suggestion, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      onClick={() => onSuggestionClick && onSuggestionClick(suggestion)}
+                      className="px-3.5 py-1.5 rounded-full border border-amber-300 bg-white hover:bg-amber-100/70 text-amber-950 text-xs sm:text-[13px] font-normal transition-colors shadow-2xs active:scale-95 cursor-pointer text-left hover:border-amber-400"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Action Toolbar */}

@@ -73,8 +73,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     REINGEST_INTERVAL_HOURS: int = 6
 
-    # Admin Dashboard Authentication
+    # Admin Dashboard & Student JWT Authentication
     ADMIN_SECRET_KEY: str = "edusync-admin-2026"
+    JWT_SECRET_KEY: str = "edusync-jwt-institution-secret-key-2026"
 
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env", "backend/.env"),
