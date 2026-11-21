@@ -8,14 +8,13 @@ import {
   Menu,
   X,
   ExternalLink,
-  Database,
   MessageSquare,
   SquarePen,
   PanelLeft,
   Trash2,
   Edit2,
-  RotateCcw,
   RotateCw,
+  RotateCcw,
   Search,
   User,
   LogIn,
@@ -28,12 +27,6 @@ import {
   KeyRound,
   AlertCircle,
   Loader2,
-  Lock,
-  Calendar,
-  CreditCard,
-  BookOpen,
-  ArrowUpRight,
-  Sparkles,
 } from 'lucide-react'
 import { checkBackendHealth } from './api/client'
 import {
@@ -90,22 +83,18 @@ export const STARTER_QUESTIONS = [
   {
     title: 'Mid-term exam schedule for CSE',
     category: 'Examination Cell',
-    icon: Calendar,
   },
   {
     title: 'Semester fee notice and due dates',
     category: 'Accounts & Registrar',
-    icon: CreditCard,
   },
   {
     title: 'Mercy exam rules for B.Tech',
     category: 'Academics & Back Exam',
-    icon: GraduationCap,
   },
   {
     title: 'Central Library book issue timings',
     category: 'Library & Facilities',
-    icon: BookOpen,
   },
 ]
 
@@ -849,12 +838,13 @@ export const App: React.FC = () => {
               <span className="text-[10px] text-neutral-400 font-normal">⌘+K</span>
             </button>
 
-            {/* Quick Search in Conversations (Grayed out in Guest Mode) */}
-            <div className="relative group">
+            {/* Quick Search in Conversations (Disabled in Guest Mode) */}
+            <div className="relative">
               <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 disabled={isGuest}
+                title={isGuest ? 'Sign in to search your conversation history' : 'Search chats...'}
                 placeholder={isGuest ? 'Search (Sign in to enable)...' : 'Search chats...'}
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
@@ -864,114 +854,65 @@ export const App: React.FC = () => {
                     : 'bg-[#f4f4f5] border border-transparent text-neutral-800 placeholder-neutral-400 focus:outline-none focus:bg-white focus:border-[#e4e4e7]'
                 }`}
               />
-              {isGuest && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:flex flex-col z-50 w-64 p-2.5 bg-[#18181b] text-white text-[11px] rounded-xl shadow-xl border border-neutral-800 pointer-events-none transition-all animate-in fade-in">
-                  <div className="flex items-center gap-1.5 font-semibold text-neutral-200 mb-0.5">
-                    <Lock className="w-3 h-3 text-amber-400 shrink-0" />
-                    <span>Guest Mode</span>
-                  </div>
-                  <p className="text-neutral-300 text-[10px] leading-snug">
-                    Searching across past conversation history requires signing in to a student account.
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* Navigation Tabs (Recent Chats vs Archived) */}
-            <div className="relative group">
-              <div
-                className={`flex items-center p-0.5 rounded-lg text-xs font-semibold ${
-                  isGuest ? 'bg-[#ebecee]/60 opacity-60' : 'bg-[#eaecee] text-neutral-600'
+            <div
+              className={`flex items-center p-0.5 rounded-lg text-xs font-semibold ${
+                isGuest ? 'bg-[#ebecee]/60 opacity-60' : 'bg-[#eaecee] text-neutral-600'
+              }`}
+            >
+              <button
+                onClick={() => {
+                  if (isGuest) {
+                    setAuthTab('login')
+                    setShowAccountModal(true)
+                  } else {
+                    setSidebarTab('recent')
+                  }
+                }}
+                title={isGuest ? 'Sign in to access past conversations' : 'Recent chats'}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1 rounded-md transition cursor-pointer ${
+                  isGuest
+                    ? 'text-neutral-400 hover:text-neutral-600'
+                    : sidebarTab === 'recent'
+                    ? 'bg-white text-[#18181b] shadow-2xs'
+                    : 'hover:text-neutral-900'
                 }`}
               >
-                <button
-                  onClick={() => {
-                    if (isGuest) {
-                      setAuthTab('login')
-                      setShowAccountModal(true)
-                    } else {
-                      setSidebarTab('recent')
-                    }
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1 rounded-md transition ${
-                    isGuest
-                      ? 'text-neutral-400 hover:text-neutral-600 cursor-pointer'
-                      : sidebarTab === 'recent'
-                      ? 'bg-white text-[#18181b] shadow-2xs cursor-pointer'
-                      : 'hover:text-neutral-900 cursor-pointer'
-                  }`}
-                >
-                  <History className="w-3 h-3" />
-                  <span>Recents</span>
-                  {isGuest && <Lock className="w-2.5 h-2.5 text-neutral-400 ml-0.5" />}
-                </button>
-                <button
-                  onClick={() => {
-                    if (isGuest) {
-                      setAuthTab('login')
-                      setShowAccountModal(true)
-                    } else {
-                      setSidebarTab('archived')
-                    }
-                  }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-1 rounded-md transition ${
-                    isGuest
-                      ? 'text-neutral-400 hover:text-neutral-600 cursor-pointer'
-                      : sidebarTab === 'archived'
-                      ? 'bg-white text-[#18181b] shadow-2xs cursor-pointer'
-                      : 'hover:text-neutral-900 cursor-pointer'
-                  }`}
-                >
-                  <Archive className="w-3 h-3" />
-                  <span>Archived</span>
-                  {isGuest && <Lock className="w-2.5 h-2.5 text-neutral-400 ml-0.5" />}
-                </button>
-              </div>
-
-              {isGuest && (
-                <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 hidden group-hover:flex flex-col z-50 w-64 p-2.5 bg-[#18181b] text-white text-[11px] rounded-xl shadow-xl border border-neutral-800 pointer-events-none transition-all animate-in fade-in">
-                  <div className="flex items-center gap-1.5 font-semibold text-neutral-200 mb-0.5">
-                    <Lock className="w-3 h-3 text-amber-400 shrink-0" />
-                    <span>History & Archive Disabled</span>
-                  </div>
-                  <p className="text-neutral-300 text-[10px] leading-snug">
-                    Chat history and archives are only saved for signed-in students. Click to sign in.
-                  </p>
-                </div>
-              )}
+                <History className="w-3 h-3" />
+                <span>Recents</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (isGuest) {
+                    setAuthTab('login')
+                    setShowAccountModal(true)
+                  } else {
+                    setSidebarTab('archived')
+                  }
+                }}
+                title={isGuest ? 'Sign in to access archived conversations' : 'Archived chats'}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1 rounded-md transition cursor-pointer ${
+                  isGuest
+                    ? 'text-neutral-400 hover:text-neutral-600'
+                    : sidebarTab === 'archived'
+                    ? 'bg-white text-[#18181b] shadow-2xs'
+                    : 'hover:text-neutral-900'
+                }`}
+              >
+                <Archive className="w-3 h-3" />
+                <span>Archived</span>
+              </button>
             </div>
           </div>
 
           {/* Scrollable Conversation List */}
-          <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-4 min-h-0 select-none">
-            {isGuest ? (
-              /* GUEST MODE: Clean state with hover description */
-              <div
-                onClick={() => {
-                  setAuthTab('login')
-                  setAuthError(null)
-                  setShowAccountModal(true)
-                }}
-                className="relative group flex flex-col items-center justify-center p-6 text-center select-none cursor-pointer rounded-2xl hover:bg-neutral-100/60 transition mt-6 space-y-2 border border-dashed border-neutral-200/80"
-              >
-                <div className="w-8 h-8 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-400 group-hover:text-neutral-700 transition">
-                  <Lock className="w-3.5 h-3.5" />
-                </div>
-                <span className="text-xs font-medium text-neutral-500">History disabled in guest mode</span>
-                <span className="text-[11px] text-neutral-400">Click to sign in & save chats</span>
-
-                {/* Little description tooltip on hover */}
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-2 hidden group-hover:flex flex-col z-50 w-56 p-2.5 bg-[#18181b] text-white text-[11px] rounded-xl shadow-xl border border-neutral-800 pointer-events-none transition-all animate-in fade-in text-left">
-                  <div className="flex items-center gap-1.5 font-semibold text-neutral-200 mb-0.5">
-                    <Lock className="w-3 h-3 text-amber-400 shrink-0" />
-                    <span>Student Account Required</span>
-                  </div>
-                  <p className="text-neutral-300 text-[10px] leading-snug">
-                    Chat history, pinned circulars, and archives are preserved only when signed in to your student account.
-                  </p>
-                </div>
-              </div>
-            ) : sidebarTab === 'recent' ? (
+          <div
+            className="flex-1 overflow-y-auto px-3 pb-3 space-y-4 min-h-0 select-none"
+            title={isGuest ? 'Sign in to save and access conversation history' : undefined}
+          >
+            {isGuest ? null : sidebarTab === 'recent' ? (
               <>
                 {/* 1. PINNED SECTION */}
                 {pinnedConversations.length > 0 && (
@@ -1258,31 +1199,21 @@ export const App: React.FC = () => {
               </button>
             )}
 
-            {/* Pin Chat Action (Active when signed in, grayed out with tooltip in Guest Mode) */}
+            {/* Pin Chat Action (Active when signed in, grayed out in Guest Mode) */}
             {isGuest ? (
-              <div className="relative group">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthTab('login')
-                    setAuthError(null)
-                    setShowAccountModal(true)
-                  }}
-                  className="p-2 text-neutral-300 hover:text-neutral-500 rounded-xl transition cursor-pointer opacity-50 hover:opacity-90"
-                  aria-label="Pin circular (sign in required)"
-                >
-                  <Pin className="w-4 h-4 text-neutral-300" />
-                </button>
-                <div className="absolute right-0 top-full mt-2 hidden group-hover:flex flex-col z-50 w-60 p-2.5 bg-[#18181b] text-white text-[11px] rounded-xl shadow-xl border border-neutral-800 pointer-events-none transition-all animate-in fade-in">
-                  <div className="flex items-center gap-1.5 font-semibold text-neutral-200 mb-0.5">
-                    <Lock className="w-3 h-3 text-amber-400 shrink-0" />
-                    <span>Student Account Required</span>
-                  </div>
-                  <p className="text-neutral-300 text-[10px] leading-snug">
-                    Pinning circulars is unavailable in guest mode. Sign in to pin and keep notices for quick access.
-                  </p>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthTab('login')
+                  setAuthError(null)
+                  setShowAccountModal(true)
+                }}
+                className="p-2 text-neutral-300 hover:text-neutral-500 rounded-xl transition cursor-pointer"
+                title="Sign in to pin circulars"
+                aria-label="Pin circular (sign in required)"
+              >
+                <Pin className="w-4 h-4 text-neutral-300" />
+              </button>
             ) : currentConversation ? (
               <button
                 onClick={(e) => handleTogglePin(currentConversation.id, e)}
@@ -1301,31 +1232,21 @@ export const App: React.FC = () => {
               </button>
             ) : null}
 
-            {/* Archive Chat Action (Active when signed in, grayed out with tooltip in Guest Mode) */}
+            {/* Archive Chat Action (Active when signed in, grayed out in Guest Mode) */}
             {isGuest ? (
-              <div className="relative group">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAuthTab('login')
-                    setAuthError(null)
-                    setShowAccountModal(true)
-                  }}
-                  className="p-2 text-neutral-300 hover:text-neutral-500 rounded-xl transition cursor-pointer opacity-50 hover:opacity-90"
-                  aria-label="Archive chat (sign in required)"
-                >
-                  <Archive className="w-4 h-4 text-neutral-300" />
-                </button>
-                <div className="absolute right-0 top-full mt-2 hidden group-hover:flex flex-col z-50 w-60 p-2.5 bg-[#18181b] text-white text-[11px] rounded-xl shadow-xl border border-neutral-800 pointer-events-none transition-all animate-in fade-in">
-                  <div className="flex items-center gap-1.5 font-semibold text-neutral-200 mb-0.5">
-                    <Lock className="w-3 h-3 text-amber-400 shrink-0" />
-                    <span>Student Account Required</span>
-                  </div>
-                  <p className="text-neutral-300 text-[10px] leading-snug">
-                    Archiving conversations is unavailable in guest mode. Sign in to save and organize past chats.
-                  </p>
-                </div>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthTab('login')
+                  setAuthError(null)
+                  setShowAccountModal(true)
+                }}
+                className="p-2 text-neutral-300 hover:text-neutral-500 rounded-xl transition cursor-pointer"
+                title="Sign in to archive conversations"
+                aria-label="Archive chat (sign in required)"
+              >
+                <Archive className="w-4 h-4 text-neutral-300" />
+              </button>
             ) : currentConversation ? (
               <button
                 onClick={(e) => handleToggleArchive(currentConversation.id, e)}
@@ -1345,11 +1266,10 @@ export const App: React.FC = () => {
               href="/admin"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-700 hover:text-[#18181b] rounded-xl text-xs font-semibold border border-[#e4e4e7] shadow-2xs transition ml-1"
-              title="Open Admin Data Sources in a new tab"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-700 hover:text-[#18181b] rounded-xl text-xs font-medium border border-[#e4e4e7] shadow-2xs transition ml-1"
+              title="Open Admin Portal in a new tab"
             >
-              <Database className="w-3.5 h-3.5 text-indigo-600" />
-              <span className="hidden sm:inline">Admin</span>
+              <span>Admin</span>
               <ExternalLink className="w-3 h-3 text-neutral-400" />
             </a>
           </div>
@@ -1357,35 +1277,25 @@ export const App: React.FC = () => {
 
         {/* Dynamic Chat Canvas: Centered Hero when Empty, Thread when Active */}
         {!hasUserMessages ? (
-          <main className="flex-1 flex flex-col justify-start items-center px-4 sm:px-6 pt-10 sm:pt-14 pb-8 w-full max-w-2xl sm:max-w-3xl mx-auto min-h-0 text-center space-y-6 overflow-y-auto animate-in fade-in">
+          <main className="flex-1 flex flex-col justify-center items-center px-4 sm:px-6 py-6 w-full max-w-2xl sm:max-w-3xl mx-auto min-h-0 text-center space-y-5 overflow-y-auto">
             {/* 1. Centered Hero Branding */}
-            <div className="space-y-2">
-              <div className="inline-flex items-center justify-center w-10 h-10 rounded-2xl bg-white border border-[#e4e4e7] shadow-2xs mb-1">
-                <img src="/logo-icon.png" alt="EduSync" className="w-5 h-5 object-contain" />
-              </div>
+            <div className="space-y-1.5 text-center">
               <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#18181b]">
-                Ready when you are.
+                Engineering College Ajmer Assistant
               </h1>
-              <p className="text-xs sm:text-sm text-neutral-500 max-w-lg mx-auto">
-                Institutional AI assistant for Engineering College Ajmer. Grounded strictly in official circulars.
+              <p className="text-xs sm:text-sm text-neutral-500 max-w-md mx-auto">
+                Official notices, exam schedules, fee circulars, and academic guidelines.
               </p>
             </div>
 
-            {/* 2. Department Scope Selector & Floating Pill Input Bar */}
+            {/* 2. Search / Query Input Bar & Department Scope */}
             <div className="w-full space-y-2">
-              {/* Department Scope Selector above Input (Consistent with active chat) */}
-              <DepartmentSelector
-                selectedDept={selectedDepartment}
-                onSelectDept={setSelectedDepartment}
-              />
-
-              {/* Floating Pill Input Bar */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault()
                   handleSend()
                 }}
-                className="w-full flex items-end gap-2 bg-white border border-[#e4e4e7] rounded-3xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-xs focus-within:border-neutral-400 focus-within:shadow-md transition-all text-left"
+                className="w-full flex items-end gap-2 bg-white border border-[#e4e4e7] rounded-2xl px-3 py-2 sm:px-4 sm:py-2.5 shadow-xs focus-within:border-neutral-400 focus-within:shadow-md transition-all text-left"
               >
                 <button
                   type="button"
@@ -1412,7 +1322,7 @@ export const App: React.FC = () => {
                 <button
                   type="submit"
                   disabled={!input.trim() || isTyping}
-                  className={`p-2 rounded-full flex items-center justify-center transition-all shrink-0 mb-0.5 ${
+                  className={`p-2 rounded-xl flex items-center justify-center transition-all shrink-0 mb-0.5 ${
                     input.trim() && !isTyping
                       ? 'bg-[#18181b] text-white hover:bg-black cursor-pointer shadow-xs'
                       : 'text-neutral-300 cursor-not-allowed'
@@ -1422,47 +1332,41 @@ export const App: React.FC = () => {
                   <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </button>
               </form>
+
+              {/* Department Scope Selector directly beneath the input */}
+              <DepartmentSelector
+                selectedDept={selectedDepartment}
+                onSelectDept={setSelectedDepartment}
+              />
             </div>
 
-            {/* 3. Starter Questions (Strictly Kept & Beautifully Rearranged) */}
+            {/* 3. Starter Questions (Strictly Kept) */}
             <div className="w-full space-y-2 pt-1 text-left">
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-neutral-400 px-1">
-                <Sparkles className="w-3 h-3 text-neutral-400" />
-                <span>Suggested inquiries from official circulars</span>
+              <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider px-1">
+                Frequently Asked Notices
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full">
-                {STARTER_QUESTIONS.map((item, idx) => {
-                  const IconComp = item.icon
-                  return (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleSend(item.title)}
-                      className="group flex items-center justify-between p-3.5 bg-white hover:bg-neutral-50/80 border border-[#e4e4e7] hover:border-neutral-300 rounded-2xl text-left transition-all shadow-2xs hover:shadow-xs cursor-pointer"
-                    >
-                      <div className="flex items-center gap-3 min-w-0 pr-2">
-                        <div className="w-8 h-8 rounded-xl bg-neutral-100 group-hover:bg-neutral-200/70 flex items-center justify-center text-neutral-600 shrink-0 transition-colors">
-                          <IconComp className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-xs font-semibold text-neutral-800 group-hover:text-black truncate">
-                            {item.title}
-                          </div>
-                          <div className="text-[10px] text-neutral-400 truncate">
-                            {item.category}
-                          </div>
-                        </div>
-                      </div>
-                      <ArrowUpRight className="w-4 h-4 text-neutral-300 group-hover:text-neutral-700 shrink-0 transition-colors" />
-                    </button>
-                  )
-                })}
+                {STARTER_QUESTIONS.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleSend(item.title)}
+                    className="group flex flex-col justify-between p-3.5 bg-white hover:bg-neutral-50/80 border border-[#e4e4e7] hover:border-neutral-300 rounded-xl text-left transition-colors shadow-2xs cursor-pointer"
+                  >
+                    <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
+                      {item.category}
+                    </span>
+                    <span className="text-xs sm:text-[13px] font-medium text-neutral-800 group-hover:text-black">
+                      {item.title}
+                    </span>
+                  </button>
+                ))}
               </div>
             </div>
 
             {/* 4. Verification Footnote */}
-            <p className="text-center text-[10px] sm:text-[11px] text-neutral-400 pt-2">
+            <p className="text-center text-[10px] sm:text-[11px] text-neutral-400 pt-1">
               EduSync answers are strictly verified against official ECA circulars.
             </p>
           </main>
@@ -1489,16 +1393,16 @@ export const App: React.FC = () => {
 
               {isTyping && (
                 <div className="flex items-start gap-2.5 sm:gap-3.5 max-w-full sm:max-w-2xl md:max-w-3xl pr-4">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-[#e4e4e7] flex-shrink-0 flex items-center justify-center p-1 mt-0.5 shadow-2xs">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-white border border-[#e4e4e7] flex-shrink-0 flex items-center justify-center p-1 mt-0.5 shadow-xs">
                     <img
                       src="/logo-icon.png"
-                      alt="EduSync AI"
-                      className="w-full h-full object-contain animate-pulse"
+                      alt="EduSync"
+                      className="w-full h-full object-contain"
                     />
                   </div>
-                  <div className="bg-[#f4f4f5] rounded-2xl px-4 py-3 text-xs text-neutral-500 flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
-                    <span>Searching verified circulars & generating grounded answer...</span>
+                  <div className="bg-[#f4f4f5] rounded-xl px-4 py-3 text-xs text-neutral-500 flex items-center gap-2">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-neutral-400" />
+                    <span>Searching official circulars...</span>
                   </div>
                 </div>
               )}

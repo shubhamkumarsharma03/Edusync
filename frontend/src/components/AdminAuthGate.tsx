@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { KeyRound, Lock, ArrowRight, Bot, AlertCircle } from 'lucide-react'
+import { KeyRound, Lock, ArrowRight, ArrowLeft, AlertCircle } from 'lucide-react'
 import { verifyAdminPasscode } from '../api/admin'
 
 interface AdminAuthGateProps {
@@ -88,7 +88,7 @@ export const AdminAuthGate: React.FC<AdminAuthGateProps> = ({ onAuthenticated })
             href="/"
             className="inline-flex items-center gap-1.5 text-neutral-600 hover:text-neutral-900 transition"
           >
-            <Bot className="w-3.5 h-3.5" />
+            <ArrowLeft className="w-3.5 h-3.5" />
             <span>Return to Student Assistant</span>
           </a>
           <span className="text-[11px] text-neutral-400">EduSync Security Gate</span>

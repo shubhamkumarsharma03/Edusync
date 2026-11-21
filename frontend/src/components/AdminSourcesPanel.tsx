@@ -15,8 +15,6 @@ import {
   Play,
   Pause,
   X,
-  Sparkles,
-  Bot,
   Search,
   Filter,
   Check,
@@ -25,6 +23,7 @@ import {
   Eye,
   Globe,
   FileCode,
+  MessageSquare,
 } from 'lucide-react'
 
 import { LivePipelineModal } from './LivePipelineModal'
@@ -539,9 +538,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
 
   return (
     <div
-      className={`min-h-screen bg-[#fcfcfc] text-[#18181b] font-['Inter',sans-serif] ${
-        isStandalone ? 'p-4 sm:p-8' : ''
-      }`}
+      className={`min-h-screen bg-[#fcfcfc] text-[#18181b] font-['Inter',sans-serif] ${isStandalone ? 'p-4 sm:p-8' : ''
+        }`}
     >
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Top Standalone Header if opened in new tab */}
@@ -567,8 +565,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                 href="/"
                 className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-medium text-neutral-700 bg-neutral-100 hover:bg-neutral-200/80 rounded-xl transition"
               >
-                <Bot className="w-3.5 h-3.5" />
-                <span>Open Student Assistant</span>
+                <MessageSquare className="w-3.5 h-3.5" />
+                <span>Student Chat</span>
               </a>
             </div>
           </header>
@@ -637,18 +635,17 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
               <button
                 onClick={handleSeedDefaults}
                 disabled={actionLoading === 'seed'}
-                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#f4f4f5] hover:bg-[#e4e4e7] text-neutral-800 rounded-xl text-xs font-semibold border border-[#d4d4d8] transition shadow-sm"
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-[#f4f4f5] hover:bg-[#e4e4e7] text-neutral-800 rounded-xl text-xs font-semibold border border-[#d4d4d8] transition shadow-xs"
                 title="Preload all official departments from ecajmer.ac.in"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <Layers className="w-3.5 h-3.5 text-neutral-500" />
                 Preload Departments
               </button>
-
 
               <button
                 onClick={() => setConfirmBatchModalOpen(true)}
                 disabled={actionLoading === 'all' || sources.length === 0}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95 disabled:opacity-50"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#18181b] hover:bg-black text-white rounded-xl text-xs font-semibold shadow-xs transition disabled:opacity-50"
                 title="Trigger sequential synchronization across all active sources"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -670,11 +667,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
           {/* Toast Notification */}
           {notification && (
             <div
-              className={`p-3.5 rounded-xl text-xs font-medium flex items-center gap-2 ${
-                notification.type === 'success'
-                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                  : 'bg-rose-50 text-rose-800 border border-rose-200'
-              }`}
+              className={`p-3.5 rounded-xl text-xs font-medium flex items-center gap-2 ${notification.type === 'success'
+                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
             >
               {notification.type === 'success' ? (
                 <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -822,9 +818,9 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                 </p>
                 <button
                   onClick={handleSeedDefaults}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#18181b] hover:bg-black text-white rounded-xl text-xs font-semibold shadow-xs"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Layers className="w-3.5 h-3.5" />
                   Preload ECAjmer Departments
                 </button>
               </div>
@@ -848,9 +844,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                     return (
                       <tr
                         key={src.id}
-                        className={`hover:bg-[#f8f9fa] transition ${
-                          !src.is_active ? 'opacity-50 bg-[#fafafa]' : ''
-                        }`}
+                        className={`hover:bg-[#f8f9fa] transition ${!src.is_active ? 'opacity-50 bg-[#fafafa]' : ''
+                          }`}
                       >
                         {/* Priority Controls */}
                         <td className="py-3.5 px-3 text-center">
@@ -917,11 +912,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                         {/* Category */}
                         <td className="py-3.5 px-3">
                           <span
-                            className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${
-                              src.category === 'timetable'
-                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                : 'bg-blue-50 text-blue-700 border border-blue-200'
-                            }`}
+                            className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold uppercase tracking-wider ${src.category === 'timetable'
+                              ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                              : 'bg-blue-50 text-blue-700 border border-blue-200'
+                              }`}
                           >
                             {src.category}
                           </span>
@@ -938,7 +932,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                           {src.status === 'fetching' ? (
                             <button
                               onClick={() => handleOpenLiveInspector(src.id, src.name)}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[11px] font-medium animate-pulse cursor-pointer shadow-xs transition hover:scale-105 active:scale-95"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-full text-[11px] font-medium cursor-pointer shadow-xs transition"
                               title="Click to view live backend working & step-by-step progress"
                             >
                               <RefreshCw className="w-3 h-3 animate-spin text-amber-600" />
@@ -947,7 +941,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                           ) : src.status === 'completed' ? (
                             <button
                               onClick={() => handleOpenLiveInspector(src.id, src.name)}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-medium cursor-pointer transition hover:scale-105"
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full text-[11px] font-medium cursor-pointer transition"
                               title="Click to inspect pipeline run logs"
                             >
                               <CheckCircle2 className="w-3 h-3 text-emerald-600" />
@@ -956,7 +950,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                           ) : src.status === 'error' ? (
                             <button
                               onClick={() => handleOpenLiveInspector(src.id, src.name)}
-                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-full text-[11px] font-medium cursor-pointer transition hover:scale-105"
+                              className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-full text-[11px] font-medium cursor-pointer transition"
                               title={src.error_message || 'Fetch error - click to inspect error logs'}
                             >
                               <AlertCircle className="w-3 h-3 text-rose-600" />
@@ -978,11 +972,11 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                         <td className="py-3.5 px-3 text-neutral-500 text-[11px]">
                           {src.last_fetched_at
                             ? new Date(src.last_fetched_at).toLocaleDateString([], {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })
                             : 'Never'}
                         </td>
 
@@ -993,7 +987,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                               <button
                                 onClick={() => handlePauseSingle(src.id, src.name)}
                                 disabled={actionLoading === src.id}
-                                className="p-1.5 bg-amber-50 hover:bg-amber-600 text-amber-600 hover:text-white rounded-lg border border-amber-200 transition disabled:opacity-40 animate-pulse"
+                                className="p-1.5 bg-amber-50 hover:bg-amber-600 text-amber-600 hover:text-white rounded-lg border border-amber-200 transition disabled:opacity-40"
                                 title="Pause / Stop fetching"
                               >
                                 <Pause className="w-3.5 h-3.5 fill-current" />
@@ -1082,11 +1076,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                   setExplorerTab('db')
                   loadDbDocuments(explorerSource, 1, dbPageSize, dbSearchQuery)
                 }}
-                className={`pb-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
-                  explorerTab === 'db'
-                    ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-900'
-                }`}
+                className={`pb-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${explorerTab === 'db'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                  }`}
               >
                 <Database className="w-4 h-4" />
                 <span>Stored in EduSync DB</span>
@@ -1100,11 +1093,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                   setExplorerTab('live')
                   fetchLiveEcaCirculars(explorerSource, 1, livePageSize, liveSearchQuery)
                 }}
-                className={`pb-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${
-                  explorerTab === 'live'
-                    ? 'border-indigo-600 text-indigo-600'
-                    : 'border-transparent text-neutral-500 hover:text-neutral-900'
-                }`}
+                className={`pb-2.5 text-xs font-semibold flex items-center gap-2 border-b-2 transition ${explorerTab === 'live'
+                  ? 'border-indigo-600 text-indigo-600'
+                  : 'border-transparent text-neutral-500 hover:text-neutral-900'
+                  }`}
               >
                 <Globe className="w-4 h-4" />
                 <span>Live ECA Portal Feed</span>
@@ -1239,10 +1231,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                               {doc.notice_date ||
                                 (doc.ingested_at
                                   ? new Date(doc.ingested_at).toLocaleDateString([], {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                    })
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                  })
                                   : 'N/A')}
                             </td>
                             <td className="py-3 px-4">
@@ -1561,8 +1553,8 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                   <div className="p-3.5 bg-neutral-50 border border-neutral-200 rounded-xl space-y-2.5">
                     <div className="flex items-center justify-between">
                       <div className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                        <span>Core Official Portals (Hardcoded Prefetch Presets)</span>
+                        <Layers className="w-3.5 h-3.5 text-neutral-500" />
+                        <span>Official Department Presets</span>
                       </div>
                       <span className="text-[10px] text-neutral-500">1-Click Fast Pick</span>
                     </div>
@@ -1634,11 +1626,10 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                   />
                   {urlTestResult && (
                     <div
-                      className={`mt-1.5 p-2 rounded-lg text-[11px] font-medium flex items-center gap-1.5 ${
-                        urlTestResult.is_valid
-                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-800 border border-rose-200'
-                      }`}
+                      className={`mt-1.5 p-2 rounded-lg text-[11px] font-medium flex items-center gap-1.5 ${urlTestResult.is_valid
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-rose-50 text-rose-800 border border-rose-200'
+                        }`}
                     >
                       {urlTestResult.is_valid ? (
                         <>
@@ -1856,7 +1847,7 @@ export const AdminSourcesPanel: React.FC<{ isStandalone?: boolean }> = ({ isStan
                   handleFetchAll()
                 }}
                 disabled={actionLoading === 'all'}
-                className="flex items-center gap-1.5 px-5 py-2 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl text-xs font-semibold shadow-sm transition active:scale-95"
+                className="flex items-center gap-1.5 px-5 py-2 bg-[#18181b] hover:bg-black text-white rounded-xl text-xs font-semibold shadow-xs transition"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Confirm & Sync All</span>

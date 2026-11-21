@@ -1,5 +1,5 @@
 import React from 'react'
-import { Building2, X } from 'lucide-react'
+import { X } from 'lucide-react'
 
 export interface DepartmentOption {
   id: string
@@ -31,10 +31,9 @@ export const DepartmentSelector: React.FC<DepartmentSelectorProps> = ({
 }) => {
   return (
     <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-1">
-      <div className="flex items-center gap-1 text-[11px] font-semibold text-neutral-400 uppercase tracking-wider flex-shrink-0 mr-1">
-        <Building2 className="w-3 h-3 text-neutral-500" />
-        <span className="hidden sm:inline">Scope:</span>
-      </div>
+      <span className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider flex-shrink-0 mr-1 hidden sm:inline">
+        Scope:
+      </span>
 
       {DEPARTMENTS.map((dept) => {
         const isSelected =
