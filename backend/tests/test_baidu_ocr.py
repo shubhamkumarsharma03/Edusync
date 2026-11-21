@@ -558,5 +558,3 @@ async def test_baidu_payload_includes_all_feature_flags(mock_baidu_client):
         # Verify visualization URL captured in page result
         assert len(result.pages) == 1
         assert result.pages[0].visualization_url == "https://example.com/vis_page_1.png"
-
-

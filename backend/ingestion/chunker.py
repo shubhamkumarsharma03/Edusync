@@ -63,8 +63,7 @@ def infer_doc_type(title: str, url: str, text: str) -> str:
     ):
         return "circular"
     if any(
-        k in combined
-        for k in ["syllabus", "curriculum", "course structure", "scheme", "पाठ्यक्रम"]
+        k in combined for k in ["syllabus", "curriculum", "course structure", "scheme", "पाठ्यक्रम"]
     ):
         return "syllabus"
     if any(
