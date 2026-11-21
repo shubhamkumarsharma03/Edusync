@@ -190,45 +190,46 @@ class ECAjmerFetcher(BaseFetcher):
         try:
             with fitz.open(stream=raw_bytes, filetype="pdf") as doc:
                 page_count = len(doc)
-                digital_pages = sum(
-                    1
-                    for page_num in range(page_count)
-                    if len(str(doc[page_num].get_text("text") or "").strip())
-                    >= ocr_service.min_text_threshold
-                )
-                is_scanned_doc = digital_pages == 0 and page_count > 0
+                paddle_max_pages = getattr(ocr_service.settings, "BAIDU_OCR_MAX_PAGES", 100)
 
-                # Fast batch document OCR via Baidu PaddleOCR if active
-                if is_scanned_doc and ocr_service.is_baidu_active:
+                # PaddleOCR-First Strategy:
+                # If PaddleOCR-VL is configured and active, invoke it as the primary layout-aware
+                # extractor for institutional notices and circulars.
+                if ocr_service.is_baidu_active and page_count <= paddle_max_pages:
                     from ingestion.progress import progress_tracker
 
                     fname = doc_name or pdf_url.split("/")[-1]
                     progress_tracker.update_step(
                         phase="ocr_inference",
                         step_index=3,
-                        current_action=f"Running Baidu PaddleOCR-VL on scanned PDF: {fname}",
+                        current_action=f"Running PaddleOCR-VL (Primary) on circular: {fname}",
                         next_action="Parse layout, extract tables & markdown",
                         source_id=source_id,
-                        log_message=f"Executing Baidu PaddleOCR-VL on {fname} ({page_count} pages)",
+                        log_message=f"Executing PaddleOCR-VL primary extractor on {fname} ({page_count} pages)",
                         log_level="ocr",
                         log_tag="OCR",
                     )
                     logger.info(
-                        f"Detected scanned circular PDF ({page_count} pages): {pdf_url}. Running full document OCR..."
+                        f"PaddleOCR-First: Processing circular PDF ({page_count} pages) via Baidu PaddleOCR-VL: {pdf_url}"
                     )
-                    batch_text, batch_tables = await ocr_service.extract_document(
-                        file_input=raw_bytes,
-                        source_url=pdf_url,
-                        is_pdf=True,
-                    )
-                    if batch_text:
-                        page_texts.append(batch_text)
-                        tables.extend(batch_tables)
-                        progress_tracker.log(
-                            f"PaddleOCR-VL completed for {fname}: extracted {len(batch_tables)} tables",
-                            level="ocr",
-                            tag="OCR",
-                            source_id=source_id,
+                    try:
+                        batch_text, batch_tables = await ocr_service.extract_document(
+                            file_input=raw_bytes,
+                            source_url=pdf_url,
+                            is_pdf=True,
+                        )
+                        if batch_text and batch_text.strip():
+                            page_texts.append(batch_text)
+                            tables.extend(batch_tables)
+                            progress_tracker.log(
+                                f"PaddleOCR-VL completed for {fname}: extracted {len(batch_tables)} tables, layout preserved",
+                                level="ocr",
+                                tag="OCR",
+                                source_id=source_id,
+                            )
+                    except Exception as ocr_err:
+                        logger.warning(
+                            f"PaddleOCR primary extraction failed for {pdf_url} ({ocr_err}). Falling back to PyMuPDF..."
                         )
 
                 if not page_texts:

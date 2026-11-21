@@ -47,32 +47,33 @@ class PDFFetcher(BaseFetcher):
         tables: list[ExtractedTable] = []
 
         try:
-            # Check if document is predominantly scanned (no digital text layer)
-            digital_pages = sum(
-                1
-                for page_num in range(len(doc))
-                if len(str(doc[page_num].get_text("text") or "").strip())
-                >= ocr_service.min_text_threshold
-            )
-            is_scanned_doc = digital_pages == 0 and len(doc) > 0
+            page_count = len(doc)
+            paddle_max_pages = getattr(ocr_service.settings, "BAIDU_OCR_MAX_PAGES", 100)
 
-            # Fast batch document OCR via Baidu PaddleOCR if active
-            if is_scanned_doc and ocr_service.is_baidu_active:
+            # PaddleOCR-First Strategy:
+            # When Baidu PaddleOCR-VL is configured, route documents directly to it as the primary
+            # extractor to preserve bilingual Hindi/English reading order and structured tables.
+            if ocr_service.is_baidu_active and page_count <= paddle_max_pages:
                 logger.info(
-                    f"Detected scanned PDF ({len(doc)} pages) without digital text: {source}. Running full document OCR..."
+                    f"PaddleOCR-First: Processing document ({page_count} pages) via Baidu PaddleOCR-VL: {source}..."
                 )
-                batch_text, batch_tables = await ocr_service.extract_document(
-                    file_input=raw_bytes,
-                    source_url=source,
-                    is_pdf=True,
-                )
-                if batch_text:
-                    page_texts.append(batch_text)
-                    tables.extend(batch_tables)
+                try:
+                    batch_text, batch_tables = await ocr_service.extract_document(
+                        file_input=raw_bytes,
+                        source_url=source,
+                        is_pdf=True,
+                    )
+                    if batch_text and batch_text.strip():
+                        page_texts.append(batch_text)
+                        tables.extend(batch_tables)
+                except Exception as ocr_err:
+                    logger.warning(
+                        f"PaddleOCR primary extraction failed for {source} ({ocr_err}). Falling back to PyMuPDF..."
+                    )
 
-            # Otherwise or if batch OCR did not populate text, process page by page
+            # PyMuPDF Secondary / Fallback extraction if PaddleOCR was inactive, skipped, or failed
             if not page_texts:
-                for page_num in range(len(doc)):
+                for page_num in range(page_count):
                     page = doc[page_num]
                     text = str(page.get_text("text") or "").strip()
 

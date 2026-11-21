@@ -72,6 +72,7 @@ Rules:
 3. key_facts must capture every important date, fee amount, deadline, room number, or condition mentioned.
 4. content_fingerprint must be deterministic: identical subject/event = identical fingerprint so supersessions can be detected.
 5. Be accurate and faithful to the text; do not hallucinate dates or numbers.
+6. Institutional notices are often bilingual (Hindi and English). Interpret Hindi Devanagari text accurately (e.g. कार्यालय आदेश = office_order, प्रवेश निरस्त / प्रवेश = admission, समय सारिणी = timetable, शुल्क = fee_notice, क्रमांक/पत्रांक = notice_serial).
 """
 
 

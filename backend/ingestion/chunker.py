@@ -21,16 +21,79 @@ def infer_doc_type(title: str, url: str, text: str) -> str:
     combined = f"{title} {url} {text[:1000]}".lower()
     if any(
         k in combined
-        for k in ["time table", "timetable", "time-table", "schedule", "datesheet", "date sheet"]
+        for k in [
+            "time table",
+            "timetable",
+            "time-table",
+            "schedule",
+            "datesheet",
+            "date sheet",
+            "समय सारिणी",
+            "समय-सारिणी",
+            "समय सारणी",
+            "समय तालिका",
+            "कक्षा समय सारिणी",
+        ]
     ):
         return "timetable"
-    if any(k in combined for k in ["circular", "office order", "notification", "office-order"]):
+    if any(
+        k in combined
+        for k in [
+            "admission",
+            "withdrawal",
+            "enrollment",
+            "नामांकन",
+            "प्रवेश निरस्त",
+            "निरस्त कराया",
+        ]
+    ):
+        return "admission"
+    if any(
+        k in combined
+        for k in [
+            "circular",
+            "office order",
+            "notification",
+            "office-order",
+            "कार्यालय आदेश",
+            "परिपत्र",
+            "विज्ञप्ति",
+            "सूचना",
+        ]
+    ):
         return "circular"
-    if any(k in combined for k in ["syllabus", "curriculum", "course structure", "scheme"]):
+    if any(
+        k in combined
+        for k in ["syllabus", "curriculum", "course structure", "scheme", "पाठ्यक्रम"]
+    ):
         return "syllabus"
-    if any(k in combined for k in ["fee", "dues", "tuition", "hostel fee", "scholarship"]):
+    if any(
+        k in combined
+        for k in [
+            "fee",
+            "dues",
+            "tuition",
+            "hostel fee",
+            "scholarship",
+            "शुल्क",
+            "फीस",
+            "छात्रवृत्ति",
+        ]
+    ):
         return "fee_notice"
-    if any(k in combined for k in ["exam", "examination", "mid-term", "end-term", "admit card"]):
+    if any(
+        k in combined
+        for k in [
+            "exam",
+            "examination",
+            "mid-term",
+            "end-term",
+            "admit card",
+            "परीक्षा",
+            "प्रायोगिक परीक्षा",
+            "मुख्य परीक्षा",
+        ]
+    ):
         return "exam_notice"
     return "notice"
 
@@ -43,6 +106,8 @@ def extract_document_date(text: str) -> str | None:
     # Check top portion of document first
     header_snippet = text[:1500]
     date_patterns = [
+        # Explicit Hindi or English prefix: दिनांक: 28/10/2024, Dated: 28-10-2024
+        r"(?:दिनांक|दिनांकित|dated?|date)[\s.:–-]*(\d{1,2}[-/\.]\d{1,2}[-/\.]\d{2,4})",
         # DD-MM-YYYY or DD/MM/YYYY or DD.MM.YYYY
         r"\b(\d{1,2}[-/\.]\d{1,2}[-/\.]\d{2,4})\b",
         # DD Month YYYY (e.g., 12 Sept 2026, 12 September 2026)
@@ -104,6 +169,8 @@ def extract_notice_sno(text: str) -> str | None:
         return None
 
     patterns = [
+        # Hindi reference / order prefixes: क्रमांक : आप्र / प्रोक्टर / 2024 / 202
+        r"(?:क्रमांक|पत्रांक|आदेश\s*क्रमांक|संदर्भ\s*(?:संख्या|क्रमांक)?)[\s.:–-]*([^\n,\r]{3,60})",
         r"(?:Notice\s*(?:S\.?\s*No|No|Ref|Ref\.?\s*No)[\.:\s]*)([A-Za-z0-9/\-_()\.]{3,40})",
         r"(?:Order\s*No[\.:\s]*)([A-Za-z0-9/\-_()\.]{3,40})",
         r"\b(ECA/[A-Za-z0-9/\-_()\.]{3,35})\b",
@@ -111,7 +178,9 @@ def extract_notice_sno(text: str) -> str | None:
     for pat in patterns:
         m = re.search(pat, text, re.IGNORECASE)
         if m:
-            return m.group(1).strip()
+            val = m.group(1).strip()
+            # Clean up trailing punctuation if any
+            return re.sub(r"[\s.:–-]+$", "", val)
     return None
 
 
@@ -136,9 +205,10 @@ def strip_notice_boilerplate(text: str) -> str:
 
     cleaned = text
 
-    # 1. Truncate trailing distribution lists (Copy forwarded to, Copy to following...)
+    # 1. Truncate trailing distribution lists (English & Hindi)
     distribution_patterns = [
         r"\n\s*(?:Copy\s+(?:forwarded\s+)?(?:for\s+information\s+and\s+necessary\s+action\s+)?to\s*[:\-]|Copy\s+to\s+the\s+following|Copy\s+to\s*:)[\s\S]*$",
+        r"\n\s*(?:प्रतिलिपि\b|प्रतिलिपि\s*[:\-–]+)[\s\S]*$",
     ]
     for pat in distribution_patterns:
         cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE)
@@ -148,6 +218,9 @@ def strip_notice_boilerplate(text: str) -> str:
         r"(?m)^\s*(?:GOVERNMENT\s+ENGINEERING\s+COLLEGE[,\s]+AJMER|ENGINEERING\s+COLLEGE[,\s]+AJMER)\s*$",
         r"(?m)^\s*(?:AN\s+AUTONOMOUS\s+INSTITUTION\s+OF\s+GOVT\.\s+OF\s+RAJASTHAN)\s*$",
         r"(?m)^\s*NH-8[,\s]+BARLIYA\s+CHOR?AHA?[,\s]+AJMER\s*[-–\s]*\d*\s*$",
+        r"(?m)^\s*(?:अभियांत्रिकी\s+महाविद्यालय[,\s]+अजमेर|राजकीय\s+अभियांत्रिकी\s+महाविद्यालय[,\s]+अजमेर)\s*$",
+        r"(?m)^\s*\(?(?:बीकानेर\s+तकनीकी\s+विश्वविद्यालय[^\)\n]*\)?)\s*$",
+        r"(?m)^\s*(?:नं[—\-–\.\s]*8\s*बडलिया\s+चौराहा[^\n]*)\s*$",
     ]
     for pat in header_patterns:
         cleaned = re.sub(pat, "", cleaned, flags=re.IGNORECASE)

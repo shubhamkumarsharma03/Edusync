@@ -6,7 +6,13 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from ingestion.chunker import SemanticChunker, extract_document_date, infer_doc_type
+from ingestion.chunker import (
+    SemanticChunker,
+    extract_document_date,
+    extract_notice_sno,
+    infer_doc_type,
+    strip_notice_boilerplate,
+)
 from ingestion.ocr import DocumentOCR
 from ingestion.ocr_baidu import BaiduPaddleOCRClient
 from ingestion.schemas import ExtractedTable, FetchedDocument
@@ -211,6 +217,21 @@ async def test_baidu_serving_flow(mock_baidu_client):
 
 
 @pytest.mark.asyncio
+async def test_baidu_429_quota_exceeded(mock_baidu_client):
+    """Verify clean RuntimeError when daily parsing limit of 20,000 pages returns HTTP 429."""
+    mock_baidu_client.mode = "async_job"
+
+    with patch("httpx.AsyncClient.post") as mock_post:
+        resp = AsyncMock()
+        resp.status_code = 429
+        resp.text = "Too Many Requests: Daily Parsing Quota Exceeded"
+        mock_post.return_value = resp
+
+        with pytest.raises(RuntimeError, match="HTTP 429: 20,000 pages"):
+            await mock_baidu_client.process_document(b"SAMPLE_BYTES", is_pdf=True)
+
+
+@pytest.mark.asyncio
 async def test_baidu_disk_cache_roundtrip(mock_baidu_client, temp_cache_dir):
     """Verify that parsed results are saved to disk and loaded without network requests."""
     mock_baidu_client.mode = "serving"
@@ -376,3 +397,166 @@ Please arrive 5 minutes before class starts.
     assert len(text_chunks) >= 1
     assert text_chunks[0].metadata.get("doc_type") == "timetable"
     assert text_chunks[0].metadata.get("document_date") == "10-09-2026"
+
+
+# ---------------------------------------------------------------------------
+# 5. Hindi Institutional Document Parsing & PaddleOCR-First Routing Tests
+# ---------------------------------------------------------------------------
+
+
+def test_hindi_institutional_notice_heuristics():
+    """Verify that mixed Hindi/English notices from ECA are correctly parsed."""
+    sample_hindi_notice = """
+अभियांत्रिकी महाविद्यालय, अजमेर
+(बीकानेर तकनीकी विश्वविद्यालय, बीकानेर का संघटक महाविद्यालय)
+नं.—8 बडलिया चौराहा, नारेली मंदिर के पास, अजमेर, 305025
+
+क्रमांक: आप्र / प्रोक्टर / 2024 / 202
+दिनांक 28/10/2024
+
+कार्यालय आदेश
+
+महाविद्यालय में सत्र 2024-25 में बी.टेक प्रथम वर्ष में प्रवेशित विद्यार्थियों ने महाविद्यालय से नामांकन पूर्व (Before Enrollment) अपना प्रवेश निरस्त कराया है जिनका विवरण निम्नानुसार है:-
+
+| S.No | College ID | Name Of Student | Father Name | Branch | Withdrawal Date |
+|---|---|---|---|---|---|
+| 1 | 24EE13 | Durga Shankar Gurjar | Kishan Lal Gurjar | Electrical Engineering | 24-09-2024 |
+| 2 | 24IT35 | Jatin Soni | Brijmohan Soni | Information Technology | 25-09-2024 |
+
+प्रतिलिपि:- (वेबसाइट द्वारा सूचनार्थ)
+1. प्राचार्य महोदय को सूचनार्थ।
+2. समस्त विभागाध्यक्ष को सूचनार्थ एवं पालनार्थ।
+3. सम्बद्ध पत्रावली।
+4. रक्षित पत्रावली।
+"""
+
+    # 1. Test doc type inference
+    doc_type = infer_doc_type("कार्यालय आदेश", "", sample_hindi_notice)
+    assert doc_type == "admission"
+
+    # 2. Test date extraction with Hindi prefix
+    doc_date = extract_document_date(sample_hindi_notice)
+    assert doc_date == "28/10/2024"
+
+    # 3. Test serial number with Hindi prefix
+    sno = extract_notice_sno(sample_hindi_notice)
+    assert sno == "आप्र / प्रोक्टर / 2024 / 202"
+
+    # 4. Test boilerplate stripping (distribution list stripped, table kept)
+    stripped = strip_notice_boilerplate(sample_hindi_notice)
+    assert "प्रतिलिपि" not in stripped
+    assert "रक्षित पत्रावली" not in stripped
+    assert "Durga Shankar Gurjar" in stripped
+
+
+@pytest.mark.asyncio
+async def test_pdf_fetcher_paddleocr_first():
+    """Verify PDFFetcher routes directly to PaddleOCR when active regardless of digital text."""
+    import pymupdf as fitz
+
+    from ingestion.fetchers.pdf_fetcher import PDFFetcher
+    from ingestion.ocr import ocr_service
+
+    # Create a dummy 1-page PDF
+    doc = fitz.open()
+    page = doc.new_page()
+    page.insert_text((50, 50), "Some minor digital text that should not block PaddleOCR")
+    pdf_bytes = doc.tobytes()
+    doc.close()
+
+    fetcher = PDFFetcher()
+
+    with (
+        patch.object(ocr_service.baidu_client, "token", "mock_valid_token"),
+        patch.object(
+            ocr_service,
+            "extract_document",
+            new_callable=AsyncMock,
+            return_value=(
+                "## Extracted by PaddleOCR-VL\nStructured markdown text",
+                [ExtractedTable(headers=["H1", "H2"], rows=[["V1", "V2"]])],
+            ),
+        ) as mock_extract,
+        patch.object(fetcher, "_get_raw_bytes", return_value=(pdf_bytes, {})),
+    ):
+        result = await fetcher.fetch("https://example.com/test.pdf")
+
+        # Must have invoked extract_document (PaddleOCR-First)
+        mock_extract.assert_called_once()
+        assert "Extracted by PaddleOCR-VL" in result.extracted_text
+        assert len(result.tables) == 1
+        assert result.tables[0].headers == ["H1", "H2"]
+
+
+@pytest.mark.asyncio
+async def test_baidu_payload_includes_all_feature_flags(mock_baidu_client):
+    """Verify that textline orientation, chart recognition, and visualize are transmitted in payloads."""
+    mock_baidu_client.mode = "async_job"
+    mock_baidu_client.use_textline_orientation = True
+    mock_baidu_client.use_chart_recognition = True
+    mock_baidu_client.visualize = True
+
+    captured_data: dict = {}
+
+    with (
+        patch("httpx.AsyncClient.post") as mock_post,
+        patch("httpx.AsyncClient.get") as mock_get,
+    ):
+        sub_resp = AsyncMock()
+        sub_resp.status_code = 200
+        sub_resp.json.return_value = {"code": 0, "data": {"jobId": "job-flags-123"}}
+
+        def capture_post(*args, **kwargs):
+            nonlocal captured_data
+            if "data" in kwargs:
+                captured_data = kwargs["data"]
+            elif "json" in kwargs:
+                captured_data = kwargs["json"]
+            return sub_resp
+
+        mock_post.side_effect = capture_post
+
+        # Poll immediately done
+        poll_resp = AsyncMock()
+        poll_resp.status_code = 200
+        poll_resp.json.return_value = {
+            "data": {
+                "state": "done",
+                "resultUrl": {"jsonUrl": "https://example.com/res.jsonl"},
+            }
+        }
+
+        # JSONL with visualization
+        jsonl_resp = AsyncMock()
+        jsonl_resp.status_code = 200
+        jsonl_resp.raise_for_status = lambda: None
+        jsonl_resp.text = json.dumps(
+            {
+                "result": {
+                    "layoutParsingResults": [
+                        {
+                            "markdown": {"text": "Notice content", "images": {}},
+                            "outputImages": {"layout": "https://example.com/vis_page_1.png"},
+                        }
+                    ]
+                }
+            }
+        )
+        mock_get.side_effect = [poll_resp, jsonl_resp]
+
+        result = await mock_baidu_client.process_document(b"SAMPLE_PDF_BYTES", is_pdf=True)
+
+        # Verify payload flags
+        assert "optionalPayload" in captured_data
+        opt_payload = json.loads(captured_data["optionalPayload"])
+        assert opt_payload["useDocOrientationClassify"] is True
+        assert opt_payload["useDocUnwarping"] is True
+        assert opt_payload["useTextlineOrientation"] is True
+        assert opt_payload["useChartRecognition"] is True
+        assert opt_payload["visualize"] is True
+
+        # Verify visualization URL captured in page result
+        assert len(result.pages) == 1
+        assert result.pages[0].visualization_url == "https://example.com/vis_page_1.png"
+
+

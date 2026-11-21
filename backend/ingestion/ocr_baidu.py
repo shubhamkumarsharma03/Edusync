@@ -23,6 +23,7 @@ class BaiduOCRPageResult(BaseModel):
     markdown_text: str
     tables: list[ExtractedTable] = Field(default_factory=list)
     image_urls: dict[str, str] = Field(default_factory=dict)
+    visualization_url: str | None = None
 
 
 class BaiduOCRDocumentResult(BaseModel):
@@ -57,6 +58,10 @@ class BaiduPaddleOCRClient:
         self.mode: str = getattr(self.settings, "BAIDU_OCR_MODE", "auto").lower()
         self.poll_interval: float = float(getattr(self.settings, "BAIDU_OCR_POLL_INTERVAL", 3.0))
         self.timeout: float = float(getattr(self.settings, "BAIDU_OCR_TIMEOUT", 120.0))
+        self.max_pages: int = int(getattr(self.settings, "BAIDU_OCR_MAX_PAGES", 100))
+        self.daily_page_limit: int = int(
+            getattr(self.settings, "BAIDU_OCR_DAILY_PAGE_LIMIT", 20000)
+        )
         self.use_orientation: bool = bool(
             getattr(self.settings, "BAIDU_OCR_USE_DOC_ORIENTATION", True)
         )
@@ -221,7 +226,9 @@ class BaiduPaddleOCRClient:
         optional_payload = {
             "useDocOrientationClassify": self.use_orientation,
             "useDocUnwarping": self.use_unwarping,
+            "useTextlineOrientation": self.use_textline_orientation,
             "useChartRecognition": self.use_chart_recognition,
+            "visualize": self.visualize,
         }
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
@@ -263,6 +270,13 @@ class BaiduPaddleOCRClient:
                 raise ValueError("Neither raw bytes nor valid URL provided for Baidu OCR")
 
             if job_resp.status_code != 200:
+                if job_resp.status_code == 429:
+                    logger.error(
+                        "Baidu PaddleOCR daily parsing quota reached (HTTP 429 - 20,000 pages limit exceeded)."
+                    )
+                    raise RuntimeError(
+                        "Baidu PaddleOCR daily quota exceeded (HTTP 429: 20,000 pages/day limit reached)."
+                    )
                 logger.error(
                     f"Baidu OCR job submission failed [{job_resp.status_code}]: {job_resp.text}"
                 )
@@ -295,6 +309,10 @@ class BaiduPaddleOCRClient:
 
                 status_resp = await client.get(poll_url, headers=poll_headers)
                 if status_resp.status_code != 200:
+                    if status_resp.status_code == 429:
+                        raise RuntimeError(
+                            "Baidu PaddleOCR daily quota exceeded while polling (HTTP 429)."
+                        )
                     raise RuntimeError(
                         f"Failed to poll Baidu OCR job {job_id}: {status_resp.status_code} {status_resp.text}"
                     )
@@ -359,11 +377,20 @@ class BaiduPaddleOCRClient:
                     page_tables = parse_markdown_tables(page_text, page_number=page_idx)
                     all_tables.extend(page_tables)
 
+                    output_images = res.get("outputImages", {}) or {}
+                    vis_url = (
+                        output_images.get("layout")
+                        or res.get("visualizeUrl")
+                        or res.get("visualizeResult")
+                        or None
+                    )
+
                     page_res = BaiduOCRPageResult(
                         page_number=page_idx,
                         markdown_text=page_text,
                         tables=page_tables,
                         image_urls=images,
+                        visualization_url=vis_url,
                     )
                     pages.append(page_res)
                     page_mds.append(f"--- Page {page_idx} (Baidu PaddleOCR) ---\n{page_text}")
@@ -399,12 +426,20 @@ class BaiduPaddleOCRClient:
             "useDocOrientationClassify": self.use_orientation,
             "useDocUnwarping": self.use_unwarping,
             "useTextlineOrientation": self.use_textline_orientation,
+            "useChartRecognition": self.use_chart_recognition,
             "visualize": self.visualize,
         }
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             resp = await client.post(self.api_url, json=payload, headers=headers)
             if resp.status_code != 200:
+                if resp.status_code == 429:
+                    logger.error(
+                        "Baidu PaddleOCR daily parsing quota reached (HTTP 429 - 20,000 pages limit exceeded)."
+                    )
+                    raise RuntimeError(
+                        "Baidu PaddleOCR daily quota exceeded (HTTP 429: 20,000 pages/day limit reached)."
+                    )
                 raise RuntimeError(
                     f"Baidu OCR serving request failed ({resp.status_code}): {resp.text}"
                 )
@@ -428,11 +463,13 @@ class BaiduPaddleOCRClient:
                 page_tables = parse_markdown_tables(page_text, page_number=page_num)
                 all_tables.extend(page_tables)
 
+                vis_url = res.get("visualizeUrl") or res.get("visualizeResult") or None
                 pages.append(
                     BaiduOCRPageResult(
                         page_number=page_num,
                         markdown_text=page_text,
                         tables=page_tables,
+                        visualization_url=vis_url,
                     )
                 )
                 page_mds.append(f"--- Page {page_num} (Baidu PaddleOCR) ---\n{page_text}")
