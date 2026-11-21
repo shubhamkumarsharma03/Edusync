@@ -291,6 +291,35 @@ Format: lightweight ADR (Architecture Decision Record). Newest decisions at the 
 
 ---
 
+## ADR-019: Admin Dashboard Operations, Conflict Invalidation (Drop Both), Manual Ingestion, and System Tools Sandbox
+
+**Status:** Accepted
+
+**Context:** Institutional administrators required deeper operational controls to manage notices without technical intervention:
+1. Conflicting notices occasionally occur where *both* notices are erroneous or obsolete, requiring an action to "drop both" rather than choosing one authoritative document.
+2. Urgent physical notices or circulars issued offline must be ingested immediately into RAG without waiting for website publication.
+3. Operations teams needed diagnostic tools to evaluate retrieval scoring without polluting student query metrics, test external portal URL scrapers prior to scheduling, and trigger on-demand corpus syncs.
+4. The `documents_status_check` constraint previously restricted status values to `('fresh', 'stale', 'conflicted', 'pending')`, which caused DB constraint violations when marking documents as archived.
+
+**Decision:**
+1. **Schema Migration:** Created migration `d4e5f6a7b8c9` updating `documents_status_check` to allow `'archived'` status.
+2. **Conflict Resolution ("Drop Both" & Reopen):**
+   - Added `POST /admin/conflicts/{id}/resolve` support for `archive_both` / `drop_both`, which marks all involved documents as `archived`, completely excluding both from student retrieval.
+   - Added side-by-side text/chunk comparison modal (`GET /admin/conflicts/{id}/compare`).
+   - Added conflict audit reopen action (`POST /admin/conflicts/{id}/reopen`).
+3. **Manual Notice Ingestion & Metadata Editor:**
+   - Implemented `POST /admin/documents/manual-upload` to chunk, embed, and store offline notices on the fly.
+   - Implemented `PUT /admin/documents/{id}` for metadata editing (title, serial number, notice date, department).
+   - Added multi-row selection with floating bulk action bar (bulk re-ingest, status update, bulk delete).
+4. **System Tools & Analytics:**
+   - Built `SystemToolsPanel` featuring RAG Diagnostic Playground (`POST /admin/tools/rag-playground`), database/pgvector latency monitor (`GET /admin/tools/health`), and manual corpus sync trigger (`POST /admin/tools/sync-all-sources`).
+   - Added live source URL connectivity test (`POST /admin/sources/test-url`) directly inside the Add/Edit Source modal.
+   - Added 3-tier confidence distribution visualization and CSV query log export.
+
+**Consequences:** Administrators have end-to-end operational autonomy over document lifecycles, conflicts, emergency notices, and retrieval diagnostics while strictly preserving confidence gating and citation guarantees.
+
+---
+
 ## Open / not yet decided
 
 - Final decision on whether the ablation study (RAG variants × OCR engines) is scoped into the core capstone deliverable or treated as a stretch goal for the paper.

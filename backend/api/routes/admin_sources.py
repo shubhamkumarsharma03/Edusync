@@ -52,7 +52,6 @@ class SourceUpdate(BaseModel):
 
 
 class SourceResponse(SourceBase):
-
     id: UUID
     priority: int | None = None
     status: str
@@ -62,6 +61,18 @@ class SourceResponse(SourceBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TestUrlRequest(BaseModel):
+    url: str = Field(..., description="URL to test connectivity and parse sample circulars")
+
+
+class TestUrlResponse(BaseModel):
+    is_valid: bool
+    status_code: int = 200
+    notices_found: int = 0
+    sample_titles: list[str] = []
+    message: str
 
 
 class ReorderItem(BaseModel):
@@ -117,6 +128,34 @@ async def list_sources(session: AsyncSession = Depends(get_db)) -> list[Ingestio
     )
     result = await session.execute(stmt)
     return list(result.scalars().all())
+
+
+@router.post("/test-url", response_model=TestUrlResponse)
+async def test_source_url(payload: TestUrlRequest) -> TestUrlResponse:
+    """Test connection to an ECA landing URL and verify notice extraction."""
+    url = payload.url.strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL cannot be empty")
+
+    fetcher = ECAjmerFetcher(timeout=10.0)
+    try:
+        entries = await fetcher.fetch_circular_entries(url, limit=5)
+        titles = [e.get("title", "Untitled") for e in entries if isinstance(e, dict)]
+        return TestUrlResponse(
+            is_valid=True,
+            status_code=200,
+            notices_found=len(entries),
+            sample_titles=titles[:3],
+            message=f"Connection verified. Extracted {len(entries)} notices from portal.",
+        )
+    except Exception as e:
+        return TestUrlResponse(
+            is_valid=False,
+            status_code=500,
+            notices_found=0,
+            sample_titles=[],
+            message=f"Could not extract notices from URL: {e}",
+        )
 
 
 @router.post("", response_model=SourceResponse, status_code=status.HTTP_201_CREATED)

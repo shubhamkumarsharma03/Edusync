@@ -4,6 +4,17 @@ import {
   getAdminDocuments,
   resolveConflict,
   reingestDocument,
+  updateDocumentStatus,
+  deleteDocument,
+  bulkActionDocuments,
+  compareConflictDocuments,
+  reopenConflict,
+  updateDocumentMetadata,
+  manualUploadDocument,
+  testSourceUrl,
+  getSystemToolsHealth,
+  runRAGPlayground,
+  triggerCorpusSync,
 } from '../src/api/admin'
 
 describe('Admin Dashboard - Phase 6 API & Logic Tests', () => {
@@ -94,5 +105,181 @@ describe('Admin Dashboard - Phase 6 API & Logic Tests', () => {
       })
     )
     expect(res.status).toBe('success')
+  })
+
+  it('resolveConflict supports archive_both resolution', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: 'success',
+        conflict_id: 'conf-1',
+        resolution_type: 'archive_both',
+      }),
+    }) as any
+
+    const res = await resolveConflict('conf-1', undefined, 'archive_both', 'Both obsolete')
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/conflicts/conf-1/resolve'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          authoritative_document_id: null,
+          resolution_type: 'archive_both',
+          notes: 'Both obsolete',
+        }),
+      })
+    )
+    expect(res.resolution_type).toBe('archive_both')
+  })
+
+  it('updateDocumentStatus patches document status', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'success', document_id: 'doc-1', new_status: 'archived' }),
+    }) as any
+
+    const res = await updateDocumentStatus('doc-1', 'archived')
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/documents/doc-1/status'),
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ status: 'archived' }),
+      })
+    )
+    expect(res.new_status).toBe('archived')
+  })
+
+  it('bulkActionDocuments posts bulk actions', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'success', action: 'update_status', affected_count: 2 }),
+    }) as any
+
+    const res = await bulkActionDocuments(['d1', 'd2'], 'update_status', 'fresh')
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/documents/bulk-action'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          document_ids: ['d1', 'd2'],
+          action: 'update_status',
+          target_status: 'fresh',
+        }),
+      })
+    )
+    expect(res.affected_count).toBe(2)
+  })
+
+  it('compareConflictDocuments and reopenConflict work correctly', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ conflict_id: 'c1', documents: [] }),
+    }).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ status: 'success', message: 'Reopened' }),
+    }) as any
+
+    const comp = await compareConflictDocuments('c1')
+    expect(comp.conflict_id).toBe('c1')
+
+    const reopen = await reopenConflict('c1')
+    expect(reopen.status).toBe('success')
+  })
+
+  it('updateDocumentMetadata puts updated metadata', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'success', document_id: 'doc-1', updated_fields: { title: 'New Title' } }),
+    }) as any
+
+    const res = await updateDocumentMetadata('doc-1', { title: 'New Title' })
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/documents/doc-1'),
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ title: 'New Title' }),
+      })
+    )
+    expect(res.status).toBe('success')
+  })
+
+  it('manualUploadDocument posts direct notice for chunking and embedding', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ status: 'success', document_id: 'doc-manual', chunks_count: 3 }),
+    }) as any
+
+    const res = await manualUploadDocument({
+      title: 'Manual Notice',
+      content: 'This is the body of the notice.',
+      department_id: 1,
+    })
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/documents/manual-upload'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          title: 'Manual Notice',
+          content: 'This is the body of the notice.',
+          department_id: 1,
+        }),
+      })
+    )
+    expect(res.chunks_count).toBe(3)
+  })
+
+  it('testSourceUrl tests ECA web connectivity', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        url: 'https://ecajmer.ac.in/departments/cs-it/circulars',
+        is_valid: true,
+        status_code: 200,
+        notices_found: 10,
+        sample_titles: [],
+        message: 'Success',
+      }),
+    }) as any
+
+    const res = await testSourceUrl('https://ecajmer.ac.in/departments/cs-it/circulars')
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/admin/sources/test-url'),
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ url: 'https://ecajmer.ac.in/departments/cs-it/circulars' }),
+      })
+    )
+    expect(res.is_valid).toBe(true)
+    expect(res.notices_found).toBe(10)
+  })
+
+  it('getSystemToolsHealth and runRAGPlayground work properly', async () => {
+    global.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        db_ping_ms: 1.2,
+        pgvector_extension: true,
+        total_documents: 207,
+        total_chunks: 538,
+        total_sources: 22,
+        unresolved_conflicts: 0,
+      }),
+    }).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        query: 'When are mid-term exams?',
+        passed_gate: true,
+        confidence_score: 0.88,
+        retrieved_chunks: [],
+      }),
+    }) as any
+
+    const health = await getSystemToolsHealth()
+    expect(health.pgvector_extension).toBe(true)
+    expect(health.total_documents).toBe(207)
+
+    const diag = await runRAGPlayground('When are mid-term exams?')
+    expect(diag.passed_gate).toBe(true)
+    expect(diag.confidence_score).toBe(0.88)
   })
 })

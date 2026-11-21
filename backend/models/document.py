@@ -48,7 +48,7 @@ class Document(Base, UUIDMixin):
             source_type.in_(["pdf", "html", "sheet"]), name="documents_source_type_check"
         ),
         CheckConstraint(
-            status.in_(["fresh", "stale", "conflicted", "pending"]),
+            status.in_(["fresh", "stale", "conflicted", "pending", "archived"]),
             name="documents_status_check",
         ),
     )

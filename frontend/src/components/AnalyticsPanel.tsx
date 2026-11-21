@@ -8,17 +8,23 @@ import {
   FileText,
   RotateCw,
   TrendingUp,
+  Download,
+  ChevronDown,
+  ChevronUp,
+  Target,
 } from 'lucide-react'
-import { AnalyticsData, getAdminAnalytics } from '../api/admin'
+import { AnalyticsData, getAdminAnalytics, getExportAnalyticsCsvUrl } from '../api/admin'
 
 export const AnalyticsPanel: React.FC = () => {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [queryFilter, setQueryFilter] = useState('all')
+  const [expandedQueryId, setExpandedQueryId] = useState<string | null>(null)
 
   const loadData = async () => {
     try {
       setLoading(true)
-      const data = await getAdminAnalytics()
+      const data = await getAdminAnalytics(queryFilter)
       setAnalytics(data)
     } catch (err) {
       console.error('Failed to load admin analytics:', err)
@@ -29,7 +35,7 @@ export const AnalyticsPanel: React.FC = () => {
 
   useEffect(() => {
     loadData()
-  }, [])
+  }, [queryFilter])
 
   if (loading && !analytics) {
     return (
@@ -52,20 +58,34 @@ export const AnalyticsPanel: React.FC = () => {
   return (
     <div className="space-y-6 font-['Inter',sans-serif]">
       {/* Top Header */}
-      <div className="flex items-center justify-between pb-3 border-b border-[#f0f0f2]">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#f0f0f2]">
         <div>
           <h2 className="text-lg font-bold text-[#18181b]">System Performance & Analytics</h2>
           <p className="text-xs text-neutral-500 mt-0.5">
             Real-time query metrics, student satisfaction breakdown, and knowledge base coverage.
           </p>
         </div>
-        <button
-          onClick={loadData}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f4f4f5] hover:bg-[#e4e4e7] text-neutral-700 rounded-xl text-xs font-semibold border border-[#d4d4d8] transition shadow-sm cursor-pointer"
-        >
-          <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Export CSV Button */}
+          <a
+            href={getExportAnalyticsCsvUrl()}
+            download="edusync_queries_export.csv"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f4f4f5] hover:bg-[#e4e4e7] text-neutral-700 rounded-xl text-xs font-semibold border border-[#d4d4d8] transition shadow-sm cursor-pointer"
+            title="Download full query history as CSV"
+          >
+            <Download className="w-3.5 h-3.5 text-neutral-600" />
+            <span>Export CSV</span>
+          </a>
+
+          {/* Refresh Button */}
+          <button
+            onClick={loadData}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#f4f4f5] hover:bg-[#e4e4e7] text-neutral-700 rounded-xl text-xs font-semibold border border-[#d4d4d8] transition shadow-sm cursor-pointer"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
 
       {/* KPI Cards Grid */}
@@ -116,6 +136,56 @@ export const AnalyticsPanel: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Retrieval Confidence Distribution Bar Card */}
+      {analytics?.confidence_distribution && (
+        <div className="bg-white border border-[#e4e4e7] rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Target className="w-3.5 h-3.5 text-neutral-500" />
+                <span>Retrieval Confidence Distribution</span>
+              </h3>
+              <p className="text-[11px] text-neutral-400 mt-0.5">
+                Production threshold gating (&ge;0.65 high precision, 0.40 - 0.65 moderate, &lt;0.40 strict fallback abstention)
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                High ({analytics.confidence_distribution.high_count}) {analytics.confidence_distribution.high_percentage}%
+              </span>
+              <span className="flex items-center gap-1 text-amber-700 font-semibold">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                Medium ({analytics.confidence_distribution.medium_count}) {analytics.confidence_distribution.medium_percentage}%
+              </span>
+              <span className="flex items-center gap-1 text-rose-700 font-semibold">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                Fallback ({analytics.confidence_distribution.low_count}) {analytics.confidence_distribution.low_percentage}%
+              </span>
+            </div>
+          </div>
+
+          {/* Segmented Progress Bar */}
+          <div className="w-full h-3 bg-neutral-100 rounded-full overflow-hidden flex">
+            <div
+              style={{ width: `${analytics.confidence_distribution.high_percentage}%` }}
+              className="bg-emerald-500 transition-all duration-500 h-full"
+              title={`High Confidence: ${analytics.confidence_distribution.high_percentage}%`}
+            />
+            <div
+              style={{ width: `${analytics.confidence_distribution.medium_percentage}%` }}
+              className="bg-amber-500 transition-all duration-500 h-full"
+              title={`Medium Confidence: ${analytics.confidence_distribution.medium_percentage}%`}
+            />
+            <div
+              style={{ width: `${analytics.confidence_distribution.low_percentage}%` }}
+              className="bg-rose-500 transition-all duration-500 h-full"
+              title={`Fallback Abstentions: ${analytics.confidence_distribution.low_percentage}%`}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Two Column Layout: Feedback Breakdown + Top Fallback Questions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -202,16 +272,34 @@ export const AnalyticsPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Queries Log Table */}
+      {/* Recent Queries Log Table with Filter */}
       <div className="bg-white border border-[#e4e4e7] rounded-2xl p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04)] space-y-4">
-        <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
-          <TrendingUp className="w-3.5 h-3.5 text-neutral-500" />
-          <span>Recent Student Queries Log</span>
-        </h3>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
+            <TrendingUp className="w-3.5 h-3.5 text-neutral-500" />
+            <span>Recent Student Queries Log</span>
+          </h3>
+
+          {/* Filter Dropdown */}
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-neutral-500 font-medium">Filter:</span>
+            <select
+              value={queryFilter}
+              onChange={(e) => setQueryFilter(e.target.value)}
+              className="px-2.5 py-1 bg-[#f8f9fa] border border-[#e4e4e7] rounded-lg text-xs font-medium text-neutral-800 focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Queries</option>
+              <option value="positive">Positive Feedback</option>
+              <option value="negative">Negative Feedback</option>
+              <option value="unrated">Unrated</option>
+              <option value="fallback">Fallbacks (&le;0.40)</option>
+            </select>
+          </div>
+        </div>
 
         {!analytics?.recent_queries || analytics.recent_queries.length === 0 ? (
           <p className="text-xs text-neutral-400 py-6 text-center">
-            No queries logged yet. Ask questions in the student chat to see live traces here.
+            No queries matching filter "{queryFilter}".
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -223,45 +311,83 @@ export const AnalyticsPanel: React.FC = () => {
                   <th className="py-2.5 px-3">Answer Summary</th>
                   <th className="py-2.5 px-3 text-center">Confidence</th>
                   <th className="py-2.5 px-3 text-center">Rating</th>
+                  <th className="py-2.5 px-3 text-center w-12">Details</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#ebecee]">
-                {analytics.recent_queries.map((q) => (
-                  <tr key={q.id} className="hover:bg-[#f8f9fa] transition">
-                    <td className="py-2.5 px-3 text-neutral-500 whitespace-nowrap">
-                      {new Date(q.created_at).toLocaleTimeString([], {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </td>
-                    <td className="py-2.5 px-3 font-medium text-neutral-900 max-w-xs truncate">
-                      {q.question}
-                    </td>
-                    <td className="py-2.5 px-3 text-neutral-600 max-w-sm truncate">
-                      {q.answer_preview || 'N/A'}
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className="px-2 py-0.5 bg-neutral-100 text-neutral-800 rounded font-mono text-[10px] border border-neutral-200">
-                        {q.confidence_score !== null && q.confidence_score !== undefined
-                          ? Number(q.confidence_score).toFixed(2)
-                          : 'N/A'}
-                      </span>
-                    </td>
-                    <td className="py-2.5 px-3 text-center">
-                      {q.feedback === 'up' ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
-                          <ThumbsUp className="w-3 h-3 text-emerald-600" /> Positive
-                        </span>
-                      ) : q.feedback === 'down' ? (
-                        <span className="inline-flex items-center gap-1 text-rose-700 font-medium">
-                          <ThumbsDown className="w-3 h-3 text-rose-600" /> Negative
-                        </span>
-                      ) : (
-                        <span className="text-neutral-400">-</span>
+                {analytics.recent_queries.map((q) => {
+                  const isExpanded = expandedQueryId === q.id
+                  return (
+                    <React.Fragment key={q.id}>
+                      <tr
+                        onClick={() => setExpandedQueryId(isExpanded ? null : q.id)}
+                        className="hover:bg-[#f8f9fa] transition cursor-pointer"
+                      >
+                        <td className="py-2.5 px-3 text-neutral-500 whitespace-nowrap">
+                          {new Date(q.created_at).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </td>
+                        <td className="py-2.5 px-3 font-medium text-neutral-900 max-w-xs truncate">
+                          {q.question}
+                        </td>
+                        <td className="py-2.5 px-3 text-neutral-600 max-w-sm truncate">
+                          {q.answer_preview || 'N/A'}
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          <span className="px-2 py-0.5 bg-neutral-100 text-neutral-800 rounded font-mono text-[10px] border border-neutral-200">
+                            {q.confidence_score !== null && q.confidence_score !== undefined
+                              ? Number(q.confidence_score).toFixed(2)
+                              : 'N/A'}
+                          </span>
+                        </td>
+                        <td className="py-2.5 px-3 text-center">
+                          {q.feedback === 'up' ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-700 font-medium">
+                              <ThumbsUp className="w-3 h-3 text-emerald-600" /> Positive
+                            </span>
+                          ) : q.feedback === 'down' ? (
+                            <span className="inline-flex items-center gap-1 text-rose-700 font-medium">
+                              <ThumbsDown className="w-3 h-3 text-rose-600" /> Negative
+                            </span>
+                          ) : (
+                            <span className="text-neutral-400">-</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 text-center text-neutral-400">
+                          {isExpanded ? (
+                            <ChevronUp className="w-3.5 h-3.5 mx-auto" />
+                          ) : (
+                            <ChevronDown className="w-3.5 h-3.5 mx-auto" />
+                          )}
+                        </td>
+                      </tr>
+
+                      {/* Expanded Query Row */}
+                      {isExpanded && (
+                        <tr className="bg-neutral-50/70">
+                          <td colSpan={6} className="py-3 px-4 space-y-2 border-b border-neutral-200">
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block mb-0.5">
+                                Full Question:
+                              </span>
+                              <p className="font-semibold text-neutral-900 text-xs">{q.question}</p>
+                            </div>
+                            <div>
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400 block mb-0.5">
+                                Full Answer Preview:
+                              </span>
+                              <p className="text-neutral-700 text-xs whitespace-pre-wrap leading-relaxed">
+                                {q.answer_preview || 'No answer generated.'}
+                              </p>
+                            </div>
+                          </td>
+                        </tr>
                       )}
-                    </td>
-                  </tr>
-                ))}
+                    </React.Fragment>
+                  )
+                })}
               </tbody>
             </table>
           </div>

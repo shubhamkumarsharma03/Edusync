@@ -7,12 +7,14 @@ import {
   Bot,
   LogOut,
   ShieldCheck,
+  Wrench,
 } from 'lucide-react'
 import { AdminAuthGate } from './AdminAuthGate'
 import { AnalyticsPanel } from './AnalyticsPanel'
 import { DocumentsTable } from './DocumentsTable'
 import { ConflictsPanel } from './ConflictsPanel'
 import { AdminSourcesPanel } from './AdminSourcesPanel'
+import { SystemToolsPanel } from './SystemToolsPanel'
 import { getAdminConflicts } from '../api/admin'
 
 export const AdminDashboard: React.FC = () => {
@@ -21,7 +23,7 @@ export const AdminDashboard: React.FC = () => {
     return sessionStorage.getItem('edusync_admin_auth') === 'authenticated'
   })
 
-  const [activeTab, setActiveTab] = useState<'analytics' | 'documents' | 'conflicts' | 'sources'>('analytics')
+  const [activeTab, setActiveTab] = useState<'analytics' | 'documents' | 'conflicts' | 'sources' | 'tools'>('analytics')
   const [unresolvedCount, setUnresolvedCount] = useState<number>(0)
 
   useEffect(() => {
@@ -149,6 +151,18 @@ export const AdminDashboard: React.FC = () => {
             <Globe className="w-3.5 h-3.5" />
             <span>Ingestion Sources</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('tools')}
+            className={`flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl transition cursor-pointer ${
+              activeTab === 'tools'
+                ? 'bg-[#18181b] text-white shadow-sm'
+                : 'bg-white text-neutral-600 hover:text-neutral-900 border border-[#e4e4e7] hover:bg-neutral-50'
+            }`}
+          >
+            <Wrench className="w-3.5 h-3.5" />
+            <span>System Tools</span>
+          </button>
         </div>
 
         {/* Tab Panels */}
@@ -161,6 +175,7 @@ export const AdminDashboard: React.FC = () => {
               <AdminSourcesPanel />
             </div>
           )}
+          {activeTab === 'tools' && <SystemToolsPanel />}
         </div>
       </div>
     </div>

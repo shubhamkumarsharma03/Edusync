@@ -185,16 +185,36 @@ This plan sequences the build so nothing later depends on something not yet buil
 
 ---
 
-## Phase 6 — Frontend: Admin Dashboard
+## Phase 6 — Frontend: Admin Dashboard & Operations Control
 
-**Goal:** Content owners can see system health and resolve conflicts without touching the DB directly.
+**Goal:** Content owners can see system health, audit queries, manage sources, test retrieval sandbox, and resolve conflicts without touching the DB directly.
 
 - [x] `DocumentsTable` — list with status badges (fresh/stale/conflicted/pending/archived), department & status filtering, search, view PDF action, and manual "Re-ingest" button per row
+  - [x] Multi-row selection checkboxes with floating bulk action toolbar (Bulk Re-ingest, Mark Fresh, Mark Archived, Bulk Delete)
+  - [x] Inline status switcher dropdown per document (`fresh`, `stale`, `conflicted`, `archived`)
+  - [x] Document Chunks Inspector modal displaying raw chunks, token counts, and chunk IDs
+  - [x] Inline Document Metadata Editor modal (title, serial number, notice date, department)
+  - [x] Manual Notice Upload modal for emergency/offline circulars with on-the-fly chunking and vector embedding
+  - [x] Document Cascade Delete action with confirmation modal
 - [x] `ConflictsPanel` — list unresolved conflicts with side-by-side comparison, action to mark one document authoritative, mark both as non-conflicting, or dismiss with audit note tracking
+  - [x] "Drop Both Documents" (`archive_both` / `drop_both`) for cases where both conflicting circulars are invalid/superseded
+  - [x] Side-by-side full text and chunk comparison modal (`GET /admin/conflicts/{id}/compare`)
+  - [x] Reopen resolved conflict action for administrative re-review (`POST /admin/conflicts/{id}/reopen`)
+  - [x] Department filter dropdown to isolate circular conflicts by section
 - [x] `AnalyticsPanel` — KPI metrics (total queries, avg latency, fallback rate, resolution rate), feedback breakdown, top unanswered/fallback questions, and recent query audit table
+  - [x] 3-tier Retrieval Confidence Distribution bar (High $\ge 0.65$, Medium $0.40-0.65$, Fallback $< 0.40$)
+  - [x] Filterable recent query traces (all, positive, negative, unrated, fallback) with expandable details
+  - [x] Downloadable query history CSV export (`GET /admin/analytics/export`)
+- [x] `AdminSourcesPanel` — manage, reorder, pause/resume, and prefetch official ingestion sources
+  - [x] "Test Connection" button calling `POST /admin/sources/test-url` to verify target page accessibility and circular extraction live
+- [x] `SystemToolsPanel` — operations, diagnostics, and sandbox
+  - [x] Diagnostic RAG Playground to run hybrid search + reranking + confidence gating without logging to student history
+  - [x] Celery background corpus sync trigger (`POST /admin/tools/sync-all-sources`)
+  - [x] PostgreSQL & pgvector health ping monitor (`GET /admin/tools/health`)
 - [x] Basic auth gate — shared-passcode security modal (`edusync-admin-2026`) with backend verification and session storage persistence
+- [x] Database schema migration `d4e5f6a7b8c9` updating check constraint to allow `archived` status in `documents.status`
 
-**Exit criteria:** Editing a seeded source and re-running ingestion is visible as a status change in the dashboard within one refresh; a manually created conflict can be resolved through the UI and disappears from retrieval exclusion. (Completed)
+**Exit criteria:** Editing a seeded source and re-running ingestion is visible as a status change in the dashboard within one refresh; a manually created conflict can be resolved through the UI (including drop both) and disappears from retrieval exclusion; RAG playground evaluates queries live; all contract and UI tests pass. (Completed)
 
 ---
 
@@ -204,11 +224,11 @@ This plan sequences the build so nothing later depends on something not yet buil
 - [x] Run comprehensive database audit: 100% metadata completeness, 0 orphan records, verified vector integrity
 - [x] Backfill legacy documents (`owner`, `original_content`, `notice_memory` fields)
 - [x] Implement Query Lifecycle Logging (`queries_log`) and student feedback API (`POST /chat/feedback`)
-- [x] Automated conflict resolution script with audit logging (`scripts/resolve_pending_conflicts.py`)
+- [] Automated conflict resolution script with audit logging (`scripts/resolve_pending_conflicts.py`)
 - [ ] Run the 100-question evaluation harness, record baseline precision/accuracy numbers
 - [ ] Fix highest-impact failures surfaced by the harness
-- [ ] Record demo video / prepare live demo script
-- [ ] Write Sem 7 interim report referencing PRD milestones M1–M4 as completed
+- [x] Record demo video / prepare live demo script
+- [x] Write Sem 7 interim report referencing PRD milestones M1–M4 as completed
 
 **Exit criteria:** All Sem 7 milestones (per PRD §8) demonstrably complete; evaluation numbers documented for comparison in Sem 8's ablation study.
 
